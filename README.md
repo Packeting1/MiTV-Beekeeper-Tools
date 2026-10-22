@@ -27,7 +27,7 @@
 | Support IMAX | 在图像模式里显示 IMAX |
 | Support AISR Level | 在“图像参数 > 清晰度”里显示超分辨率强度调节 |
 | Support Volume Balance | 在声音设置里显示音量均衡 |
-| Windows DV EDID | 修改 HDMI/DP 的 EDID，让 Windows 能识别杜比视界（卸载后恢复原文件） |
+| Windows DV EDID | 修复 HDMI/DP 的 EDID，让 Windows 能识别杜比视界（卸载后恢复原文件） |
 
 开关类模块会在开机时把对应项写入 `/data/system/mitv.config.xml`，并用 `chattr +i` 锁定，防止云端配置覆盖；卸载模块时会解锁并还原。
 

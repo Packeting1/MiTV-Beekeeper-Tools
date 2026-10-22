@@ -149,7 +149,7 @@ public class MainActivity extends Activity {
             "在声音设置里显示“音量均衡”。",
             null).mod("beekeeper_volume_balance", "mod_volbalance.zip"),
         new Group(KIND_MOD, "Windows 杜比视界 EDID（Magisk模块）",
-            "修改 HDMI/DP 的 EDID，让 Windows 能识别杜比视界。卸载后恢复原文件。",
+            "修复 HDMI/DP 的 EDID，让 Windows 能识别杜比视界。卸载后恢复原文件。",
             null).mod("beekeeper_dv_edid", "mod_dvedid.zip"),
     };
 
