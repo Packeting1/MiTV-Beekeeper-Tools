@@ -522,7 +522,7 @@ public class MainActivity extends Activity {
                     android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(g.pkgs[0], 0);
                     int n = toInt(nb[0]);
                     if (n >= 0 && pi.versionCode < n) {
-                        res.put(g, new String[] { pi.versionName == null ? String.valueOf(pi.versionCode) : pi.versionName, nb[1] });
+                        res.put(g, new String[] { pi.versionName == null ? "旧版（无版本号）" : pi.versionName, nb[1] });
                     }
                 } catch (Exception e) {
                     // 没装就不算更新
@@ -1134,7 +1134,16 @@ public class MainActivity extends Activity {
                 g.box.setChecked(off);
             } else if (g.kind == KIND_APK) {
                 boolean inst = state(g.pkgs[0]) != MISSING;
-                sb.append("\n").append(inst ? "当前：已安装" : "当前：未安装");
+                String apkVer = "";
+                if (inst) {
+                    try {
+                        android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(g.pkgs[0], 0);
+                        apkVer = pi.versionName != null ? " " + pi.versionName : " （没有版本号的旧版）";
+                    } catch (Exception e) {
+                        // 读不到版本就不显示
+                    }
+                }
+                sb.append("\n").append(inst ? "当前：已安装" + apkVer : "当前：未安装");
                 if (ups.containsKey(g)) sb.append("\n⬆ 有新版本：").append(ups.get(g)[0]).append(" → ").append(ups.get(g)[1]);
                 if (inst) sb.append("\n").append(lsActual(g.pkgs[0]));
                 g.box.setText(sb.toString());
