@@ -823,9 +823,12 @@ public class MainActivity extends Activity {
         btnWrap.addView(checkBtn, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         btnDot = redDot();
-        FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(dp(10), dp(10), Gravity.TOP | Gravity.END);
-        dlp.topMargin = dp(4);
-        dlp.rightMargin = dp(4);
+        // Material 主题的按钮有 elevation，会盖住后加的兄弟视图；红点要比按钮更高才画得出来。
+        btnWrap.setPadding(0, dp(6), dp(6), 0);
+        btnWrap.setClipChildren(false);
+        btnWrap.setClipToPadding(false);
+        FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.TOP | Gravity.END);
+        btnDot.setElevation(dp(12));
         btnWrap.addView(btnDot, dlp);
         pageAbout.addView(btnWrap, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -872,6 +875,13 @@ public class MainActivity extends Activity {
         host.addTab(host.newTabSpec("about").setIndicator(aboutTab).setContent(new TabHost.TabContentFactory() {
             public View createTabContent(String tag) { return pageAbout; }
         }));
+        // 自定义指示器不带系统的选中/焦点背景，照着前面几个标签复制一份，遥控器高亮才会显示。
+        View firstTab = widget.getChildTabViewAt(0);
+        View lastTab = widget.getChildTabViewAt(widget.getTabCount() - 1);
+        if (firstTab.getBackground() != null && firstTab.getBackground().getConstantState() != null) {
+            lastTab.setBackgroundDrawable(firstTab.getBackground().getConstantState().newDrawable());
+        }
+        lastTab.setFocusable(true);
         for (int i = 0; i < widget.getTabCount(); i++) {
             View tv = widget.getChildTabViewAt(i).findViewById(android.R.id.title);
             if (tv instanceof TextView) ((TextView) tv).setTextSize(16);
