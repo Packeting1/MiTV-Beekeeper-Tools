@@ -121,6 +121,9 @@ public class MainActivity extends Activity {
         new Group(KIND_APK, "HomeRef（LSPosed模块）",
             "把系统桌面的引用替换为当前的默认桌面。",
             null, "com.beekeeper.homeref").mod("com.beekeeper.homeref", "apk_homeref.apk"),
+        new Group(KIND_APK, "无信号进入音响模式（LSPosed模块）",
+            "输入源无信号倒计时结束后进入小爱音响模式。仅作用于自动倒计时，保留手动电源操作。",
+            null, "io.github.rin.tvnosignalxiaoai").mod("io.github.rin.tvnosignalxiaoai", "apk_nosignalaudio.apk"),
         new Group(KIND_MOD, "ADB 常开（Magisk模块）",
             "开机后自动保持 ADB 开关和 5555 端口开启。",
             null).mod("mitv_adb_keeper", "mod_adbkeeper.zip"),
@@ -675,6 +678,8 @@ public class MainActivity extends Activity {
             "com.xiaomi.mitv.smartshare", "com.xiaomi.mitv.tvplayer", "mitv.service" });
         LS_SCOPES.put("com.beekeeper.homeref", new String[] {
             "com.xiaomi.mitv.settings", "com.xiaomi.mitv.tvplayer", "mitv.service" });
+        LS_SCOPES.put("io.github.rin.tvnosignalxiaoai", new String[] {
+            "com.xiaomi.mitv.tvplayer" });
     }
 
     /** 读 su 复制到本应用缓存目录的 LSPosed 配置库副本；读完就删。 */

@@ -4,3 +4,7 @@ dist/
 *.keystore
 *.jks
 *.idsig
+lsposed/*/build/
+lsposed/*/dist/
+*.p12
+*.pfx
