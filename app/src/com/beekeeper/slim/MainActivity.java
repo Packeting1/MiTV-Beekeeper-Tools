@@ -259,15 +259,25 @@ public class MainActivity extends Activity {
             String fail = null;
             String tag = null, url = null, digest = "", notes = "";
             try {
-                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(
-                    "https://api.github.com/repos/" + GH_REPO + "/releases/latest").openConnection();
-                c.setConnectTimeout(6000);
-                c.setReadTimeout(8000);
-                c.setRequestProperty("Accept", "application/vnd.github+json");
-                c.setRequestProperty("User-Agent", "MiTV-Beekeeper-Tools");
-                if (c.getResponseCode() != 200) throw new Exception("HTTP " + c.getResponseCode());
-                org.json.JSONObject j = new org.json.JSONObject(readAll(c.getInputStream()));
-                tag = j.getString("tag_name");
+                org.json.JSONObject j = null;
+                Throwable last = null;
+                for (String cand : withMirrors("https://api.github.com/repos/" + GH_REPO + "/releases/latest")) {
+                    try {
+                        java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
+                        c.setConnectTimeout(6000);
+                        c.setReadTimeout(8000);
+                        c.setRequestProperty("Accept", "application/vnd.github+json");
+                        c.setRequestProperty("User-Agent", "MiTV-Beekeeper-Tools");
+                        if (c.getResponseCode() != 200) throw new Exception("HTTP " + c.getResponseCode());
+                        j = new org.json.JSONObject(readAll(c.getInputStream()));
+                        tag = j.getString("tag_name");
+                        break;
+                    } catch (Throwable t) {
+                        last = t;
+                        j = null;
+                    }
+                }
+                if (j == null) throw last != null ? last : new Exception("无法连接");
                 org.json.JSONArray as = j.optJSONArray("assets");
                 for (int i = 0; as != null && i < as.length(); i++) {
                     org.json.JSONObject a = as.getJSONObject(i);
@@ -300,6 +310,18 @@ public class MainActivity extends Activity {
                 refreshAboutUi();
             }});
         }}, "slim-selfcheck").start();
+    }
+
+    // 官方地址放第一位，连不上再依次试镜像（ghproxy.com 已停止服务）。镜像只做传输，
+    // 更新包仍需 sha256 与同签名才能 pm install -r 成功。
+    private static final String[] GH_MIRRORS = {
+        "https://gh-proxy.com/", "https://ghfast.top/", "https://ghproxy.net/" };
+
+    private static java.util.List<String> withMirrors(String url) {
+        java.util.ArrayList<String> l = new java.util.ArrayList<String>();
+        l.add(url);
+        for (String m : GH_MIRRORS) l.add(m + url);
+        return l;
     }
 
     private void refreshAboutUi() {
@@ -363,7 +385,11 @@ public class MainActivity extends Activity {
             final java.io.File f = new java.io.File(getCacheDir(), "selfupdate.apk");
             String err = null;
             try {
-                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                Throwable lastErr = null;
+                boolean got200 = false;
+                for (String cand : withMirrors(url)) {
+                    try {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
                 c.setConnectTimeout(10000);
                 c.setReadTimeout(20000);
                 c.setRequestProperty("User-Agent", "MiTV-Beekeeper-Tools");
@@ -405,6 +431,17 @@ public class MainActivity extends Activity {
                     for (byte x : md.digest()) hex.append(String.format("%02x", x));
                     if (!digest.substring(7).equalsIgnoreCase(hex.toString())) throw new Exception("校验失败，文件可能损坏");
                 }
+                        got200 = true;
+                        break;
+                    } catch (Throwable t) {
+                        lastErr = t;
+                        main.post(new Runnable() { public void run() {
+                            pbar.setIndeterminate(true);
+                            ptxt.setText("下载失败，正在切换线路重试……");
+                        } });
+                    }
+                }
+                if (!got200) throw lastErr != null ? lastErr : new Exception("下载失败");
                 android.content.pm.PackageInfo pi = getPackageManager().getPackageArchiveInfo(f.getAbsolutePath(), 0);
                 if (pi == null || !getPackageName().equals(pi.packageName)) throw new Exception("下载的不是本应用的安装包");
                 f.setReadable(true, false);
