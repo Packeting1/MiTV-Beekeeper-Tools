@@ -1,0 +1,6 @@
+app/out/
+app/bundled/aerial.apk
+dist/
+*.keystore
+*.jks
+*.idsig

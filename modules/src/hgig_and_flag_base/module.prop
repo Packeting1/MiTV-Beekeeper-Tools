@@ -1,0 +1,6 @@
+id=beekeeper_hgig_fix
+name=HGIG Fix
+version=v1.1.1
+versionCode=111
+author=酷安@pkkka
+description=Fixes the HGIG tone-mapping option by enabling the missing HGIG support flag.
