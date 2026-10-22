@@ -31,6 +31,9 @@ $dist = Join-Path $PSScriptRoot 'dist'
 $javaBin = Join-Path $JavaHome 'bin'
 $java = Tool $javaBin 'java'
 New-Item -ItemType Directory -Force $build,"$build/classes","$build/dex",$dist | Out-Null
+New-Item -ItemType Directory -Force "$build/tests" | Out-Null
+Run (Tool $javaBin 'javac') @('-source','8','-target','8','-Xlint:-options','-d',"$build/tests","$src/src/io/github/rin/tvnosignalxiaoai/InputRecoveryTracker.java","$PSScriptRoot/tests/InputRecoveryTrackerTest.java")
+Run $java @('-cp',"$build/tests",'io.github.rin.tvnosignalxiaoai.InputRecoveryTrackerTest')
 Run (Tool $BuildTools 'aapt2') @('compile','--dir',"$src/res",'-o',"$build/res.zip")
 Run (Tool $BuildTools 'aapt2') @('link','-o',"$build/resources.apk",'-I',$AndroidJar,'--manifest',"$src/AndroidManifest.xml",'-A',"$src/assets","$build/res.zip")
 $sources = @(Get-ChildItem "$src/src" -Recurse -Filter '*.java' | ForEach-Object FullName)
@@ -42,7 +45,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [IO.Compression.ZipFile]::Open("$build/unsigned.apk",[IO.Compression.ZipArchiveMode]::Update)
 try { [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,"$build/dex/classes.dex",'classes.dex') | Out-Null } finally { $zip.Dispose() }
 Run (Tool $BuildTools 'zipalign') @('-f','4',"$build/unsigned.apk","$build/aligned.apk")
-$apk = Join-Path $dist 'TV-NoSignal-AudioMode-1.0.1.apk'
+$apk = Join-Path $dist 'TV-NoSignal-AudioMode-1.0.2.apk'
 Run $java @('-jar',"$BuildTools/lib/apksigner.jar",'sign','--ks',$Keystore,'--ks-pass','env:KS_PASS','--ks-key-alias',$KeyAlias,'--out',$apk,"$build/aligned.apk")
 Run $java @('-jar',"$BuildTools/lib/apksigner.jar",'verify','--verbose',$apk)
 Get-FileHash -LiteralPath $apk

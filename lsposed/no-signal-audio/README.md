@@ -1,8 +1,12 @@
 # 无信号进入音响模式
 
-MiTV beekeeper 的 LSPosed 模块：输入源无信号倒计时结束后，进入小爱音响模式。
+MiTV beekeeper 的 LSPosed 模块：输入源无信号倒计时结束后，进入小爱音响模式；任意外部输入源恢复时自动亮屏。
 
-在已验证的固件上，输入源应用的倒计时调用 `PowerManager.goToSleep(..., 9, 0)`，进入 STR 待机。模块只在 `com.xiaomi.mitv.tvplayer.widget.views.SearchingView$1.run` 调用链中把原因 `9` 改为 `8`，复用系统原生小爱音响模式流程。保留原有倒计时和 HDMI 唤醒设置；手动待机、关机及其他调用链不做修改。
+下载已签名 APK：[Releases](https://github.com/Rin010/MiTV-NoSignal-AudioMode/releases)。
+
+在已验证的固件上，输入源应用的倒计时调用 `PowerManager.goToSleep(..., 9, 0)`，进入 STR 待机。模块只在 `com.xiaomi.mitv.tvplayer.widget.views.SearchingView$1.run` 调用链中把原因 `9` 改为 `8`，复用系统原生小爱音响模式流程。保留原有倒计时和 HDMI 唤醒设置。
+
+从 1.0.2 起，通过系统 `TvInputManager` 监听所有外部输入的连接状态。任意 HDMI、DP 等外部输入从断开/待机恢复到连接状态时，如果屏幕处于休眠，就请求系统唤醒；不限定原输入端口，也不限定是否由本模块进入音响模式。启动时已有的连接和重复连接通知不触发唤醒。模块不修改手动电源动作，但恢复输入也会唤醒手动进入的音响模式。
 
 ## 安装
 
@@ -37,10 +41,10 @@ $env:KS_ALIAS = '<key alias>'
 ./build.ps1
 ```
 
-输出：`dist/TV-NoSignal-AudioMode-1.0.1.apk`。升级安装需要使用与上一版本相同的签名密钥。现有安装包的包名保持为 `io.github.rin.tvnosignalxiaoai`。
+构建会先运行输入恢复状态转换检查。输出：`dist/TV-NoSignal-AudioMode-1.0.2.apk`。升级安装需要使用与上一版本相同的签名密钥。现有安装包的包名保持为 `io.github.rin.tvnosignalxiaoai`。
 
 ## 隐私
 
-模块不申请 Android 权限，不联网、不读取文件或设备标识。仅向本地 Android / LSPosed 日志写入安装状态和固定的原因转换提示。发布内容不含本机路径、局域网地址、设备序列号、现场截图、原始设备日志、私钥或系统应用 APK。
+模块不申请 Android 权限，不联网、不读取文件或设备标识。为检测恢复，只读取系统外部输入连接状态；仅向本地 Android / LSPosed 日志写入固定的安装、原因转换和输入恢复提示，不记录输入标识。发布内容不含本机路径、局域网地址、设备序列号、现场截图、原始设备日志、私钥或系统应用 APK。
 
 项目采用 [GPL-3.0](../../LICENSE)。与 [MiTV-Beekeeper-Tools](https://github.com/Packeting1/MiTV-Beekeeper-Tools) 的其他优化模块互补。
