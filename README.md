@@ -1,6 +1,6 @@
 # MiTV Beekeeper Tools
 
-小米电视 Mini LED 机型 `beekeeper`（MiTV-MFFU1，HyperOS 3.0.109）的系统优化工具集：一个 App（系统优化）加一组 Magisk 模块。作者：酷安 @pkkka
+小米电视 Mini LED 机型 `beekeeper`（MiTV-MFFU1，G Pro 27U，HyperOS 3.0.109）的系统优化工具集。作者：酷安 @pkkka
 
 > 仅适用于已获取 root（Magisk）的 beekeeper 机型，App 在其他机型上会拒绝运行。改动系统有风险，使用前请自行评估，后果自负。
 
