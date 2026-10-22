@@ -148,6 +148,9 @@ public class MainActivity extends Activity {
         new Group(KIND_MOD, "音量均衡（Magisk模块）",
             "在声音设置里显示“音量均衡”。",
             null).mod("beekeeper_volume_balance", "mod_volbalance.zip"),
+        new Group(KIND_MOD, "Windows 杜比视界 EDID（Magisk模块）",
+            "修改 HDMI/DP 的 EDID，让 Windows 能识别杜比视界。卸载后恢复原文件。",
+            null).mod("beekeeper_dv_edid", "mod_dvedid.zip"),
     };
 
     private static final class Hidden {
@@ -723,6 +726,7 @@ public class MainActivity extends Activity {
         if ("mitv_adb_keeper".equals(id)) return on ? "实际：已生效（守护进程运行中）" : "实际：没有生效（守护进程没有运行）";
         if ("beekeeper_hgig_fix".equals(id)) return on ? "实际：已生效（HGIG 标志已开启）" : "实际：没有生效（系统里 HGIG 标志没开启）";
         if ("beekeeper_ldm_fix".equals(id)) return on ? "实际：配置已生效" : "实际：配置没有生效";
+        if ("beekeeper_dv_edid".equals(id)) return on ? "实际：EDID 已改写" : "实际：EDID 没有改写（需重启）";
         if (FLAG_MODS.containsKey(id)) return on ? "实际：已生效" : "实际：未生效（需重启）";
         if ("zygote64_fix".equals(id)) return on ? "实际：已生效（zygote64 已被注入）" : "实际：没有生效（zygote64 没有被注入）";
         return null;
@@ -1082,6 +1086,8 @@ public class MainActivity extends Activity {
                 + "service call TvService 82 s16 support_hdr_game_hgig 2>/dev/null | grep -q 'Y.E.S' && echo \"F:beekeeper_hgig_fix\"\n"
                 + "L=$(sha256sum /vendor/tvconfig/bsp/chip/ldm_xiaomi/ldm_otfcn1n/ldm.ini 2>/dev/null | cut -d' ' -f1)\n"
                 + "[ \"$L\" = 282d2ad2991845cd79660bb13111cba1da82e8116f1519e2b395606b27eb6dcf ] && echo \"F:beekeeper_ldm_fix\"\n"
+                + "E=$(sha256sum /vendor/tvconfig/bsp/common/EDID_BIN/GPro_HDMI1_FreeSync_ver6.0.bin 2>/dev/null | cut -d' ' -f1)\n"
+                + "[ \"$E\" = 04d48a32abcb0fe7e8a25cac683c09b9f6dbd00dd81b8d0ab170b3d5534237fc ] && echo \"F:beekeeper_dv_edid\"\n"
                 + "for z in $(pidof zygote64); do grep -q zygisk_lsposed /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; done\n"
                 + "S=$(timeout 15 sh /data/adb/modules/zygisk_lsposed/lspctl status 2>&1); rc=$?\n"
                 + "[ $rc = 0 ] && echo \"L:run\"\n"
