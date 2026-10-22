@@ -59,7 +59,7 @@ MODS = {  # asset suffix -> module zip glob
     'adbkeeper': 'MiTV-ADB-Keeper-*.zip', '4kui': 'MiTV-4K-UI-Switch-*.zip',
     'hdr10plus': 'Beekeeper_HDR10Plus_*.zip', 'imax': 'Beekeeper_IMAX_*.zip',
     'aisr': 'Beekeeper_AISR_Level_*.zip', 'volbalance': 'Beekeeper_VolumeBalance_*.zip',
-    'dvedid': 'Beekeeper_Windows_DV_EDID_*.zip',
+    'dvedid': 'Beekeeper_LLDV_*.zip',
 }
 aerial = ROOT / 'bundled' / 'aerial.apk'
 if not aerial.exists():

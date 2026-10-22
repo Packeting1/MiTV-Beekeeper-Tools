@@ -1,6 +1,6 @@
 id=beekeeper_dv_edid
-name=Windows Dolby Vision EDID
+name=Support LLDV
 version=v1.1.1
 versionCode=111
 author=酷安@pkkka
-description=Lets Windows detect Dolby Vision: sets the LLDV bit in the HDMI EDID and adds the Dolby Vision/HDR10+ blocks to the DP EDID.
+description=Declares Low-Latency Dolby Vision (LLDV) support so Windows can detect Dolby Vision on PC.

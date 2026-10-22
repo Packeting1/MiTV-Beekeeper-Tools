@@ -148,8 +148,8 @@ public class MainActivity extends Activity {
         new Group(KIND_MOD, "音量均衡（Magisk模块）",
             "在声音设置里显示“音量均衡”。",
             null).mod("beekeeper_volume_balance", "mod_volbalance.zip"),
-        new Group(KIND_MOD, "Windows 杜比视界 EDID（Magisk模块）",
-            "修复 HDMI/DP 的 EDID，让 Windows 能识别杜比视界。卸载后恢复原文件。",
+        new Group(KIND_MOD, "开启LLDV支持（Magisk模块）",
+            "声明支持低延迟杜比视界（LLDV），让 Windows 能识别杜比视界PC支持。",
             null).mod("beekeeper_dv_edid", "mod_dvedid.zip"),
     };
 
@@ -742,13 +742,9 @@ public class MainActivity extends Activity {
         String id = g.modId;
         if (modDisabled.contains(id)) return "实际：在 Magisk 里被停用，没有生效";
         boolean on = modActive.contains(id);
-        if ("mitv_4kui_switch".equals(id)) return on ? "实际：配置已生效" : "实际：配置没有生效";
-        if ("mitv_adb_keeper".equals(id)) return on ? "实际：已生效（守护进程运行中）" : "实际：没有生效（守护进程没有运行）";
-        if ("beekeeper_hgig_fix".equals(id)) return on ? "实际：已生效（HGIG 标志已开启）" : "实际：没有生效（系统里 HGIG 标志没开启）";
-        if ("beekeeper_ldm_fix".equals(id)) return on ? "实际：配置已生效" : "实际：配置没有生效";
-        if ("beekeeper_dv_edid".equals(id)) return on ? "实际：EDID 已改写" : "实际：EDID 没有改写（需重启）";
-        if (FLAG_MODS.containsKey(id)) return on ? "实际：已生效" : "实际：未生效（需重启）";
-        if ("zygote64_fix".equals(id)) return on ? "实际：已生效（zygote64 已被注入）" : "实际：没有生效（zygote64 没有被注入）";
+        if ("mitv_4kui_switch".equals(id) || "mitv_adb_keeper".equals(id) || "beekeeper_hgig_fix".equals(id)
+            || "beekeeper_ldm_fix".equals(id) || "beekeeper_dv_edid".equals(id) || "zygote64_fix".equals(id)
+            || FLAG_MODS.containsKey(id)) return on ? "实际：已生效" : "实际：未生效（需重启）";
         return null;
     }
 
@@ -1016,7 +1012,7 @@ public class MainActivity extends Activity {
     /** 放在优化类页的 Magisk 模块。 */
     private static boolean isOptMod(Group g) {
         return g.kind == KIND_MOD && ("mitv_adb_keeper".equals(g.modId) || "mitv_4kui_switch".equals(g.modId)
-            || FLAG_MODS.containsKey(g.modId));
+            || "beekeeper_dv_edid".equals(g.modId) || FLAG_MODS.containsKey(g.modId));
     }
 
     private View redDot() {

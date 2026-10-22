@@ -27,13 +27,9 @@
 | Support IMAX | 在图像模式里显示 IMAX |
 | Support AISR Level | 在“图像参数 > 清晰度”里显示超分辨率强度调节 |
 | Support Volume Balance | 在声音设置里显示音量均衡 |
-| Windows DV EDID | 修复 HDMI/DP 的 EDID，让 Windows 能识别杜比视界（卸载后恢复原文件） |
+| Support LLDV | 声明支持低延迟杜比视界（LLDV），让 Windows 能识别杜比视界PC支持 |
 
 开关类模块会在开机时把对应项写入 `/data/system/mitv.config.xml`，并用 `chattr +i` 锁定，防止云端配置覆盖；卸载模块时会解锁并还原。
-
-`modules/src/` 是 HGIG（兼任开关类模块的基础模板）、Zygote64 Fix、LDM Fix 的源码。ADB Keeper 和 4K UI Switch 只提供 zip。
-
-Windows DV EDID 会改写 `/vendor/tvconfig` 里的 EDID 文件（原文件备份在 `/data/adb/dv_edid/orig`），源码在 `modules/src/dv_edid/`。
 
 ## 自行构建 App
 
