@@ -982,8 +982,34 @@ public class MainActivity extends Activity {
         root.addView(log);
 
         setContentView(sv);
+        showLoading();
         refresh();
         checkSelfUpdate(false);
+    }
+
+    private AlertDialog loadingDlg;
+
+    /** 首次读取模块状态要走 root，可能要几秒（还会弹 Magisk 授权），读完前挡一个加载提示。 */
+    private void showLoading() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(24), dp(20), dp(24), dp(20));
+        android.widget.ProgressBar pb = new android.widget.ProgressBar(this);
+        row.addView(pb, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        TextView t = new TextView(this);
+        t.setText("正在加载模块状态中……");
+        t.setTextSize(16);
+        t.setPadding(dp(16), 0, 0, 0);
+        row.addView(t);
+        loadingDlg = new AlertDialog.Builder(this).setView(row).create();
+        loadingDlg.show();
+    }
+
+    private void hideLoading() {
+        if (loadingDlg == null) return;
+        try { loadingDlg.dismiss(); } catch (Exception e) { /* 窗口已不在 */ }
+        loadingDlg = null;
     }
 
     private LinearLayout pageApps, pageOpt, pageFix, pageHid;
@@ -1170,6 +1196,7 @@ public class MainActivity extends Activity {
                 lsScope = dbRead ? lsSc : null;
                 render();
                 updateBanner(fOk);
+                hideLoading();
             }});
         }}, "slim-query").start();
     }
