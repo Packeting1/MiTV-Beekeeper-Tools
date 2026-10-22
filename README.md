@@ -48,6 +48,9 @@ python app\build.py
 
 输出在 `dist/`。
 
+## 许可证
+ [GNU GPL v3.0](LICENSE) 授权。随 App 附带的 Aerial 桌面仍遵循其原有的 MIT 许可。
+
 ## 致谢
 
 - [Aerial](https://github.com/pengchujin/aerial-tv)（MIT）：随 App 附带的桌面
