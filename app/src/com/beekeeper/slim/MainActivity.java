@@ -210,10 +210,8 @@ public class MainActivity extends Activity {
         bundledApk = new java.util.HashMap<String, String[]>();
     private LinearLayout updateBar;
     private TextView updateText;
-    private boolean updatePrompted;
 
     private static final String GH_REPO = "Packeting1/MiTV-Beekeeper-Tools";
-    private AlertDialog selfDlg;
 
     private String ownVersion() {
         try {
@@ -245,10 +243,21 @@ public class MainActivity extends Activity {
         return bo.toString("UTF-8");
     }
 
-    /** 查 GitHub 最新 Release。自动检测失败就静默跳过；手动检测会给出结果。 */
+    private String selfTag, selfUrl, selfDigest, selfNotes, selfMsg = "";
+    private boolean selfChecking;
+    private View aboutDot, btnDot;
+    private Button checkBtn;
+    private TextView selfStatus;
+
+    /** 查 GitHub 最新 Release。自动检测失败就静默跳过；手动检测用提示条告知结果。不弹窗。 */
     private void checkSelfUpdate(final boolean manual) {
+        if (selfChecking) return;
+        selfChecking = true;
+        selfMsg = "正在检查更新……";
+        refreshAboutUi();
         new Thread(new Runnable() { public void run() {
             String fail = null;
+            String tag = null, url = null, digest = "", notes = "";
             try {
                 java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(
                     "https://api.github.com/repos/" + GH_REPO + "/releases/latest").openConnection();
@@ -258,8 +267,7 @@ public class MainActivity extends Activity {
                 c.setRequestProperty("User-Agent", "MiTV-Beekeeper-Tools");
                 if (c.getResponseCode() != 200) throw new Exception("HTTP " + c.getResponseCode());
                 org.json.JSONObject j = new org.json.JSONObject(readAll(c.getInputStream()));
-                final String tag = j.getString("tag_name");
-                String url = null, digest = "";
+                tag = j.getString("tag_name");
                 org.json.JSONArray as = j.optJSONArray("assets");
                 for (int i = 0; as != null && i < as.length(); i++) {
                     org.json.JSONObject a = as.getJSONObject(i);
@@ -269,46 +277,86 @@ public class MainActivity extends Activity {
                         break;
                     }
                 }
-                final String cur = ownVersion();
-                if (url == null || cmpVersion(tag, cur) <= 0) {
-                    if (manual) main.post(new Runnable() { public void run() { showResult("已是最新版本（" + cur + "）。"); } });
-                    return;
-                }
-                final String fUrl = url, fDigest = digest;
-                String notes = j.optString("body", "").trim();
-                if (notes.length() > 600) notes = notes.substring(0, 600) + "…";
-                final String fNotes = notes;
-                main.post(new Runnable() { public void run() { promptSelfUpdate(tag, cur, fNotes, fUrl, fDigest); } });
+                notes = j.optString("body", "").trim();
+                if (notes.length() > 3000) notes = notes.substring(0, 3000) + "…";
             } catch (Throwable t) {
                 fail = String.valueOf(t);
             }
-            if (fail != null && manual) {
-                final String f = fail;
-                main.post(new Runnable() { public void run() { showResult("检查更新失败：" + f); } });
-            }
+            final String fTag = tag, fUrl = url, fDigest = digest, fNotes = notes, fFail = fail;
+            main.post(new Runnable() { public void run() {
+                selfChecking = false;
+                if (fFail != null) {
+                    selfMsg = manual ? "检查更新失败：" + fFail : "";
+                    if (manual) android.widget.Toast.makeText(MainActivity.this, selfMsg, android.widget.Toast.LENGTH_LONG).show();
+                } else if (fUrl != null && cmpVersion(fTag, ownVersion()) > 0) {
+                    selfTag = fTag; selfUrl = fUrl; selfDigest = fDigest; selfNotes = fNotes;
+                    selfMsg = "";
+                    if (manual) android.widget.Toast.makeText(MainActivity.this, "发现新版本 " + fTag, android.widget.Toast.LENGTH_SHORT).show();
+                } else {
+                    selfTag = null;
+                    selfMsg = "已是最新版本";
+                    if (manual) android.widget.Toast.makeText(MainActivity.this, selfMsg, android.widget.Toast.LENGTH_SHORT).show();
+                }
+                refreshAboutUi();
+            }});
         }}, "slim-selfcheck").start();
     }
 
-    private void promptSelfUpdate(final String tag, String cur, String notes, final String url, final String digest) {
-        if (isFinishing()) return;
-        selfDlg = new AlertDialog.Builder(this)
-            .setTitle("发现新版本 " + tag)
-            .setMessage("当前版本 " + cur + (notes.length() > 0 ? "\n\n" + notes : "") + "\n\n更新后应用会自动重新打开。")
+    private void refreshAboutUi() {
+        if (checkBtn == null) return;
+        boolean has = selfTag != null;
+        aboutDot.setVisibility(has ? View.VISIBLE : View.GONE);
+        btnDot.setVisibility(has ? View.VISIBLE : View.GONE);
+        checkBtn.setEnabled(!selfChecking);
+        checkBtn.setText(has ? "更新到 " + selfTag : "检查更新");
+        StringBuilder sb = new StringBuilder("当前版本：").append(ownVersion());
+        if (has) {
+            sb.append("\n发现新版本：").append(selfTag);
+        } else if (selfMsg.length() > 0) {
+            sb.append("\n").append(selfMsg);
+        }
+        selfStatus.setText(sb.toString());
+    }
+
+    private void onCheckButton() {
+        if (selfTag == null) { checkSelfUpdate(true); return; }
+        TextView tv = new TextView(this);
+        String notes = selfNotes == null || selfNotes.length() == 0 ? "（该版本没有更新说明）" : selfNotes;
+        tv.setText("当前版本 " + ownVersion() + " → " + selfTag + "\n\n更新说明：\n" + notes
+            + "\n\n点“更新”将下载并安装，完成后应用会自动重新打开。");
+        tv.setTextSize(14);
+        tv.setPadding(dp(24), dp(12), dp(24), dp(12));
+        ScrollView nsv = new ScrollView(this);
+        nsv.setFocusable(true);
+        nsv.addView(tv);
+        new AlertDialog.Builder(this)
+            .setTitle("发现新版本 " + selfTag)
+            .setView(nsv)
             .setPositiveButton("更新", new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface d, int w) { downloadAndInstall(url, digest); }
+                public void onClick(DialogInterface d, int w) { downloadAndInstall(selfUrl, selfDigest); }
             })
-            .setNegativeButton("以后再说", null)
-            .create();
-        selfDlg.setOnDismissListener(new DialogInterface.OnDismissListener() {
-            public void onDismiss(DialogInterface d) { updateBanner(true); }
-        });
-        selfDlg.show();
+            .setNegativeButton("取消", null)
+            .show();
     }
 
     private void downloadAndInstall(final String url, final String digest) {
+        final TextView ptxt = new TextView(this);
+        ptxt.setText("正在下载……0%");
+        ptxt.setTextSize(14);
+        final android.widget.ProgressBar pbar = new android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        pbar.setMax(100);
+        pbar.setIndeterminate(true);
+        LinearLayout pbox = new LinearLayout(this);
+        pbox.setOrientation(LinearLayout.VERTICAL);
+        pbox.setPadding(dp(24), dp(16), dp(24), dp(8));
+        pbox.addView(ptxt);
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        plp.topMargin = dp(10);
+        pbox.addView(pbar, plp);
         final AlertDialog progress = new AlertDialog.Builder(this)
             .setTitle("正在更新")
-            .setMessage("正在下载……")
+            .setView(pbox)
             .setCancelable(false)
             .show();
         new Thread(new Runnable() { public void run() {
@@ -333,10 +381,17 @@ public class MainActivity extends Activity {
                         md.update(buf, 0, n);
                         got += n;
                         final long g = got;
-                        if (g - lastUi > 262144) {
+                        if (g - lastUi > 65536 || (total > 0 && g == total)) {
                             lastUi = g;
                             main.post(new Runnable() { public void run() {
-                                progress.setMessage("正在下载……" + (total > 0 ? (g * 100 / total) + "%" : (g / 1024) + " KB"));
+                                if (total > 0) {
+                                    int pct = (int) (g * 100 / total);
+                                    pbar.setIndeterminate(false);
+                                    pbar.setProgress(pct);
+                                    ptxt.setText(String.format("正在下载……%d%%（%.1f / %.1f MB）", pct, g / 1048576.0, total / 1048576.0));
+                                } else {
+                                    ptxt.setText(String.format("正在下载……%.1f MB", g / 1048576.0));
+                                }
                             } });
                         }
                     }
@@ -365,7 +420,10 @@ public class MainActivity extends Activity {
                 } });
                 return;
             }
-            main.post(new Runnable() { public void run() { progress.setMessage("正在安装……完成后应用会自动重新打开。"); } });
+            main.post(new Runnable() { public void run() {
+                pbar.setIndeterminate(true);
+                ptxt.setText("正在安装……完成后应用会自动重新打开。");
+            } });
             String log = "/data/local/tmp/slim_selfupdate.log";
             String res = runSu("rm -f " + log + "\n"
                 + "setsid sh -c \"pm install -r " + f.getAbsolutePath() + " > " + log + " 2>&1; rm -f " + f.getAbsolutePath()
@@ -483,10 +541,6 @@ public class MainActivity extends Activity {
         }
         updateText.setText("发现 " + ups.size() + " 个模块/应用有更新");
         updateBar.setVisibility(View.VISIBLE);
-        if (prompt && !updatePrompted && !(selfDlg != null && selfDlg.isShowing())) {
-            updatePrompted = true;
-            confirmUpdate();
-        }
     }
 
     private void confirmUpdate() {
@@ -748,20 +802,32 @@ public class MainActivity extends Activity {
         LinearLayout pageAbout = new LinearLayout(this);
         pageAbout.setOrientation(LinearLayout.VERTICAL);
         TextView about = new TextView(this);
-        about.setText("小米电视团队是干嘛的？\n作者：酷安@pkkka\n版本：" + ownVersion()
-            + "\n项目地址：github.com/" + GH_REPO);
+        about.setText("小米电视团队是干嘛的？\n作者：酷安@pkkka\n项目地址：github.com/" + GH_REPO);
         about.setTextSize(16);
         about.setTextColor(Color.WHITE);
-        about.setPadding(dp(6), dp(16), dp(6), dp(16));
+        about.setPadding(dp(6), dp(16), dp(6), dp(8));
         pageAbout.addView(about);
-        Button checkBtn = new Button(this);
-        checkBtn.setText("检查应用更新");
+        selfStatus = new TextView(this);
+        selfStatus.setTextSize(15);
+        selfStatus.setTextColor(Color.LTGRAY);
+        selfStatus.setPadding(dp(6), dp(4), dp(6), dp(8));
+        pageAbout.addView(selfStatus);
+        checkBtn = new Button(this);
+        checkBtn.setText("检查更新");
         checkBtn.setTextSize(15);
         checkBtn.setAllCaps(false);
         checkBtn.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { checkSelfUpdate(true); }
+            public void onClick(View v) { onCheckButton(); }
         });
-        pageAbout.addView(checkBtn, new LinearLayout.LayoutParams(
+        FrameLayout btnWrap = new FrameLayout(this);
+        btnWrap.addView(checkBtn, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        btnDot = redDot();
+        FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(dp(10), dp(10), Gravity.TOP | Gravity.END);
+        dlp.topMargin = dp(4);
+        dlp.rightMargin = dp(4);
+        btnWrap.addView(btnDot, dlp);
+        pageAbout.addView(btnWrap, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         final TabHost host = new TabHost(this, null);
         LinearLayout hostBody = new LinearLayout(this);
@@ -789,7 +855,21 @@ public class MainActivity extends Activity {
         host.addTab(host.newTabSpec("hid").setIndicator("隐藏项").setContent(new TabHost.TabContentFactory() {
             public View createTabContent(String tag) { return pageHid; }
         }));
-        host.addTab(host.newTabSpec("about").setIndicator("关于").setContent(new TabHost.TabContentFactory() {
+        LinearLayout aboutTab = new LinearLayout(this);
+        aboutTab.setOrientation(LinearLayout.HORIZONTAL);
+        aboutTab.setGravity(Gravity.CENTER);
+        TextView aboutTitle = new TextView(this);
+        aboutTitle.setId(android.R.id.title);
+        aboutTitle.setText("关于");
+        aboutTitle.setTextColor(Color.WHITE);
+        aboutTab.addView(aboutTitle);
+        aboutDot = redDot();
+        aboutDot.setVisibility(View.GONE);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(dp(8), dp(8));
+        tlp.leftMargin = dp(3);
+        tlp.bottomMargin = dp(10);
+        aboutTab.addView(aboutDot, tlp);
+        host.addTab(host.newTabSpec("about").setIndicator(aboutTab).setContent(new TabHost.TabContentFactory() {
             public View createTabContent(String tag) { return pageAbout; }
         }));
         for (int i = 0; i < widget.getTabCount(); i++) {
@@ -840,6 +920,16 @@ public class MainActivity extends Activity {
     private static boolean isOptMod(Group g) {
         return g.kind == KIND_MOD && ("mitv_adb_keeper".equals(g.modId) || "mitv_4kui_switch".equals(g.modId)
             || FLAG_MODS.containsKey(g.modId));
+    }
+
+    private View redDot() {
+        View v = new View(this);
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(0xFFF44336);
+        v.setBackgroundDrawable(g);
+        v.setVisibility(View.GONE);
+        return v;
     }
 
     private int dp(int v) {

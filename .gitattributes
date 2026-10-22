@@ -1,0 +1,7 @@
+* text=auto
+*.sh text eol=lf
+*.prop text eol=lf
+update-binary text eol=lf
+updater-script text eol=lf
+*.zip binary
+*.apk binary
