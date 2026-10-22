@@ -262,25 +262,8 @@ public class MainActivity extends Activity {
             String fail = null;
             String tag = null, url = null, digest = "", notes = "";
             try {
-                org.json.JSONObject j = null;
-                Throwable last = null;
-                for (String cand : withMirrors("https://api.github.com/repos/" + GH_REPO + "/releases/latest")) {
-                    try {
-                        java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
-                        c.setConnectTimeout(6000);
-                        c.setReadTimeout(8000);
-                        c.setRequestProperty("Accept", "application/vnd.github+json");
-                        c.setRequestProperty("User-Agent", "MiTV-Beekeeper-Tools");
-                        if (c.getResponseCode() != 200) throw new Exception("HTTP " + c.getResponseCode());
-                        j = new org.json.JSONObject(readAll(c.getInputStream()));
-                        tag = j.getString("tag_name");
-                        break;
-                    } catch (Throwable t) {
-                        last = t;
-                        j = null;
-                    }
-                }
-                if (j == null) throw last != null ? last : new Exception("无法连接");
+                org.json.JSONObject j = new org.json.JSONObject(fetchApi("releases/latest"));
+                tag = j.getString("tag_name");
                 org.json.JSONArray as = j.optJSONArray("assets");
                 for (int i = 0; as != null && i < as.length(); i++) {
                     org.json.JSONObject a = as.getJSONObject(i);
@@ -291,7 +274,24 @@ public class MainActivity extends Activity {
                     }
                 }
                 notes = j.optString("body", "").trim();
-                if (notes.length() > 3000) notes = notes.substring(0, 3000) + "…";
+                if (cmpVersion(tag, ownVersion()) > 0) {
+                    // 跨版本更新要带上中间版本的说明；列表拿不到就只显示最新版的。
+                    try {
+                        org.json.JSONArray rs = new org.json.JSONArray(fetchApi("releases?per_page=30"));
+                        StringBuilder sb = new StringBuilder();
+                        for (int i = 0; i < rs.length(); i++) {
+                            org.json.JSONObject r = rs.getJSONObject(i);
+                            String t = r.optString("tag_name");
+                            if (r.optBoolean("draft") || r.optBoolean("prerelease")) continue;
+                            if (cmpVersion(t, ownVersion()) <= 0 || cmpVersion(t, tag) > 0) continue;
+                            String b = r.optString("body", "").trim();
+                            if (sb.length() > 0) sb.append("\n\n");
+                            sb.append("【").append(t).append("】\n").append(b.length() == 0 ? "（没有更新说明）" : b);
+                        }
+                        if (sb.length() > 0) notes = sb.toString();
+                    } catch (Throwable ignore) { }
+                }
+                if (notes.length() > 6000) notes = notes.substring(0, 6000) + "…";
             } catch (Throwable t) {
                 fail = String.valueOf(t);
             }
@@ -319,6 +319,26 @@ public class MainActivity extends Activity {
     // 更新包仍需 sha256 与同签名才能 pm install -r 成功。
     private static final String[] GH_MIRRORS = {
         "https://gh-proxy.com/", "https://ghfast.top/", "https://ghproxy.net/" };
+
+    private static String fetchApi(String path) throws Exception {
+        Throwable last = null;
+        for (String cand : withMirrors("https://api.github.com/repos/" + GH_REPO + "/" + path)) {
+            try {
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
+                c.setConnectTimeout(6000);
+                c.setReadTimeout(8000);
+                c.setRequestProperty("Accept", "application/vnd.github+json");
+                c.setRequestProperty("User-Agent", "MiTV-Beekeeper-Tools");
+                if (c.getResponseCode() != 200) throw new Exception("HTTP " + c.getResponseCode());
+                String s = readAll(c.getInputStream()).trim();
+                if (!s.startsWith("{") && !s.startsWith("[")) throw new Exception("响应不是 JSON");
+                return s;
+            } catch (Throwable t) {
+                last = t;
+            }
+        }
+        throw last instanceof Exception ? (Exception) last : new Exception("无法连接");
+    }
 
     private static java.util.List<String> withMirrors(String url) {
         java.util.ArrayList<String> l = new java.util.ArrayList<String>();
