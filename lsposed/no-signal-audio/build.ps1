@@ -30,6 +30,18 @@ $build = Join-Path $PSScriptRoot 'build'
 $dist = Join-Path $PSScriptRoot 'dist'
 $javaBin = Join-Path $JavaHome 'bin'
 $java = Tool $javaBin 'java'
+foreach ($generated in @('classes','dex','tests')) {
+    $cleanPath = [IO.Path]::GetFullPath((Join-Path $build $generated))
+    if ([IO.Path]::GetDirectoryName($cleanPath) -ne [IO.Path]::GetFullPath($build)) {
+        throw 'Generated directory is outside the build directory'
+    }
+    if (Test-Path -LiteralPath $cleanPath) {
+        if ((Get-Item -LiteralPath $cleanPath).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw 'Refusing to clean a linked build directory'
+        }
+        Remove-Item -LiteralPath $cleanPath -Recurse -Force
+    }
+}
 New-Item -ItemType Directory -Force $build,"$build/classes","$build/dex",$dist | Out-Null
 New-Item -ItemType Directory -Force "$build/tests" | Out-Null
 Run (Tool $javaBin 'javac') @('-source','8','-target','8','-Xlint:-options','-d',"$build/tests","$src/src/io/github/rin/tvnosignalxiaoai/InputRecoveryTracker.java","$PSScriptRoot/tests/InputRecoveryTrackerTest.java")
@@ -45,7 +57,10 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [IO.Compression.ZipFile]::Open("$build/unsigned.apk",[IO.Compression.ZipArchiveMode]::Update)
 try { [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,"$build/dex/classes.dex",'classes.dex') | Out-Null } finally { $zip.Dispose() }
 Run (Tool $BuildTools 'zipalign') @('-f','4',"$build/unsigned.apk","$build/aligned.apk")
-$apk = Join-Path $dist 'TV-NoSignal-AudioMode-1.0.2.apk'
+$manifest = [xml](Get-Content -LiteralPath "$src/AndroidManifest.xml" -Raw)
+$version = $manifest.manifest.GetAttribute('versionName','http://schemas.android.com/apk/res/android')
+if ($version -notmatch '^[0-9A-Za-z.-]+$') { throw 'Invalid versionName for APK filename' }
+$apk = Join-Path $dist ("TV-NoSignal-AudioMode-{0}.apk" -f $version)
 Run $java @('-jar',"$BuildTools/lib/apksigner.jar",'sign','--ks',$Keystore,'--ks-pass','env:KS_PASS','--ks-key-alias',$KeyAlias,'--out',$apk,"$build/aligned.apk")
 Run $java @('-jar',"$BuildTools/lib/apksigner.jar",'verify','--verbose',$apk)
 Get-FileHash -LiteralPath $apk

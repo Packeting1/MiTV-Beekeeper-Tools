@@ -30,12 +30,17 @@ public final class NoSignalHook implements IXposedHookLoadPackage {
             @Override protected void afterHookedMethod(MethodHookParam param) {
                 if (param.hasThrowable()) return;
                 try {
+                    SessionKeeper.setContext((Application) param.thisObject);
                     watchInputs((Application) param.thisObject);
                 } catch (Throwable error) {
                     Log.e(TAG, "Input recovery watcher unavailable: " + error.getClass().getSimpleName());
                 }
             }
         });
+        try { SessionKeeper.install(lp.classLoader); }
+        catch (Throwable error) { Log.e(TAG, "Session test unavailable: " + error.getClass().getSimpleName()); }
+        try { CountdownControls.install(lp.classLoader); }
+        catch (Throwable error) { Log.e(TAG, "Countdown controls unavailable: " + error.getClass().getSimpleName()); }
         // Fail closed on incompatible player builds: the original behavior is retained.
         Class<?> countdown = XposedHelpers.findClass(COUNTDOWN, lp.classLoader);
         countdown.getDeclaredMethod("run");
@@ -64,10 +69,14 @@ public final class NoSignalHook implements IXposedHookLoadPackage {
         if (manager == null || power == null) throw new IllegalStateException("Missing system service");
         final Handler handler = new Handler(Looper.getMainLooper());
         final InputRecoveryTracker recovery = new InputRecoveryTracker();
+        final String[] recoveredInput = new String[1];
         final Runnable wake = new Runnable() {
             @Override public void run() {
+                String inputId = recoveredInput[0];
+                recoveredInput[0] = null;
                 if (power.isInteractive()) return;
                 try {
+                    SessionKeeper.prepareInputWake(inputId);
                     XposedHelpers.callMethod(power, "wakeUp", SystemClock.uptimeMillis(), 8,
                             "NoSignalXiaoAi:input-restored");
                     Log.i(TAG, "Input restored: requested screen wake");
@@ -82,9 +91,10 @@ public final class NoSignalHook implements IXposedHookLoadPackage {
                 if (info == null || !info.isPassthroughInput()) return;
                 if (recovery.update(id, state)) {
                     // Hardware can report DP and HDMI recovery together. Request one wake.
+                    recoveredInput[0] = id;
                     handler.removeCallbacks(wake);
                     handler.postDelayed(wake, 250L);
-                    Log.i(TAG, "Input recovery detected");
+                    Log.i(TAG, "Input recovery detected: " + id);
                 }
             }
             @Override public void onInputStateChanged(String id, int state) { update(id, state); }
