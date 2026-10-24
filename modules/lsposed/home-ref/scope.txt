@@ -1,0 +1,3 @@
+com.xiaomi.mitv.tvplayer
+com.xiaomi.mitv.settings
+mitv.service

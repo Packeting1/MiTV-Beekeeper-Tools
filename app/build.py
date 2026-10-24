@@ -95,7 +95,7 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, 'w', zipfile.ZIP_DE
     for name, apk in (('tvplayerkeep', 'TvPlayerKeep'), ('signalkeep', 'SignalKeep'), ('castpip', 'CastPip'), ('homeref', 'HomeRef')):
         zout.write(ROOT / 'bundled' / (apk + '.apk'), 'assets/apk_%s.apk' % name, zipfile.ZIP_STORED)
     for name, pattern in MODS.items():
-        found = sorted((REPO / 'modules').glob(pattern))
+        found = sorted((REPO / 'modules' / 'magisk').glob(pattern))
         if len(found) != 1:
             sys.exit('expected exactly one module zip for %s, found %d' % (pattern, len(found)))
         zout.write(found[0], 'assets/mod_%s.zip' % name, zipfile.ZIP_STORED)
