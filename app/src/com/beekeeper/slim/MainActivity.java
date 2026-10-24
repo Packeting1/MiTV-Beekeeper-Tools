@@ -230,19 +230,33 @@ public class MainActivity extends Activity {
             addBoxTwoColumns((g.kind == KIND_DB || g.kind == KIND_APK || isOptMod(g)) ? pageOpt : g.kind == KIND_MOD ? pageFix : pageApps, cb, openRows);
         }
         LinearLayout pageAbout = new LinearLayout(this);
-        pageAbout.setOrientation(LinearLayout.VERTICAL);
+        pageAbout.setOrientation(LinearLayout.HORIZONTAL);
         TextView about = new TextView(this);
-        about.setText("小米电视团队是干嘛的？\n作者：酷安@pkkka\n项目地址：github.com/" + GH_REPO
-            + "\n有任何想法或建议，欢迎在项目地址的 Issue / Pull Request 中提交");
+        String aboutHead = "小米电视团队是干嘛的？";
+        android.text.SpannableString aboutText = new android.text.SpannableString(aboutHead
+            + "\n项目作者：酷安@pkkka\n项目地址：github.com/" + GH_REPO
+            + "\n有任何想法或建议，欢迎在项目地址的 Issue / Pull Request 中提交"
+            + "\n贡献者：Rin010");
+        aboutText.setSpan(new android.text.style.RelativeSizeSpan(1.35f), 0, aboutHead.length(),
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        about.setText(aboutText);
         about.setTextSize(16);
         about.setTextColor(Color.WHITE);
         about.setPadding(dp(6), dp(16), dp(6), dp(8));
-        pageAbout.addView(about);
+        pageAbout.addView(about, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout aboutRight = new LinearLayout(this);
+        aboutRight.setOrientation(LinearLayout.VERTICAL);
+        aboutRight.setGravity(Gravity.END);
+        aboutRight.setPadding(dp(16), dp(12), dp(6), 0);
+        pageAbout.addView(aboutRight, new LinearLayout.LayoutParams(
+            dp(260), LinearLayout.LayoutParams.WRAP_CONTENT));
         self.selfStatus = new TextView(this);
         self.selfStatus.setTextSize(15);
         self.selfStatus.setTextColor(Color.LTGRAY);
+        self.selfStatus.setGravity(Gravity.END);
         self.selfStatus.setPadding(dp(6), dp(4), dp(6), dp(8));
-        pageAbout.addView(self.selfStatus);
+        aboutRight.addView(self.selfStatus, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         self.checkBtn = new Button(this);
         self.checkBtn.setText("检查更新");
         self.checkBtn.setTextSize(15);
@@ -261,7 +275,7 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.TOP | Gravity.END);
         self.btnDot.setElevation(dp(12));
         btnWrap.addView(self.btnDot, dlp);
-        pageAbout.addView(btnWrap, new LinearLayout.LayoutParams(
+        aboutRight.addView(btnWrap, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         final TabHost host = new TabHost(this, null);
         LinearLayout hostBody = new LinearLayout(this);
