@@ -505,14 +505,30 @@ public class MainActivity extends Activity {
     void refresh() {
         render();
         new Thread(new Runnable() { public void run() {
+            // 读内置模块的版本（解压、解析安装包）和 su 脚本并行，各自耗时不叠加。
+            final java.util.Map<String, String[]> bm = new java.util.HashMap<String, String[]>(),
+                ba = new java.util.HashMap<String, String[]>();
+            Thread bundledReader = null;
+            if (bundledMod.isEmpty() && bundledApk.isEmpty()) {
+                bundledReader = new Thread(new Runnable() { public void run() {
+                    for (Group g : GROUPS) {
+                        String[] v = null;
+                        if (g.kind == KIND_MOD) { v = modUp.readBundledMod(g.asset); if (v != null) bm.put(g.modId, v); }
+                        else if (g.kind == KIND_APK) { v = modUp.readBundledApk(g.asset); if (v != null) ba.put(g.pkgs[0], v); }
+                    }
+                }}, "slim-bundled");
+                bundledReader.start();
+            }
             String out = suOut(
-                "for d in /data/adb/modules/*/; do [ -d \"$d\" ] || continue; id=$(basename \"$d\"); echo \"M:$id\";"
-                + " [ -e \"$d/remove\" ] && echo \"R:$id\"; done\n"
-                + "for d in /data/adb/modules_update/*/; do [ -d \"$d\" ] && echo \"U:$(basename \"$d\")\"; done\n"
-                + "for d in /data/adb/modules/*/; do [ -d \"$d\" ] && echo \"V:$(basename \"$d\")|$(grep -m1 '^versionCode=' \"$d/module.prop\" 2>/dev/null | cut -d= -f2)|$(grep -m1 '^version=' \"$d/module.prop\" 2>/dev/null | cut -d= -f2-)\"; done\n"
-                + "for d in /data/adb/modules_update/*/; do [ -d \"$d\" ] && echo \"X:$(basename \"$d\")|$(grep -m1 '^versionCode=' \"$d/module.prop\" 2>/dev/null | cut -d= -f2)|$(grep -m1 '^version=' \"$d/module.prop\" 2>/dev/null | cut -d= -f2-)\"; done\n"
-                + "CD=" + getCacheDir().getAbsolutePath() + "\n"
-                + "for d in /data/adb/modules/*/; do [ -e \"$d/disable\" ] && echo \"D:$(basename \"$d\")\"; done\n"
+                "CD=" + getCacheDir().getAbsolutePath() + "\n"
+                // lspctl 最慢（约 2 秒），放后台和其余检测并行
+                + "( timeout 15 sh /data/adb/modules/zygisk_lsposed/lspctl status > \"$CD/lsp_status\" 2>&1; echo $? > \"$CD/lsp_rc\" ) < /dev/null &\n"
+                // 只用 shell 内建命令读 module.prop，避免每个模块起多个子进程
+                + "pv() { code=; ver=; [ -r \"$1/module.prop\" ] || return; while IFS= read -r l || [ -n \"$l\" ]; do case $l in"
+                + " versionCode=*) [ -z \"$code\" ] && code=${l#versionCode=};; version=*) [ -z \"$ver\" ] && ver=${l#version=};; esac; done < \"$1/module.prop\"; }\n"
+                + "for d in /data/adb/modules/*/; do [ -d \"$d\" ] || continue; d=${d%/}; id=${d##*/}; echo \"M:$id\";"
+                + " [ -e \"$d/remove\" ] && echo \"R:$id\"; [ -e \"$d/disable\" ] && echo \"D:$id\"; pv \"$d\"; echo \"V:$id|$code|$ver\"; done\n"
+                + "for d in /data/adb/modules_update/*/; do [ -d \"$d\" ] || continue; d=${d%/}; id=${d##*/}; echo \"U:$id\"; pv \"$d\"; echo \"X:$id|$code|$ver\"; done\n"
                 + "H=$(sha256sum /system/etc/mitv.config_product.xml 2>/dev/null | cut -d' ' -f1)\n"
                 + "M=$(sha256sum /data/adb/modules/mitv_4kui_switch/system/etc/mitv.config_product.xml 2>/dev/null | cut -d' ' -f1)\n"
                 + "[ -n \"$H\" ] && [ \"$H\" = \"$M\" ] && echo \"F:mitv_4kui_switch\"\n"
@@ -523,8 +539,9 @@ public class MainActivity extends Activity {
                 + "E=$(sha256sum /vendor/tvconfig/bsp/common/EDID_BIN/GPro_HDMI1_FreeSync_ver6.0.bin 2>/dev/null | cut -d' ' -f1)\n"
                 + "[ \"$E\" = 04d48a32abcb0fe7e8a25cac683c09b9f6dbd00dd81b8d0ab170b3d5534237fc ] && echo \"F:beekeeper_dv_edid\"\n"
                 + "for z in $(pidof zygote64); do grep -q zygisk_lsposed /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; done\n"
-                + "S=$(timeout 15 sh /data/adb/modules/zygisk_lsposed/lspctl status 2>&1); rc=$?\n"
-                + "[ $rc = 0 ] && echo \"L:run\"\n"
+                + "wait\n"
+                + "S=$(cat \"$CD/lsp_status\" 2>/dev/null); rc=$(cat \"$CD/lsp_rc\" 2>/dev/null); rm -f \"$CD/lsp_status\" \"$CD/lsp_rc\"\n"
+                + "[ \"$rc\" = 0 ] && echo \"L:run\"\n"
                 + "echo \"$S\" | grep -q 'cannot connect' && echo \"L:dead\"\n"
                 + "echo \"$S\" | grep -q 'System server: connected' && echo \"L:server\"\n"
                 + "for f in modules_config.db modules_config.db-wal; do rm -f \"$CD/lsp_$f\"; cp \"/data/adb/lspd/config/$f\" \"$CD/lsp_$f\" 2>/dev/null && chmod 666 \"$CD/lsp_$f\" && chown $(stat -c %u:%g \"$CD\") \"$CD/lsp_$f\"; done\n"
@@ -559,14 +576,8 @@ public class MainActivity extends Activity {
             final java.util.Map<String, Set<String>> lsSc = new java.util.HashMap<String, Set<String>>();
             final boolean dbRead = ok && ls.readLsDb(lsEn, lsSc);
             final boolean fOk = ok;
-            final java.util.Map<String, String[]> bm = new java.util.HashMap<String, String[]>(),
-                ba = new java.util.HashMap<String, String[]>();
-            if (bundledMod.isEmpty() && bundledApk.isEmpty()) {
-                for (Group g : GROUPS) {
-                    String[] v = null;
-                    if (g.kind == KIND_MOD) { v = modUp.readBundledMod(g.asset); if (v != null) bm.put(g.modId, v); }
-                    else if (g.kind == KIND_APK) { v = modUp.readBundledApk(g.asset); if (v != null) ba.put(g.pkgs[0], v); }
-                }
+            if (bundledReader != null) {
+                try { bundledReader.join(); } catch (InterruptedException ignore) { }
             }
             main.post(new Runnable() { public void run() {
                 if (!bm.isEmpty() || !ba.isEmpty()) { bundledMod = bm; bundledApk = ba; }
@@ -613,7 +624,6 @@ public class MainActivity extends Activity {
                     : "当前：未安装";
                 String av = aerial.aerialVersion();
                 if (av != null && aerial.aerialInstalledOk()) t += "\n版本：" + av;
-                if (aerial.aerialUpdatable()) t += "\n⬆ 有新版本：" + av + " → " + aerial.rel.tag;
                 sb.append("\n").append(t);
                 g.box.setText(sb.toString());
                 g.box.setChecked(st == DB_ACTIVE || st == DB_SYSTEM || st == DB_PENDING);
