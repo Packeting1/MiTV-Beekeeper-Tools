@@ -31,6 +31,17 @@
 
 开关类模块会在开机时把对应项写入 `/data/system/mitv.config.xml`，并用 `chattr +i` 锁定，防止云端配置覆盖；卸载模块时会解锁并还原。
 
+## LSPosed 模块（APK 在 `app/bundled/`，内置在 App 里）
+
+需要 LSPosed / Vector。App 里勾选后只负责安装，安装后要在 Vector 里手动启用并勾选作用域。
+
+| 模块 | 作用 |
+|---|---|
+| TvPlayerKeep | 从信号源进入系统设置（遥控器设置键、图像参数页）时不黑屏 |
+| SignalKeep | 减少信号源与电视系统切换的黑屏时长：回到电视系统桌面时保留信号并静音，停在桌面超过 1 分钟或进入应用时释放信号 |
+| CastPip | 投屏以小窗叠加在信号源画面上 |
+| HomeRef | 默认桌面不是系统桌面时，让系统的“回桌面”判断和跳转指向当前默认桌面（如 Aerial） |
+
 ## 自行构建 App
 
 没有用 Gradle。需要：JDK 8+、API 28 的 `android.jar`、build-tools（aapt2 / zipalign / apksigner）、稳定版 R8，以及 Aerial 桌面的 APK（放到 `app/bundled/aerial.apk`，来源 [pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT 许可）。
