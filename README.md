@@ -33,11 +33,11 @@
 
 ## 无信号进入音响模式（LSPosed）
 
-输入源无信号倒计时结束后进入小爱音响模式，保留原有倒计时。倒计时页面新增第二个“息屏”按钮，可提前进入音响模式，原有“主页、待机、关机”按钮保持原行为。`1.0.3-test4` 预发布版补充电脑不拔线睡眠/熄屏恢复检测，并在唤醒时选择实际恢复的输入源，避免错误切到其他端口后再次息屏。安装后在 LSPosed 中启用，作用域只勾选“模拟电视” (`com.xiaomi.mitv.tvplayer`)，然后重启输入源应用。
+输入源无信号倒计时结束后进入小爱音响模式，保留原有倒计时。倒计时页面新增第二个“息屏”按钮，可提前进入音响模式，原有“主页、待机、关机”按钮保持原行为。`1.0.3` 正式版补充电脑不拔线睡眠/熄屏恢复检测，并在唤醒时选择实际恢复的输入源，避免错误切到其他端口后再次息屏。安装后在 LSPosed 中启用，作用域只勾选“模拟电视” (`com.xiaomi.mitv.tvplayer`)，然后重启输入源应用。
 
 已在 beekeeper / Android 14 / HyperOS OS3.0.109.0.UFFMAMN、输入源应用 3.0.38（260325）上完成 HDMI 断输出 75 秒、音响模式和恢复信号测试。新方案会保留当前输入会话并丢弃离屏缓冲，不读取像素或保存画面；额外功耗、其他端口不拔线恢复及长期稳定性尚未完整验证。需要 LSPosed 正常注入；其他固件和整机冷启动未单独验证。
 
-源码和构建说明见 [`lsposed/no-signal-audio/`](lsposed/no-signal-audio/)，独立项目见 [MiTV-NoSignal-AudioMode](https://github.com/Rin010/MiTV-NoSignal-AudioMode)。
+源码和构建说明见 [`lsposed/no-signal-audio/`](lsposed/no-signal-audio/)，独立项目见 [MiTV-NoSignal-AudioMode](https://github.com/Rin010/MiTV-NoSignal-AudioMode)。已同意维护者在合并时从源码重建并采用本项目统一签名；独立发布版保留原签名。跨签名切换需先卸载再安装，并重新检查 LSPosed 启用状态与作用域。
 
 ## 自行构建 App
 

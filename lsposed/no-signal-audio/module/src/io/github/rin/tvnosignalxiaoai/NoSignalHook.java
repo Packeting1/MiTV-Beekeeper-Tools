@@ -20,11 +20,13 @@ public final class NoSignalHook implements IXposedHookLoadPackage {
     private static final String TAG = "NoSignalXiaoAi";
     private static final String PLAYER = "com.xiaomi.mitv.tvplayer";
     private static final String COUNTDOWN = PLAYER + ".widget.views.SearchingView$1";
-    private static TvInputManager inputManager;
     private static TvInputManager.TvInputCallback inputCallback;
 
     @Override public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lp) throws Throwable {
         if (!PLAYER.equals(lp.packageName) || !PLAYER.equals(lp.processName)) return;
+        // Check the countdown entry point before installing any hooks on this player build.
+        Class<?> countdown = XposedHelpers.findClass(COUNTDOWN, lp.classLoader);
+        countdown.getDeclaredMethod("run");
         XposedHelpers.findAndHookMethod(PLAYER + ".TVPlayerApp", lp.classLoader,
                 "onCreate", new XC_MethodHook() {
             @Override protected void afterHookedMethod(MethodHookParam param) {
@@ -41,9 +43,6 @@ public final class NoSignalHook implements IXposedHookLoadPackage {
         catch (Throwable error) { Log.e(TAG, "Session test unavailable: " + error.getClass().getSimpleName()); }
         try { CountdownControls.install(lp.classLoader); }
         catch (Throwable error) { Log.e(TAG, "Countdown controls unavailable: " + error.getClass().getSimpleName()); }
-        // Fail closed on incompatible player builds: the original behavior is retained.
-        Class<?> countdown = XposedHelpers.findClass(COUNTDOWN, lp.classLoader);
-        countdown.getDeclaredMethod("run");
         XposedHelpers.findAndHookMethod(PowerManager.class, "goToSleep",
                 long.class, int.class, int.class, new XC_MethodHook() {
             @Override protected void beforeHookedMethod(MethodHookParam param) {
@@ -106,7 +105,6 @@ public final class NoSignalHook implements IXposedHookLoadPackage {
             if (info.isPassthroughInput()) recovery.update(info.getId(), manager.getInputState(info.getId()));
         }
         manager.registerCallback(callback, handler);
-        inputManager = manager;
         inputCallback = callback;
         Log.i(TAG, "Watching recovery of all external inputs");
     }
