@@ -9,12 +9,12 @@
 需要 root。分页：应用类 / 优化类 / 修复类 / 隐藏项 / 关于。
 
 - 禁用后台应用（语音助手、统计诊断等），随时可恢复
-- 安装 Aerial 桌面并设为默认桌面，可选禁用系统桌面
+- 安装 Aerial 桌面并设为默认桌面，可选禁用系统桌面，并检测 Aerial 更新
 - 一键安装/关闭下面的 Magisk 模块，并显示模块是否真正生效
-- 一键安装 LSPosed 模块（TvPlayerKeep / CastPip / HomeRef / 无信号进入音响模式）
+- 一键安装 LSPosed 模块（TvPlayerKeep / SignalKeep / CastPip / HomeRef / InstallUnlock / 无信号进入音响模式）
 - 隐藏的系统页面入口（调试信息、色彩校准、MTK 工厂菜单等）
 
-## Magisk 模块（`modules/`，也在每个 Release 里）
+## Magisk 模块
 
 | 模块 | 作用 |
 |---|---|
@@ -31,17 +31,29 @@
 
 开关类模块会在开机时把对应项写入 `/data/system/mitv.config.xml`，并用 `chattr +i` 锁定，防止云端配置覆盖；卸载模块时会解锁并还原。
 
+## LSPosed 模块
+
+需要 LSPosed / Vector。App 里勾选后只负责安装，安装后要在 Vector 里手动启用并勾选作用域。
+
+| 模块 | 作用 |
+|---|---|
+| TvPlayerKeep | 从信号源进入系统设置（遥控器设置键、图像参数页）时不黑屏 |
+| SignalKeep | 减少信号源与电视系统切换的黑屏时长：回到电视系统桌面时保留信号并静音，停在桌面超过 1 分钟或进入应用时释放信号 |
+| CastPip | 投屏以小窗叠加在信号源画面上 |
+| HomeRef | 默认桌面不是系统桌面时，让系统的“回桌面”判断和跳转指向当前默认桌面（如 Aerial） |
+| InstallUnlock | 解除小米包安装器依据云端黑名单（`app_pi_control`）对部分应用（如当贝市场）的安装拦截；作用域 `com.android.packageinstaller`，不处理“未知来源”开关 |
+
 ## 无信号进入音响模式（LSPosed）
 
-输入源无信号倒计时结束后进入小爱音响模式，保留原有倒计时。倒计时页面新增第二个“息屏”按钮，可提前进入音响模式，原有“主页、待机、关机”按钮保持原行为。`1.0.3` 正式版补充电脑不拔线睡眠/熄屏恢复检测，并在唤醒时选择实际恢复的输入源，避免错误切到其他端口后再次息屏。安装后在 LSPosed 中启用，作用域只勾选“模拟电视” (`com.xiaomi.mitv.tvplayer`)，然后重启输入源应用。
+`1.0.3` 正式版在无信号倒计时结束后进入原生小爱音响模式，倒计时页面新增排第二位的“息屏”按钮，可提前进入音响模式；原有“主页、待机、关机”按钮的作用不变。通过外部输入连接事件和保留的当前输入会话检测恢复，唤醒时选择实际恢复的输入源，避免切错端口后再次息屏。离屏缓冲仅获取后释放，不读取像素或保存画面；额外功耗和其他端口的不拔线恢复尚未完整验证。
 
-已在 beekeeper / Android 14 / HyperOS OS3.0.109.0.UFFMAMN、输入源应用 3.0.38（260325）上完成 HDMI 断输出 75 秒、音响模式和恢复信号测试。新方案会保留当前输入会话并丢弃离屏缓冲，不读取像素或保存画面；额外功耗、其他端口不拔线恢复及长期稳定性尚未完整验证。需要 LSPosed 正常注入；其他固件和整机冷启动未单独验证。
+用户已确认 `1.0.3-test5` 测试通过，正式版执行代码与该测试版一致。模块作用域仅为 `com.xiaomi.mitv.tvplayer`；源码、独立构建脚本和验证范围见 [`lsposed/no-signal-audio/`](lsposed/no-signal-audio/)，安装包放在 `modules/lsposed/dist/NoSignalAudioMode.apk`。该模块使用传统 Xposed API 82，通过其目录内的 `build.ps1` 单独构建；其余模块继续沿用现有 API 101 构建脚本。
 
-源码和构建说明见 [`lsposed/no-signal-audio/`](lsposed/no-signal-audio/)，独立项目见 [MiTV-NoSignal-AudioMode](https://github.com/Rin010/MiTV-NoSignal-AudioMode)。已同意维护者在合并时从源码重建并采用本项目统一签名；独立发布版保留原签名。跨签名切换需先卸载再安装，并重新检查 LSPosed 启用状态与作用域。
+已同意维护者在合并时从源码重建并采用本项目统一签名；[独立发布版](https://github.com/Rin010/MiTV-NoSignal-AudioMode)保留原签名。跨签名切换需先卸载再安装，并检查 LSPosed 启用状态与作用域。
 
 ## 自行构建 App
 
-没有用 Gradle。需要：JDK 8+、API 28 的 `android.jar`、build-tools（aapt2 / zipalign / apksigner）、稳定版 R8，以及 Aerial 桌面的 APK（放到 `app/bundled/aerial.apk`，来源 [pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT 许可）。
+没有用 Gradle。需要：JDK 8+、API 28 的 `android.jar`、build-tools（aapt2 / zipalign / apksigner）、稳定版 R8。Aerial 桌面的 APK（来源 [pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT 许可）在 `app/bundled/aerial.apk` 不存在时，构建脚本会自动下载最新 Release 并按 GitHub 给出的 SHA-256 校验；也可以自己放一个到该路径。
 
 ```
 set ANDROID_JAR=...\android.jar
@@ -54,6 +66,8 @@ python app\build.py
 ```
 
 输出在 `dist/`。
+
+LSPosed 模块用 `python modules\lsposed\build.py [模块名]` 构建（默认全部），除上面的环境变量外还需要 `JAVA_HOME`（JDK 17+）和 `XPOSED_API`（[libxposed API 101](https://github.com/libxposed/api) 的 `api-101.0.0.aar`，Maven Central 上有）。输出在 `modules/lsposed/dist/`，App 构建时从这里取。
 
 ## 许可证
  [GNU GPL v3.0](LICENSE) 授权。随 App 附带的 Aerial 桌面仍遵循其原有的 MIT 许可。
