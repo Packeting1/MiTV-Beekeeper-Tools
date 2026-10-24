@@ -535,8 +535,11 @@ public class MainActivity extends Activity {
             }
             String out = suOut(
                 "CD=" + getCacheDir().getAbsolutePath() + "\n"
-                // lspctl 最慢（约 2 秒），放后台和其余检测并行
-                + "( timeout 15 sh /data/adb/modules/zygisk_lsposed/lspctl status > \"$CD/lsp_status\" 2>&1; echo $? > \"$CD/lsp_rc\" ) < /dev/null &\n"
+                // LSPosed 和 Vector 的模块目录不同（zygisk_lsposed / zygisk_vector）；前者用 lspctl，后者用 cli。
+                // 状态命令最慢（约 2 秒），放后台和其余检测并行
+                + "LM=/data/adb/modules/zygisk_lsposed; [ -d /data/adb/modules/zygisk_vector ] && LM=/data/adb/modules/zygisk_vector\n"
+                + "if [ -f \"$LM/lspctl\" ]; then CTL=lspctl; else CTL=cli; fi\n"
+                + "( timeout 15 sh \"$LM/$CTL\" status > \"$CD/lsp_status\" 2>&1; echo $? > \"$CD/lsp_rc\" ) < /dev/null &\n"
                 // 只用 shell 内建命令读 module.prop，避免每个模块起多个子进程
                 + "pv() { code=; ver=; [ -r \"$1/module.prop\" ] || return; while IFS= read -r l || [ -n \"$l\" ]; do case $l in"
                 + " versionCode=*) [ -z \"$code\" ] && code=${l#versionCode=};; version=*) [ -z \"$ver\" ] && ver=${l#version=};; esac; done < \"$1/module.prop\"; }\n"
@@ -552,12 +555,14 @@ public class MainActivity extends Activity {
                 + "[ \"$L\" = 282d2ad2991845cd79660bb13111cba1da82e8116f1519e2b395606b27eb6dcf ] && echo \"F:beekeeper_ldm_fix\"\n"
                 + "E=$(sha256sum /vendor/tvconfig/bsp/common/EDID_BIN/GPro_HDMI1_FreeSync_ver6.0.bin 2>/dev/null | cut -d' ' -f1)\n"
                 + "[ \"$E\" = 04d48a32abcb0fe7e8a25cac683c09b9f6dbd00dd81b8d0ab170b3d5534237fc ] && echo \"F:beekeeper_dv_edid\"\n"
-                + "for z in $(pidof zygote64); do grep -q zygisk_lsposed /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; done\n"
+                + "for z in $(pidof zygote64); do grep -qE 'zygisk_(lsposed|vector)' /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; done\n"
                 + "wait\n"
                 + "S=$(cat \"$CD/lsp_status\" 2>/dev/null); rc=$(cat \"$CD/lsp_rc\" 2>/dev/null); rm -f \"$CD/lsp_status\" \"$CD/lsp_rc\"\n"
                 + "[ \"$rc\" = 0 ] && echo \"L:run\"\n"
-                + "echo \"$S\" | grep -q 'cannot connect' && echo \"L:dead\"\n"
+                + "echo \"$S\" | grep -qE 'cannot connect|Socket file not found' && echo \"L:dead\"\n"
+                // lspctl 直接报告；Vector 的 cli 不报告，改看系统进程里有没有加载 Zygisk 模块库
                 + "echo \"$S\" | grep -q 'System server: connected' && echo \"L:server\"\n"
+                + "for p in $(pidof system_server); do grep -qE 'zygisk_(lsposed|vector)' /proc/$p/maps 2>/dev/null && echo \"L:server\"; done\n"
                 + "for f in modules_config.db modules_config.db-wal; do rm -f \"$CD/lsp_$f\"; cp \"/data/adb/lspd/config/$f\" \"$CD/lsp_$f\" 2>/dev/null && chmod 666 \"$CD/lsp_$f\" && chown $(stat -c %u:%g \"$CD\") \"$CD/lsp_$f\"; done\n"
                 + flagQuery()
                 + "echo __Q_OK__\n");

@@ -99,6 +99,8 @@ public final class HookEntry extends XposedModule {
                 String inputId = recoveredInput[0];
                 recoveredInput[0] = null;
                 if (power.isInteractive()) return;
+                // 普通待机（电源键息屏等）不处理，只在音响模式下按信号恢复亮屏。
+                if (!SessionKeeper.audioMode()) return;
                 try {
                     SessionKeeper.prepareInputWake(inputId);
                     wakeUp.invoke(power, Long.valueOf(SystemClock.uptimeMillis()), Integer.valueOf(8),

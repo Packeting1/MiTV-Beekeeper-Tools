@@ -28,10 +28,26 @@ final class LsStatus extends Part {
             d = android.database.sqlite.SQLiteDatabase.openDatabase(db.getAbsolutePath(), null,
                 android.database.sqlite.SQLiteDatabase.OPEN_READWRITE
                     | android.database.sqlite.SQLiteDatabase.NO_LOCALIZED_COLLATORS);
-            android.database.Cursor c = d.rawQuery("select module_pkg_name, enabled from modules_state where user_id=0", null);
+            // 两种库结构：旧 LSPosed 有 modules_state 表、scope 直接带包名；
+            // 原版 LSPosed 1.9+ 和 Vector 的 modules 表自带 enabled，scope 用 mid 关联。
+            boolean legacy = false;
+            android.database.Cursor c = d.rawQuery("select 1 from sqlite_master where name='modules_state'", null);
+            if (c.moveToFirst()) legacy = true;
+            c.close();
+            c = d.rawQuery(legacy
+                ? "select module_pkg_name, enabled from modules_state where user_id=0"
+                : "select module_pkg_name, enabled from modules", null);
             while (c.moveToNext()) en.put(c.getString(0), c.getInt(1) != 0);
             c.close();
-            c = d.rawQuery("select module_pkg_name, app_pkg_name from scope where user_id=0", null);
+            if (legacy) {
+                // 装了但从没启用过的模块只在 modules 表里，没有 modules_state 行，算“未启用”而不是“未登记”。
+                c = d.rawQuery("select module_pkg_name from modules", null);
+                while (c.moveToNext()) if (!en.containsKey(c.getString(0))) en.put(c.getString(0), false);
+                c.close();
+            }
+            c = d.rawQuery(legacy
+                ? "select module_pkg_name, app_pkg_name from scope where user_id=0"
+                : "select m.module_pkg_name, s.app_pkg_name from scope s join modules m on m.mid=s.mid where s.user_id=0", null);
             while (c.moveToNext()) {
                 Set<String> s = sc.get(c.getString(0));
                 if (s == null) { s = new HashSet<String>(); sc.put(c.getString(0), s); }
@@ -50,13 +66,13 @@ final class LsStatus extends Part {
     }
 
     String lsActual(String pkg) {
-        if (!lsKnown) return "实际：LSPosed 没有运行，模块不会生效";
+        if (!lsKnown) return "实际：未能读取 LSPosed 的状态";
         if (!lsRunning) return "实际：LSPosed 没有运行，模块不会生效";
-        if (!lsServer) return "实际：LSPosed 已运行，但未注入系统，重启后再看";
-        if (lsEnabled == null) return "实际：读不到 LSPosed 的配置";
+        if (!lsServer) return "实际：LSPosed 已运行，但未注入系统，重启再试";
+        if (lsEnabled == null) return "实际：未能读取 LSPosed 的配置";
         Boolean e = lsEnabled.get(pkg);
-        if (e == null) return "实际：LSPosed 未登记此模块，重启后再看";
-        if (!e) return "实际：LSPosed 里没有启用，请到 LSPosed 里启用";
+        if (e == null) return "实际：LSPosed 未登记此模块";
+        if (!e) return "实际：模块未在 LSPosed 里启用";
         String[] need = LS_SCOPES.get(pkg);
         if (need == null) return "实际：已在 LSPosed 启用";
         Set<String> have = lsScope == null ? null : lsScope.get(pkg);

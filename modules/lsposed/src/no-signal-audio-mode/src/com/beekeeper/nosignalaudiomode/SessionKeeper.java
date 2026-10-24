@@ -79,7 +79,7 @@ final class SessionKeeper {
             module.log(Log.ERROR, TAG, "Recovery source preparation failed: " + error.getClass().getSimpleName());
         }
     }
-    private static boolean audioMode() {
+    static boolean audioMode() {
         return context != null && "xiaoai_mode".equals(
                 Settings.Global.getString(context.getContentResolver(), "mitv_power_state"));
     }
