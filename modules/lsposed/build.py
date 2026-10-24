@@ -1,6 +1,6 @@
 """Build the LSPosed/Vector (libxposed API 101) modules without Gradle (javac + D8 + aapt2 + zipalign + apksigner).
 
-usage: python modules/lsposed/build.py [module-dir ...]      (default: all modules in modules/lsposed/)
+usage: python modules/lsposed/build.py [module-name ...]     (default: all modules in modules/lsposed/src/)
 
 Environment variables (same as app/build.py, plus XPOSED_API):
   ANDROID_JAR   android.jar of API 28
@@ -10,14 +10,15 @@ Environment variables (same as app/build.py, plus XPOSED_API):
                 https://repo.maven.apache.org/maven2/io/github/libxposed/api/101.0.0/
   JAVA_HOME     JDK 17+
   KEYSTORE, KS_PASS, KS_ALIAS   signing key
-Each module dir holds AndroidManifest.xml, scope.txt (one target package per line) and
-src/<package path>/HookEntry.java. Output: dist/<label>.apk
+Each module dir under src/ holds AndroidManifest.xml, scope.txt (one target package per line) and
+src/<package path>/HookEntry.java. Output: modules/lsposed/dist/<label>.apk
 """
 import os, re, shutil, subprocess, sys, zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DIST = ROOT.parent.parent / 'dist'
+SRC = ROOT / 'src'
+DIST = ROOT / 'dist'
 
 
 def need(name):
@@ -116,6 +117,6 @@ def build(mod):
     print('OK', final, final.stat().st_size)
 
 
-mods = [ROOT / m for m in sys.argv[1:]] or sorted(p for p in ROOT.iterdir() if (p / 'AndroidManifest.xml').exists())
+mods = [SRC / m for m in sys.argv[1:]] or sorted(p for p in SRC.iterdir() if (p / 'AndroidManifest.xml').exists())
 for m in mods:
     build(m)

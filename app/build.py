@@ -6,7 +6,7 @@ Configure with environment variables (see README.md):
   R8_JAR        r8.jar (stable R8 release)
   JAVA_HOME     JDK 8+ (optional if java/javac are on PATH)
   KEYSTORE, KS_PASS, KS_ALIAS   signing key. Updates only install over an older build signed with the same key.
-Extra inputs: modules/magisk/*.zip, modules/lsposed/*.apk, and app/bundled/aerial.apk (Aerial launcher, MIT, https://github.com/pengchujin/aerial-tv).
+Extra inputs: modules/magisk/dist/*.zip, modules/lsposed/dist/*.apk, and app/bundled/aerial.apk (Aerial launcher, MIT, https://github.com/pengchujin/aerial-tv).
 """
 import os, re, shutil, subprocess, sys, zipfile
 from pathlib import Path
@@ -93,9 +93,9 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, 'w', zipfile.ZIP_DE
     zout.write(dexdir / 'classes.dex', 'classes.dex')
     zout.write(aerial, 'assets/aerial.apk', zipfile.ZIP_STORED)
     for name, apk in (('tvplayerkeep', 'TvPlayerKeep'), ('signalkeep', 'SignalKeep'), ('castpip', 'CastPip'), ('homeref', 'HomeRef')):
-        zout.write(REPO / 'modules' / 'lsposed' / (apk + '.apk'), 'assets/apk_%s.apk' % name, zipfile.ZIP_STORED)
+        zout.write(REPO / 'modules' / 'lsposed' / 'dist' / (apk + '.apk'), 'assets/apk_%s.apk' % name, zipfile.ZIP_STORED)
     for name, pattern in MODS.items():
-        found = sorted((REPO / 'modules' / 'magisk').glob(pattern))
+        found = sorted((REPO / 'modules' / 'magisk' / 'dist').glob(pattern))
         if len(found) != 1:
             sys.exit('expected exactly one module zip for %s, found %d' % (pattern, len(found)))
         zout.write(found[0], 'assets/mod_%s.zip' % name, zipfile.ZIP_STORED)

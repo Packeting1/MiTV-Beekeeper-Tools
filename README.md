@@ -14,7 +14,7 @@
 - 一键安装 LSPosed 模块（TvPlayerKeep / SignalKeep / CastPip / HomeRef）
 - 隐藏的系统页面入口（调试信息、色彩校准、MTK 工厂菜单等）
 
-## Magisk 模块（`modules/magisk`，也在每个 Release 里）
+## Magisk 模块
 
 | 模块 | 作用 |
 |---|---|
@@ -31,9 +31,9 @@
 
 开关类模块会在开机时把对应项写入 `/data/system/mitv.config.xml`，并用 `chattr +i` 锁定，防止云端配置覆盖；卸载模块时会解锁并还原。
 
-## LSPosed 模块（`modules/lsposed`，内置在 App 中）
+## LSPosed 模块
 
-需要 LSPosed / Vector。每个模块的源码在对应子目录，编译好的 APK 在 `modules/lsposed/` 根目录。App 里勾选后只负责安装，安装后要在 Vector 里手动启用并勾选作用域。
+需要 LSPosed / Vector。App 里勾选后只负责安装，安装后要在 Vector 里手动启用并勾选作用域。
 
 | 模块 | 作用 |
 |---|---|
@@ -58,7 +58,7 @@ python app\build.py
 
 输出在 `dist/`。
 
-LSPosed 模块用 `python modules\lsposed\build.py [模块目录]` 构建（默认全部），除上面的环境变量外还需要 `JAVA_HOME`（JDK 17+）和 `XPOSED_API`（[libxposed API 101](https://github.com/libxposed/api) 的 `api-101.0.0.aar`，Maven Central 上有）。输出同样在 `dist/`。
+LSPosed 模块用 `python modules\lsposed\build.py [模块名]` 构建（默认全部），除上面的环境变量外还需要 `JAVA_HOME`（JDK 17+）和 `XPOSED_API`（[libxposed API 101](https://github.com/libxposed/api) 的 `api-101.0.0.aar`，Maven Central 上有）。输出在 `modules/lsposed/dist/`，App 构建时从这里取。
 
 ## 许可证
  [GNU GPL v3.0](LICENSE) 授权。随 App 附带的 Aerial 桌面仍遵循其原有的 MIT 许可。
