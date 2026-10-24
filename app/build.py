@@ -70,7 +70,8 @@ if OUT.exists():
 cls = OUT / 'classes'
 cls.mkdir(parents=True)
 run([java('javac'), '-source', '8', '-target', '8', '-encoding', 'UTF-8', '-Xlint:-options',
-     '-bootclasspath', ANDROID_JAR, '-d', cls, ROOT / 'src' / 'com' / 'beekeeper' / 'slim' / 'MainActivity.java'])
+     '-bootclasspath', ANDROID_JAR, '-d', cls,
+     *sorted((ROOT / 'src' / 'com' / 'beekeeper' / 'slim').glob('*.java'))])
 
 jar = OUT / 'classes.jar'
 with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as z:
