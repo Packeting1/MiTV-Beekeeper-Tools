@@ -11,7 +11,7 @@
 - 禁用后台应用（语音助手、统计诊断等），随时可恢复
 - 安装 Aerial 桌面并设为默认桌面，可选禁用系统桌面，并检测 Aerial 更新
 - 一键安装/关闭下面的 Magisk 模块，并显示模块是否真正生效
-- 一键安装 LSPosed 模块（TvPlayerKeep / CastPip / HomeRef）
+- 一键安装 LSPosed 模块（TvPlayerKeep / SignalKeep / CastPip / HomeRef）
 - 隐藏的系统页面入口（调试信息、色彩校准、MTK 工厂菜单等）
 
 ## Magisk 模块（`modules/`，也在每个 Release 里）

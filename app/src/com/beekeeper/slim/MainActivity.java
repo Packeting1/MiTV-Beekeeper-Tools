@@ -149,10 +149,14 @@ public class MainActivity extends Activity {
             "风险：部分系统入口（如信号源列表的“主页”）可能没反应",
             STOCK_HOME_PKG),
         new Group(KIND_APK, "TvPlayerKeep（LSPosed模块）",
-            "修复 PC 信号进设置黑屏。",
+            "从信号源进入系统设置不黑屏。",
             null, "com.beekeeper.tvplayerkeep").mod("com.beekeeper.tvplayerkeep", "apk_tvplayerkeep.apk"),
+        new Group(KIND_APK, "SignalKeep（LSPosed模块）",
+            "减少信号源和电视系统之间切换的黑屏时长。",
+            "代价：内存约占用165MB",
+            "com.beekeeper.signalkeep").mod("com.beekeeper.signalkeep", "apk_signalkeep.apk"),
         new Group(KIND_APK, "CastPip（LSPosed模块）",
-            "投屏小窗叠加 PC 信号，并支持混音。",
+            "投屏小窗叠加信号源，并支持混音。",
             null, "com.beekeeper.castpip").mod("com.beekeeper.castpip", "apk_castpip.apk"),
         new Group(KIND_APK, "HomeRef（LSPosed模块）",
             "把系统桌面的引用替换为当前的默认桌面。",
@@ -164,10 +168,10 @@ public class MainActivity extends Activity {
             "在系统设置里显示 4K 界面开关。开关位于“设置>通用设置>UI显示模式>极清模式”",
             null).mod("mitv_4kui_switch", "mod_4kui.zip"),
         new Group(KIND_MOD, "HGIG 修复（Magisk模块）",
-            "修复 3.0.109 的 HDR 色调映射里 HGIG 档位错位。",
+            "修复 OS 3.0.109 的 HDR 色调映射里 HGIG 档位错位。",
             null).mod("beekeeper_hgig_fix", "mod_hgig.zip"),
         new Group(KIND_MOD, "LDM 局部调光修复（Magisk模块）",
-            "调整 3.0.109 的局部调光参数，减轻 HDR/杜比视界过曝。",
+            "调整 OS 3.0.109 的局部调光参数，减轻 HDR/杜比视界过曝。",
             null).mod("beekeeper_ldm_fix", "mod_ldm.zip"),
         new Group(KIND_MOD, "Zygote64 修复（Magisk模块）",
             "让 LSPosed 模块开机后稳定生效。",
@@ -1090,6 +1094,8 @@ public class MainActivity extends Activity {
     static {
         LS_SCOPES.put("com.beekeeper.tvplayerkeep", new String[] {
             "com.xiaomi.mitv.tvplayer", "com.xiaomi.mitv.smartpanel", "com.xiaomi.mitv.settings" });
+        LS_SCOPES.put("com.beekeeper.signalkeep", new String[] {
+            "com.xiaomi.mitv.tvplayer", "com.mediatek.tvinput" });
         LS_SCOPES.put("com.beekeeper.castpip", new String[] {
             "com.xiaomi.mitv.smartshare", "com.xiaomi.mitv.tvplayer", "mitv.service" });
         LS_SCOPES.put("com.beekeeper.homeref", new String[] {
