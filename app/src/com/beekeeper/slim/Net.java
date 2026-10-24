@@ -1,7 +1,6 @@
 package com.beekeeper.slim;
 
 import android.os.Handler;
-import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -68,10 +67,6 @@ final class Net {
         }
     }
 
-    static String fetchApi(String path) throws Exception {
-        return fetchApi(GH_REPO, path);
-    }
-
     static String fetchApi(String repo, String path) throws Exception {
         Throwable last = null;
         for (String cand : withMirrors("https://api.github.com/repos/" + repo + "/" + path)) {
@@ -92,6 +87,65 @@ final class Net {
         throw new NetFail(last == null ? "无法连接" : String.valueOf(last));
     }
 
+    /** 一个 Release：版本、安装包地址和更新说明。notes 只含最近 2 个版本；notesFull 是全部，count 是版本数。 */
+    static final class Release {
+        String tag, url, digest = "", notes, notesFull;
+        int count;
+    }
+
+    /**
+     * 查 repo 的最新 Release。asset 为 null 时取第一个 .apk（可能没有，url 为 null）；
+     * 否则取同名文件，找不到就抛错。cur 不为 null 且落后时，更新说明带上中间版本；
+     * 列表拿不到就只用最新版的。
+     */
+    static Release fetchRelease(String repo, String asset, String cur) throws Exception {
+        Release r = new Release();
+        org.json.JSONObject j = new org.json.JSONObject(fetchApi(repo, "releases/latest"));
+        r.tag = j.getString("tag_name");
+        org.json.JSONArray as = j.optJSONArray("assets");
+        for (int i = 0; as != null && i < as.length(); i++) {
+            org.json.JSONObject a = as.getJSONObject(i);
+            String name = a.optString("name");
+            if (asset == null ? name.endsWith(".apk") : asset.equals(name)) {
+                r.url = a.getString("browser_download_url");
+                r.digest = a.optString("digest", "");
+                break;
+            }
+        }
+        if (asset != null && r.url == null) throw new Exception("最新发布里没有 " + asset);
+        r.notes = notesOf(r.tag, j.optString("body", ""));
+        r.notesFull = r.notes;
+        r.count = 1;
+        if (cur != null && cmpVersion(r.tag, cur) > 0) {
+            try {
+                org.json.JSONArray rs = new org.json.JSONArray(fetchApi(repo, "releases?per_page=30"));
+                StringBuilder rec = new StringBuilder(), all = new StringBuilder();
+                int n = 0;
+                for (int i = 0; i < rs.length(); i++) {
+                    org.json.JSONObject o = rs.getJSONObject(i);
+                    String t = o.optString("tag_name");
+                    if (o.optBoolean("draft") || o.optBoolean("prerelease")) continue;
+                    if (cmpVersion(t, cur) <= 0 || cmpVersion(t, r.tag) > 0) continue;
+                    String e = notesOf(t, o.optString("body", ""));
+                    if (n < 2) rec.append(n > 0 ? "\n\n" : "").append(e);
+                    all.append(n > 0 ? "\n\n" : "").append(e);
+                    n++;
+                }
+                // 版本落后超过 30 个时，列表拿不全最老的几版。
+                if (rs.length() > 0 && cmpVersion(rs.getJSONObject(rs.length() - 1).optString("tag_name"), cur) > 0) {
+                    all.append("\n\n（更早的版本说明请到 GitHub 查看）");
+                }
+                if (n > 0) { r.notes = rec.toString(); r.notesFull = all.toString(); r.count = n; }
+            } catch (Throwable ignore) { }
+        }
+        return r;
+    }
+
+    private static String notesOf(String tag, String body) {
+        body = body.trim();
+        return "【" + tag + "】\n" + (body.length() == 0 ? "（没有更新说明）" : body);
+    }
+
     static java.util.List<String> withMirrors(String url) {
         java.util.ArrayList<String> l = new java.util.ArrayList<String>();
         l.add(url);
@@ -101,8 +155,7 @@ final class Net {
 
     /** 依次试每个地址，下载到 f 并校验 sha256（digest 为 "sha256:..." 时）。全部失败抛 NetFail，用户取消抛 CancelledException。 */
     static void downloadFile(final Handler main, List<String> cands, String digest, java.io.File f,
-                              final TextView ptxt, final android.widget.ProgressBar pbar,
-                              CancelToken tok) throws Throwable {
+                              final Progress p, CancelToken tok) throws Throwable {
         Throwable lastErr = null;
         for (String cand : cands) {
             if (tok.cancelled) throw new CancelledException();
@@ -131,14 +184,8 @@ final class Net {
                         if (g - lastUi > 65536 || (total > 0 && g == total)) {
                             lastUi = g;
                             main.post(new Runnable() { public void run() {
-                                if (total > 0) {
-                                    int pct = (int) (g * 100 / total);
-                                    pbar.setIndeterminate(false);
-                                    pbar.setProgress(pct);
-                                    ptxt.setText(String.format("正在下载……%d%%（%.1f / %.1f MB）", pct, g / 1048576.0, total / 1048576.0));
-                                } else {
-                                    ptxt.setText(String.format("正在下载……%.1f MB", g / 1048576.0));
-                                }
+                                if (total > 0) p.downloaded((int) (g * 100 / total), g, total);
+                                else p.text.setText(String.format("正在下载……%.1f MB", g / 1048576.0));
                             } });
                         }
                     }
@@ -156,10 +203,7 @@ final class Net {
             } catch (Throwable t) {
                 if (tok.cancelled) throw new CancelledException();
                 lastErr = t;
-                main.post(new Runnable() { public void run() {
-                    pbar.setIndeterminate(true);
-                    ptxt.setText("下载失败，正在切换线路重试……");
-                } });
+                main.post(new Runnable() { public void run() { p.waiting("下载失败，正在切换线路重试……"); } });
             }
         }
         throw new NetFail(lastErr == null ? "下载失败" : String.valueOf(lastErr));

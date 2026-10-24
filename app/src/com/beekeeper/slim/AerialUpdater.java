@@ -1,11 +1,9 @@
 package com.beekeeper.slim;
 
 import android.app.AlertDialog;
-import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.view.View;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.HashSet;
 import java.util.List;
@@ -29,10 +27,8 @@ final class AerialUpdater extends Part {
 
     static final String AERIAL_SITE_APK = "https://aerial.qust.me/download/aerial-standard.apk";
 
-    /** aerialNotes 只含最近 2 个版本的说明；aerialNotesFull 是全部，aerialNoteCount 是版本数。 */
-    String aerialTag, aerialUrl, aerialDigest, aerialNotes, aerialNotesFull;
-
-    int aerialNoteCount;
+    /** 最近一次查到的最新 Release；还没查到（或查失败）为 null。 */
+    Release rel;
 
     boolean aerialChecking;
 
@@ -55,14 +51,14 @@ final class AerialUpdater extends Part {
 
     boolean aerialUpdatable() {
         String v = aerialVersion();
-        return aerialTag != null && v != null && aerialInstalledOk() && cmpVersion(aerialTag, v) > 0;
+        return rel != null && v != null && aerialInstalledOk() && cmpVersion(rel.tag, v) > 0;
     }
 
     void updateAerialUi() {
         if (aerialBar == null) return;
         boolean up = aerialUpdatable();
         aerialBar.setVisibility(up ? View.VISIBLE : View.GONE);
-        if (up) aerialBarText.setText("Aerial 有新版本：" + aerialVersion() + " → " + aerialTag);
+        if (up) aerialBarText.setText("Aerial 有新版本：" + aerialVersion() + " → " + rel.tag);
     }
 
     /** 启动时自动检测；失败就静默跳过。 */
@@ -70,60 +66,14 @@ final class AerialUpdater extends Part {
         if (aerialChecking) return;
         aerialChecking = true;
         new Thread(new Runnable() { public void run() {
-            String fail = null, tag = null, url = null, digest = "", notes = "", full = "";
-            int count = 0;
+            Release found = null;
             try {
-                org.json.JSONObject j = new org.json.JSONObject(fetchApi(AERIAL_REPO, "releases/latest"));
-                tag = j.getString("tag_name");
-                org.json.JSONArray as = j.optJSONArray("assets");
-                for (int i = 0; as != null && i < as.length(); i++) {
-                    org.json.JSONObject a = as.getJSONObject(i);
-                    if (AERIAL_ASSET.equals(a.optString("name"))) {
-                        url = a.getString("browser_download_url");
-                        digest = a.optString("digest", "");
-                        break;
-                    }
-                }
-                if (url == null) throw new Exception("最新发布里没有 " + AERIAL_ASSET);
-                String lb = j.optString("body", "").trim();
-                notes = "【" + tag + "】\n" + (lb.length() == 0 ? "（没有更新说明）" : lb);
-                full = notes;
-                count = 1;
-                String cur = aerialVersion();
-                if (cur != null && cmpVersion(tag, cur) > 0) {
-                    try {
-                        org.json.JSONArray rs = new org.json.JSONArray(fetchApi(AERIAL_REPO, "releases?per_page=30"));
-                        StringBuilder rec = new StringBuilder(), all = new StringBuilder();
-                        int n = 0;
-                        for (int i = 0; i < rs.length(); i++) {
-                            org.json.JSONObject r = rs.getJSONObject(i);
-                            String t = r.optString("tag_name");
-                            if (r.optBoolean("draft") || r.optBoolean("prerelease")) continue;
-                            if (cmpVersion(t, cur) <= 0 || cmpVersion(t, tag) > 0) continue;
-                            String b = r.optString("body", "").trim();
-                            String e = "【" + t + "】\n" + (b.length() == 0 ? "（没有更新说明）" : b);
-                            if (n < 2) rec.append(n > 0 ? "\n\n" : "").append(e);
-                            all.append(n > 0 ? "\n\n" : "").append(e);
-                            n++;
-                        }
-                        // 版本落后超过 30 个时，列表拿不全最老的几版。
-                        if (rs.length() > 0 && cmpVersion(rs.getJSONObject(rs.length() - 1).optString("tag_name"), cur) > 0) {
-                            all.append("\n\n（更早的版本说明请到 GitHub 查看）");
-                        }
-                        if (n > 0) { notes = rec.toString(); full = all.toString(); count = n; }
-                    } catch (Throwable ignore) { }
-                }
-            } catch (Throwable t) {
-                fail = String.valueOf(t);
-            }
-            final String fTag = tag, fUrl = url, fDigest = digest, fNotes = notes, fFull = full, fFail = fail;
-            final int fCount = count;
+                found = fetchRelease(AERIAL_REPO, AERIAL_ASSET, aerialVersion());
+            } catch (Throwable ignore) { }
+            final Release fRel = found;
             main.post(new Runnable() { public void run() {
                 aerialChecking = false;
-                if (fFail == null) {
-                    aerialTag = fTag; aerialUrl = fUrl; aerialDigest = fDigest;
-                    aerialNotes = fNotes; aerialNotesFull = fFull; aerialNoteCount = fCount;
-                }
+                if (fRel != null) rel = fRel;
                 updateAerialUi();
             }});
         }}, "slim-aerialcheck").start();
@@ -131,46 +81,15 @@ final class AerialUpdater extends Part {
 
     void confirmAerialUpdate() {
         if (!aerialUpdatable()) { updateAerialUi(); return; }
-        TextView tv = new TextView(a);
-        String notes = aerialNotes == null || aerialNotes.length() == 0 ? "（该版本没有更新说明）" : aerialNotes;
-        tv.setText("更新来源：github.com/" + AERIAL_REPO
-            + "\n点“更新”将下载并安装，设置会保留，安装时 Aerial 会重启。"
-            + "\n\nAerial " + aerialVersion() + " → " + aerialTag + "\n\n更新说明：\n" + notes);
-        tv.setTextSize(14);
-        tv.setPadding(dp(24), dp(12), dp(24), dp(12));
-        ScrollView nsv = new ScrollView(a);
-        nsv.setFocusable(true);
-        nsv.addView(tv);
-        AlertDialog.Builder b = new AlertDialog.Builder(a)
-            .setTitle("Aerial 有新版本 " + aerialTag)
-            .setView(nsv)
-            .setPositiveButton("更新", new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface d, int w) { updateAerial(); }
-            })
-            .setNegativeButton("取消", null);
-        if (aerialNoteCount > 2) {
-            b.setNeutralButton("查看完整更新日志", new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface d, int w) { showAerialFullNotes(); }
-            });
-        }
-        b.show();
-    }
-
-    void showAerialFullNotes() {
-        TextView tv = new TextView(a);
-        tv.setText(aerialNotesFull);
-        tv.setTextSize(14);
-        tv.setPadding(dp(24), dp(12), dp(24), dp(12));
-        ScrollView sv = new ScrollView(a);
-        sv.setFocusable(true);
-        sv.addView(tv);
-        new AlertDialog.Builder(a)
-            .setTitle("Aerial 完整更新日志（共 " + aerialNoteCount + " 个版本）")
-            .setView(sv)
-            .setPositiveButton("返回", new DialogInterface.OnClickListener() {
-                public void onClick(DialogInterface d, int w) { confirmAerialUpdate(); }
-            })
-            .show();
+        showUpdateDialog("Aerial 有新版本 " + rel.tag,
+            "更新来源：github.com/" + AERIAL_REPO
+                + "\n点“更新”将下载并安装，设置会保留，安装时 Aerial 会重启。"
+                + "\n\nAerial " + aerialVersion() + " → " + rel.tag,
+            rel,
+            new Runnable() { public void run() { updateAerial(); } },
+            new Runnable() { public void run() {
+                showFullNotes("Aerial 完整更新日志", rel, new Runnable() { public void run() { confirmAerialUpdate(); } });
+            } });
     }
 
     /** 新安装包的签名要和已装的 Aerial 一致；读不到签名时交给 pm install 判断。 */
@@ -191,32 +110,17 @@ final class AerialUpdater extends Part {
     }
 
     void updateAerial() {
-        final String tag = aerialTag, url = aerialUrl, digest = aerialDigest;
+        final String tag = rel.tag, url = rel.url, digest = rel.digest;
         final boolean wasHome = DB_PKG.equals(homePackage());
-        final TextView ptxt = new TextView(a);
-        ptxt.setText("正在下载……0%");
-        ptxt.setTextSize(14);
-        final android.widget.ProgressBar pbar = new android.widget.ProgressBar(a, null, android.R.attr.progressBarStyleHorizontal);
-        pbar.setMax(100);
-        pbar.setIndeterminate(true);
-        LinearLayout pbox = new LinearLayout(a);
-        pbox.setOrientation(LinearLayout.VERTICAL);
-        pbox.setPadding(dp(24), dp(16), dp(24), dp(8));
-        pbox.addView(ptxt);
-        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        plp.topMargin = dp(10);
-        pbox.addView(pbar, plp);
+        final Progress p = new Progress(a);
         final CancelToken tok = new CancelToken();
-        final AlertDialog progress = showProgress("正在更新 Aerial", pbox, tok, "已取消更新");
+        final AlertDialog progress = showProgress("正在更新 Aerial", p.box, tok, "已取消更新");
         new Thread(new Runnable() { public void run() {
             final java.io.File f = new java.io.File(getCacheDir(), "aerial_update.apk");
-            String err = null;
-            boolean netFail = false, cancelled = false;
             try {
                 java.util.List<String> cands = withMirrors(url);
                 cands.add(AERIAL_SITE_APK);
-                downloadFile(main, cands, digest, f, ptxt, pbar, tok);
+                downloadFile(main, cands, digest, f, p, tok);
                 android.content.pm.PackageInfo pi = getPackageManager().getPackageArchiveInfo(f.getAbsolutePath(), 0);
                 if (pi == null || !DB_PKG.equals(pi.packageName)) throw new Exception("下载的不是 Aerial 安装包");
                 int curCode = getPackageManager().getPackageInfo(DB_PKG, 0).versionCode;
@@ -225,28 +129,11 @@ final class AerialUpdater extends Part {
                 f.setReadable(true, false);
                 if (!tok.beginInstall()) throw new CancelledException();
             } catch (Throwable t) {
-                cancelled = t instanceof CancelledException;
-                netFail = t instanceof NetFail;
-                err = netFail ? t.getMessage() : String.valueOf(t);
-            }
-            if (err != null) {
                 f.delete();
-                final String e = err;
-                final boolean nf = netFail, cc = cancelled;
-                main.post(new Runnable() { public void run() {
-                    if (progress.isShowing()) progress.dismiss();
-                    if (cc) return;
-                    if (nf) showNetFail("下载", e);
-                    else showResult("更新失败：" + e);
-                } });
+                showDownloadError(progress, t);
                 return;
             }
-            main.post(new Runnable() { public void run() {
-                progress.setCancelable(false);
-                progress.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
-                pbar.setIndeterminate(true);
-                ptxt.setText("正在安装……");
-            } });
+            showInstalling(progress, p, "正在安装……");
             String ver = tag.replaceFirst("^[vV]", "");
             String md = "/data/adb/modules/" + DB_MODULE;
             StringBuilder s = new StringBuilder();

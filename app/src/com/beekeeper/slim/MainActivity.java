@@ -613,7 +613,7 @@ public class MainActivity extends Activity {
                     : "当前：未安装";
                 String av = aerial.aerialVersion();
                 if (av != null && aerial.aerialInstalledOk()) t += "\n版本：" + av;
-                if (aerial.aerialUpdatable()) t += "\n⬆ 有新版本：" + av + " → " + aerial.aerialTag;
+                if (aerial.aerialUpdatable()) t += "\n⬆ 有新版本：" + av + " → " + aerial.rel.tag;
                 sb.append("\n").append(t);
                 g.box.setText(sb.toString());
                 g.box.setChecked(st == DB_ACTIVE || st == DB_SYSTEM || st == DB_PENDING);

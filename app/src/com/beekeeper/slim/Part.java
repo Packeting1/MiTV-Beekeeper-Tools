@@ -5,6 +5,8 @@ import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.view.View;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
 import static com.beekeeper.slim.Net.*;
 
@@ -48,6 +50,67 @@ abstract class Part {
             })
             .setNegativeButton("取消", new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) { doCancel.run(); }
+            })
+            .show();
+    }
+
+    /** 下载或校验出错：收起进度弹窗并提示；用户取消时不提示。 */
+    void showDownloadError(final AlertDialog progress, Throwable t) {
+        final boolean cancelled = t instanceof CancelledException;
+        final boolean netFail = t instanceof NetFail;
+        final String err = netFail ? t.getMessage() : String.valueOf(t);
+        main.post(new Runnable() { public void run() {
+            if (progress.isShowing()) progress.dismiss();
+            if (cancelled) return;
+            if (netFail) showNetFail("下载", err);
+            else showResult("更新失败：" + err);
+        } });
+    }
+
+    /** 下载完成、开始安装：不能再取消。 */
+    void showInstalling(final AlertDialog progress, final Progress p, final String msg) {
+        main.post(new Runnable() { public void run() {
+            progress.setCancelable(false);
+            progress.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
+            p.waiting(msg);
+        } });
+    }
+
+    ScrollView scrollText(String text) {
+        TextView tv = new TextView(a);
+        tv.setText(text);
+        tv.setTextSize(14);
+        tv.setPadding(dp(24), dp(12), dp(24), dp(12));
+        ScrollView sv = new ScrollView(a);
+        sv.setFocusable(true);
+        sv.addView(tv);
+        return sv;
+    }
+
+    /** 更新确认框；说明了不止 2 个版本时多一个“查看完整更新日志”按钮。 */
+    void showUpdateDialog(String title, String body, Release rel, final Runnable onUpdate, final Runnable onFull) {
+        String notes = rel.notes == null || rel.notes.length() == 0 ? "（该版本没有更新说明）" : rel.notes;
+        AlertDialog.Builder b = new AlertDialog.Builder(a)
+            .setTitle(title)
+            .setView(scrollText(body + "\n\n更新说明：\n" + notes))
+            .setPositiveButton("更新", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { onUpdate.run(); }
+            })
+            .setNegativeButton("取消", null);
+        if (rel.count > 2) {
+            b.setNeutralButton("查看完整更新日志", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { onFull.run(); }
+            });
+        }
+        b.show();
+    }
+
+    void showFullNotes(String title, Release rel, final Runnable back) {
+        new AlertDialog.Builder(a)
+            .setTitle(title + "（共 " + rel.count + " 个版本）")
+            .setView(scrollText(rel.notesFull))
+            .setPositiveButton("返回", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) { back.run(); }
             })
             .show();
     }
