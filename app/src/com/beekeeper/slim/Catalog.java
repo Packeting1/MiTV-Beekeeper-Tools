@@ -110,6 +110,10 @@ final class Catalog {
             new Group(KIND_APK, "HomeRef（LSPosed模块）",
                 "把系统桌面的引用替换为当前的默认桌面。",
                 null, "com.beekeeper.homeref").mod("com.beekeeper.homeref", "apk_homeref.apk"),
+            new Group(KIND_APK, "InstallUnlock（LSPosed模块）",
+                "解除应用安装器对部分应用安装拦截弹窗。",
+                null,
+                "com.beekeeper.installunlock").mod("com.beekeeper.installunlock", "apk_installunlock.apk"),
             new Group(KIND_MOD, "ADB 常开（Magisk模块）",
                 "开机后自动保持 ADB 开关和 5555 端口开启。",
                 null).mod("mitv_adb_keeper", "mod_adbkeeper.zip"),
@@ -175,6 +179,7 @@ final class Catalog {
             "com.xiaomi.mitv.smartshare", "com.xiaomi.mitv.tvplayer", "mitv.service" });
         LS_SCOPES.put("com.beekeeper.homeref", new String[] {
             "com.xiaomi.mitv.settings", "com.xiaomi.mitv.tvplayer", "mitv.service" });
+        LS_SCOPES.put("com.beekeeper.installunlock", new String[] { "com.android.packageinstaller" });
     }
 
     /** 只改 mitv.config.xml 一个开关的模块：模块 id -> 开关 key。 */

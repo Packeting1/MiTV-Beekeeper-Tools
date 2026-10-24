@@ -11,7 +11,7 @@
 - 禁用后台应用（语音助手、统计诊断等），随时可恢复
 - 安装 Aerial 桌面并设为默认桌面，可选禁用系统桌面，并检测 Aerial 更新
 - 一键安装/关闭下面的 Magisk 模块，并显示模块是否真正生效
-- 一键安装 LSPosed 模块（TvPlayerKeep / SignalKeep / CastPip / HomeRef）
+- 一键安装 LSPosed 模块（TvPlayerKeep / SignalKeep / CastPip / HomeRef / InstallUnlock）
 - 隐藏的系统页面入口（调试信息、色彩校准、MTK 工厂菜单等）
 
 ## Magisk 模块
@@ -41,6 +41,7 @@
 | SignalKeep | 减少信号源与电视系统切换的黑屏时长：回到电视系统桌面时保留信号并静音，停在桌面超过 1 分钟或进入应用时释放信号 |
 | CastPip | 投屏以小窗叠加在信号源画面上 |
 | HomeRef | 默认桌面不是系统桌面时，让系统的“回桌面”判断和跳转指向当前默认桌面（如 Aerial） |
+| InstallUnlock | 解除小米包安装器依据云端黑名单（`app_pi_control`）对部分应用（如当贝市场）的安装拦截；作用域 `com.android.packageinstaller`，不处理“未知来源”开关 |
 
 ## 自行构建 App
 

@@ -134,7 +134,8 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, 'w', zipfile.ZIP_DE
         zout.writestr(item, zin.read(item.filename))
     zout.write(dexdir / 'classes.dex', 'classes.dex')
     zout.write(aerial, 'assets/aerial.apk', zipfile.ZIP_STORED)
-    for name, apk in (('tvplayerkeep', 'TvPlayerKeep'), ('signalkeep', 'SignalKeep'), ('castpip', 'CastPip'), ('homeref', 'HomeRef')):
+    for name, apk in (('tvplayerkeep', 'TvPlayerKeep'), ('signalkeep', 'SignalKeep'), ('castpip', 'CastPip'), ('homeref', 'HomeRef'),
+                      ('installunlock', 'InstallUnlock')):
         zout.write(REPO / 'modules' / 'lsposed' / 'dist' / (apk + '.apk'), 'assets/apk_%s.apk' % name, zipfile.ZIP_STORED)
     for name, pattern in MODS.items():
         found = sorted((REPO / 'modules' / 'magisk' / 'dist').glob(pattern))
