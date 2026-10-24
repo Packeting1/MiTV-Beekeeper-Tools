@@ -33,7 +33,7 @@
 
 ## LSPosed 模块（`modules/lsposed`，内置在 App 中）
 
-需要 LSPosed / Vector。App 里勾选后只负责安装，安装后要在 Vector 里手动启用并勾选作用域。
+需要 LSPosed / Vector。每个模块的源码在对应子目录，编译好的 APK 在 `modules/lsposed/` 根目录。App 里勾选后只负责安装，安装后要在 Vector 里手动启用并勾选作用域。
 
 | 模块 | 作用 |
 |---|---|
