@@ -44,7 +44,7 @@
 
 ## 自行构建 App
 
-没有用 Gradle。需要：JDK 8+、API 28 的 `android.jar`、build-tools（aapt2 / zipalign / apksigner）、稳定版 R8，以及 Aerial 桌面的 APK（放到 `app/bundled/aerial.apk`，来源 [pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT 许可）。
+没有用 Gradle。需要：JDK 8+、API 28 的 `android.jar`、build-tools（aapt2 / zipalign / apksigner）、稳定版 R8。Aerial 桌面的 APK（来源 [pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT 许可）在 `app/bundled/aerial.apk` 不存在时，构建脚本会自动下载最新 Release 并按 GitHub 给出的 SHA-256 校验；也可以自己放一个到该路径。
 
 ```
 set ANDROID_JAR=...\android.jar

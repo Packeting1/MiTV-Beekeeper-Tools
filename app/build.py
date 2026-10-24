@@ -6,7 +6,7 @@ Configure with environment variables (see README.md):
   R8_JAR        r8.jar (stable R8 release)
   JAVA_HOME     JDK 8+ (optional if java/javac are on PATH)
   KEYSTORE, KS_PASS, KS_ALIAS   signing key. Updates only install over an older build signed with the same key.
-Extra inputs: modules/magisk/dist/*.zip, modules/lsposed/dist/*.apk, and app/bundled/aerial.apk (Aerial launcher, MIT, https://github.com/pengchujin/aerial-tv).
+Extra inputs: modules/magisk/dist/*.zip, modules/lsposed/dist/*.apk, and app/bundled/aerial.apk (Aerial launcher, MIT, https://github.com/pengchujin/aerial-tv; downloaded and verified automatically if missing).
 """
 import os, re, shutil, subprocess, sys, zipfile
 from pathlib import Path
@@ -62,8 +62,49 @@ MODS = {  # asset suffix -> module zip glob
     'dvedid': 'Beekeeper_LLDV_*.zip',
 }
 aerial = ROOT / 'bundled' / 'aerial.apk'
+AERIAL_REPO = 'pengchujin/aerial-tv'
+AERIAL_ASSET = 'aerial-standard.apk'
+GH_MIRRORS = ['https://ghfast.top/', 'https://gh-proxy.com/', 'https://ghproxy.net/']
+
+
+def fetch_aerial():
+    """Download the latest Aerial release into app/bundled/ and verify it against the SHA-256 GitHub reports."""
+    import hashlib, json, urllib.request
+
+    def get(url):
+        req = urllib.request.Request(url, headers={'User-Agent': 'MiTV-Beekeeper-Tools-build'})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.read()
+
+    api = 'https://api.github.com/repos/%s/releases/latest' % AERIAL_REPO
+    try:
+        rel = json.loads(get(api))
+        asset = next(a for a in rel['assets'] if a['name'] == AERIAL_ASSET)
+        digest = asset['digest'].split(':', 1)[1].lower()
+        url = asset['browser_download_url']
+    except Exception as e:
+        sys.exit('could not query %s (%s); download %s from the Aerial releases page and put it at %s'
+                 % (api, e, AERIAL_ASSET, aerial))
+    print('Aerial', rel['tag_name'])
+    aerial.parent.mkdir(exist_ok=True)
+    last = None
+    for cand in [url] + [m + url for m in GH_MIRRORS]:
+        print('downloading', cand)
+        try:
+            data = get(cand)
+            if hashlib.sha256(data).hexdigest() != digest:
+                raise ValueError('SHA-256 mismatch')
+            tmp = aerial.with_suffix('.part')
+            tmp.write_bytes(data)
+            tmp.replace(aerial)
+            return
+        except Exception as e:
+            last = e
+            print('  failed:', e)
+    sys.exit('could not download Aerial (%s); download %s manually and put it at %s' % (last, url, aerial))
+
 if not aerial.exists():
-    sys.exit('put the Aerial launcher APK at %s' % aerial)
+    fetch_aerial()
 
 if OUT.exists():
     shutil.rmtree(OUT)

@@ -114,7 +114,7 @@ final class ApplyRunner extends Part {
                     script.append("  cp /data/local/tmp/dbx/lib/arm64-v8a/*.so $MD/system/app/Aerial/lib/arm64/\n");
                     script.append("  rm -rf /data/local/tmp/dbx\n");
                     script.append("  printf 'id=beekeeper_aerial\\nname=Aerial Launcher\\nversion=v1.1.1\\nversionCode=111\\n"
-                        + "author=酷安@pkkka\\ndescription=Installs Aerial 1.20 as a system app and sets it as the default home.\\n' > $MD/module.prop\n");
+                        + "author=酷安@pkkka\\ndescription=Installs Aerial as a system app and sets it as the default home.\\n' > $MD/module.prop\n");
                     script.append("  cat > $MD/service.sh <<'SVCEOF'\n");
                     script.append("#!/system/bin/sh\n");
                     script.append("until [ \"$(getprop sys.boot_completed)\" = 1 ]; do sleep 3; done\n");
