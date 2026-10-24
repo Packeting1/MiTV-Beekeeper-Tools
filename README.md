@@ -1,17 +1,17 @@
 # MiTV Beekeeper Tools
 
-小米电视 Mini LED 机型 `beekeeper`（MiTV-MFFU1，G Pro 27U，HyperOS 3.0.109）的系统优化工具集。作者：酷安 @pkkka
+小米电视 Mini LED 机型 `beekeeper`（MiTV-MFFU1，G Pro 27U，HyperOS 3.0.109）的系统优化工具集。
 
 > 仅适用于已获取 root（Magisk）的 beekeeper 机型，App 在其他机型上会拒绝运行。改动系统有风险，使用前请自行评估，后果自负。
 
 ## 系统优化 App
 
-需要 root。分页：应用类 / 优化类 / 修复类 / 隐藏项 / 关于。
+本应用需要 root 才可以使用，模块功能需安装 Magisk / LSPosed 后才能使用。
 
 - 禁用后台应用（语音助手、统计诊断等），随时可恢复
 - 安装 Aerial 桌面并设为默认桌面，可选禁用系统桌面，并检测 Aerial 更新
 - 一键安装/关闭下面的 Magisk 模块，并显示模块是否真正生效
-- 一键安装 LSPosed 模块（TvPlayerKeep / SignalKeep / CastPip / HomeRef / InstallUnlock）
+- 一键安装/卸载下面的 LSPosed 模块，并显示模块是否真正生效
 - 隐藏的系统页面入口（调试信息、色彩校准、MTK 工厂菜单等）
 
 ## Magisk 模块
@@ -33,15 +33,16 @@
 
 ## LSPosed 模块
 
-需要 LSPosed / Vector。App 里勾选后只负责安装，安装后要在 Vector 里手动启用并勾选作用域。
+App 里勾选后只负责安装，安装后需在 LSPosed / Vector 里手动启用并勾选作用域。
 
 | 模块 | 作用 |
 |---|---|
 | TvPlayerKeep | 从信号源进入系统设置（遥控器设置键、图像参数页）时不黑屏 |
-| SignalKeep | 减少信号源与电视系统切换的黑屏时长：回到电视系统桌面时保留信号并静音，停在桌面超过 1 分钟或进入应用时释放信号 |
+| SignalKeep | 减少信号源与电视系统切换的黑屏时长 |
 | CastPip | 投屏以小窗叠加在信号源画面上 |
-| HomeRef | 默认桌面不是系统桌面时，让系统的“回桌面”判断和跳转指向当前默认桌面（如 Aerial） |
-| InstallUnlock | 解除小米包安装器依据云端黑名单（`app_pi_control`）对部分应用（如当贝市场）的安装拦截；作用域 `com.android.packageinstaller`，不处理“未知来源”开关 |
+| HomeRef | 默认桌面不是系统桌面时，让系统的“回桌面”判断和跳转指向当前默认桌面 |
+| InstallUnlock | 解除小米包安装器依据云端黑名单对部分应用的安装拦截 |
+| NoSignal-AudioMode | 信号源在无信号倒计时结束后进入音响模式，信号恢复时自动亮屏 |
 
 ## 自行构建 App
 
@@ -56,8 +57,6 @@ set KS_PASS=...
 set KS_ALIAS=...
 python app\build.py
 ```
-
-输出在 `dist/`。
 
 LSPosed 模块用 `python modules\lsposed\build.py [模块名]` 构建（默认全部），除上面的环境变量外还需要 `JAVA_HOME`（JDK 17+）和 `XPOSED_API`（[libxposed API 101](https://github.com/libxposed/api) 的 `api-101.0.0.aar`，Maven Central 上有）。输出在 `modules/lsposed/dist/`，App 构建时从这里取。
 

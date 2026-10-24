@@ -4,3 +4,5 @@ app/bundled/aerial.apk
 *.keystore
 *.jks
 *.idsig
+*.p12
+*.pfx

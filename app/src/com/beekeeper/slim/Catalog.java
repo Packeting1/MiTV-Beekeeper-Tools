@@ -114,6 +114,9 @@ final class Catalog {
                 "解除应用安装器对部分应用安装拦截弹窗。",
                 null,
                 "com.beekeeper.installunlock").mod("com.beekeeper.installunlock", "apk_installunlock.apk"),
+            new Group(KIND_APK, "无信号进入音响模式（LSPosed模块）",
+                "信号源在无信号倒计时结束后进入音响模式，倒计时页新增“息屏”按钮；信号恢复时自动亮屏。",
+                null, "com.beekeeper.nosignalaudiomode").mod("com.beekeeper.nosignalaudiomode", "apk_nosignalaudiomode.apk"),
             new Group(KIND_MOD, "ADB 常开（Magisk模块）",
                 "开机后自动保持 ADB 开关和 5555 端口开启。",
                 null).mod("mitv_adb_keeper", "mod_adbkeeper.zip"),
@@ -180,6 +183,7 @@ final class Catalog {
         LS_SCOPES.put("com.beekeeper.homeref", new String[] {
             "com.xiaomi.mitv.settings", "com.xiaomi.mitv.tvplayer", "mitv.service" });
         LS_SCOPES.put("com.beekeeper.installunlock", new String[] { "com.android.packageinstaller" });
+        LS_SCOPES.put("com.beekeeper.nosignalaudiomode", new String[] { "com.xiaomi.mitv.tvplayer" });
     }
 
     /** 只改 mitv.config.xml 一个开关的模块：模块 id -> 开关 key。 */

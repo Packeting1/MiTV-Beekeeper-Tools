@@ -11,7 +11,7 @@ Environment variables (same as app/build.py, plus XPOSED_API):
   JAVA_HOME     JDK 17+
   KEYSTORE, KS_PASS, KS_ALIAS   signing key
 Each module dir under src/ holds AndroidManifest.xml, scope.txt (one target package per line) and
-src/<package path>/HookEntry.java. Output: modules/lsposed/dist/<label>.apk
+src/<package path>/HookEntry.java (the entry class; other .java files under src/ are compiled too). Output: modules/lsposed/dist/<label>.apk
 """
 import os, re, shutil, subprocess, sys, zipfile
 from pathlib import Path
@@ -77,9 +77,9 @@ def build(mod):
 
     cls = out / 'classes'
     cls.mkdir()
-    src = mod / 'src' / Path(*pkg.split('.')) / 'HookEntry.java'
+    sources = sorted((mod / 'src').rglob('*.java'))
     run([java('javac'), '--release', '17', '-encoding', 'UTF-8', '-Xlint:-options',
-         '-cp', str(ANDROID_JAR) + os.pathsep + str(api_jar), '-d', cls, src])
+         '-cp', str(ANDROID_JAR) + os.pathsep + str(api_jar), '-d', cls] + sources)
     mod_jar = out / 'module.jar'
     with zipfile.ZipFile(mod_jar, 'w', zipfile.ZIP_DEFLATED) as z:
         for p in cls.rglob('*.class'):
