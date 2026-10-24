@@ -42,15 +42,7 @@
 | CastPip | 投屏以小窗叠加在信号源画面上 |
 | HomeRef | 默认桌面不是系统桌面时，让系统的“回桌面”判断和跳转指向当前默认桌面（如 Aerial） |
 | InstallUnlock | 解除小米包安装器依据云端黑名单（`app_pi_control`）对部分应用（如当贝市场）的安装拦截；作用域 `com.android.packageinstaller`，不处理“未知来源”开关 |
-
-## 无信号进入音响模式（LSPosed）
-
-`1.0.3` 正式版在无信号倒计时结束后进入原生小爱音响模式，倒计时页面新增排第二位的“息屏”按钮，可提前进入音响模式；原有“主页、待机、关机”按钮的作用不变。通过外部输入连接事件和保留的当前输入会话检测恢复，唤醒时选择实际恢复的输入源，避免切错端口后再次息屏。离屏缓冲仅获取后释放，不读取像素或保存画面；额外功耗和其他端口的不拔线恢复尚未完整验证。
-
-用户已确认 `1.0.3-test5` 测试通过，正式版执行代码与该测试版一致。模块作用域仅为 `com.xiaomi.mitv.tvplayer`；源码、独立构建脚本和验证范围见 [`lsposed/no-signal-audio/`](lsposed/no-signal-audio/)，安装包放在 `modules/lsposed/dist/NoSignalAudioMode.apk`。该模块使用传统 Xposed API 82，通过其目录内的 `build.ps1` 单独构建；其余模块继续沿用现有 API 101 构建脚本。
-
-已同意维护者在合并时从源码重建并采用本项目统一签名；[独立发布版](https://github.com/Rin010/MiTV-NoSignal-AudioMode)保留原签名。跨签名切换需先卸载再安装，并检查 LSPosed 启用状态与作用域。
-
+| NoSignal-AudioMode | 无信号进入音响模式 |
 ## 自行构建 App
 
 没有用 Gradle。需要：JDK 8+、API 28 的 `android.jar`、build-tools（aapt2 / zipalign / apksigner）、稳定版 R8。Aerial 桌面的 APK（来源 [pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT 许可）在 `app/bundled/aerial.apk` 不存在时，构建脚本会自动下载最新 Release 并按 GitHub 给出的 SHA-256 校验；也可以自己放一个到该路径。
