@@ -73,43 +73,79 @@ public class MainActivity extends Activity {
 
     private final Group[] GROUPS = new Group[] {
         new Group("语音助手 (占内存约 245MB)",
-            "语音控制、语音唤醒。禁用后遥控器语音键和小爱同学不可用。",
+            "语音控制和唤醒。禁用后语音键和小爱同学不可用。",
             null,
             "com.xiaomi.voicecontrol", "com.xiaomi.wakeupservice"),
-        new Group("统计与诊断 (占内存约 270MB)",
-            "数据统计、MiSight 诊断、质量上报。对日常使用没有影响。",
-            null,
-            "com.miui.tv.analytics", "com.miui.misightservice", "com.xiaomi.tvqs"),
+        new Group("小米互联 (占内存约 420MB)",
+            "手机互联、MiPlay、HyperConnect。禁用后手机投屏和多设备协同不可用。",
+            "风险：可能影响其它功能",
+            "com.xiaomi.mi_connect_service", "com.xiaomi.miplay", "com.xiaomi.hyper_connect.tv"),
         new Group("智能家居 (占内存约 90MB)",
-            "小米智能家居 TV 版。不用智能家居联动可以禁用。",
+            "小米智能家居 TV 版。",
             null,
             "com.xiaomi.smarthome.tv"),
         new Group("消息推送 (占内存约 87MB)",
-            "电视推送服务。禁用后收不到系统推送消息。",
+            "系统推送服务。禁用后收不到推送。",
             null,
             "com.xiaomi.mitv.tvpush.tvpushservice"),
-        new Group("屏保 (占内存约 92MB)",
-            "超级屏保。禁用后没有待机屏保。",
-            null,
-            "com.xiaomi.mitv.hyper.screensaver"),
         new Group("应用商店 (占内存约 109MB)",
-            "小米应用商店。禁用后不能从商店安装和更新应用。",
+            "小米应用商店。禁用后不能安装和更新应用。",
             null,
             "com.xiaomi.mitv.appstore"),
+        new Group("电视管家 (占内存约 22MB)",
+            "清理加速等。",
+            "风险：可能影响其它功能",
+            "com.xiaomi.mitv.tvmanager"),
+        new Group("健康与诊断 (占内存约 9MB)",
+            "健康服务和健康诊断。",
+            null,
+            "com.xiaomi.mitv.health", "com.xiaomi.mitv.healthdiagnosis"),
+        new Group("截屏与录屏",
+            "禁用后截屏和录屏不可用。",
+            null,
+            "com.xiaomi.screenrecorder"),
+        new Group("统计与诊断 (占内存约 270MB)",
+            "数据统计、MiSight 诊断、质量上报。",
+            null,
+            "com.miui.tv.analytics", "com.miui.misightservice", "com.xiaomi.tvqs"),
+        new Group("云控中心",
+            "拉取云端配置、上传诊断日志。",
+            "风险：云端功能开关不再更新",
+            "com.mitv.cloudcontrol"),
+        new Group("屏保 (占内存约 92MB)",
+            "超级屏保。",
+            null,
+            "com.xiaomi.mitv.hyper.screensaver"),
+        new Group("AOD 息屏显示",
+            "息屏显示图案和签名。",
+            "风险：可能影响息屏相关功能",
+            "com.xiaomi.mitv.aod.screensaver"),
         new Group("视频头条",
-            "短视频信息流应用。禁用后桌面和系统入口里的视频头条不可用。",
+            "短视频信息流应用。",
             null,
             "com.duokan.videodaily"),
-        new Group("小米互联 (占内存约 420MB)",
-            "手机互联、MiPlay、HyperConnect。小米手机投屏和多设备协同依赖它们。",
-            "风险：不确定其它功能是否依赖",
-            "com.xiaomi.mi_connect_service", "com.xiaomi.miplay", "com.xiaomi.hyper_connect.tv"),
+        new Group("相册 (占内存约 32MB)",
+            "电视相册及其推送。",
+            null,
+            "com.mitv.gallery"),
+        new Group("快应用 (占内存约 13MB)",
+            "小米快应用平台。",
+            null,
+            "com.miui.hybrid.tv"),
+        new Group("卡拉 OK",
+            "卡拉 OK 服务。",
+            null,
+            "com.xiaomi.mitv.karaoke.service"),
+        new Group("工厂检测工具箱",
+            "小米电视的内部调试和工厂检测工具。",
+            null,
+            "com.mitv.toolhouse"),
         new Group(KIND_DB, "Aerial 桌面",
             "安装 Aerial 并设为默认桌面。取消勾选会恢复系统桌面，重启后 Aerial 消失。",
             null,
             DB_PKG),
-        new Group(KIND_NOHOME, "禁用系统桌面 (占内存约 390MB)",
-            "禁用小米系统桌面。仅已安装“Aerial 桌面”和 HomeRef，且 Aerial 为默认桌面后才能禁用此项",
+        new Group(KIND_NOHOME, "系统桌面 (占内存约 390MB)",
+            "禁用小米系统桌面。仅已安装“Aerial 桌面”和 HomeRef，且 Aerial 为默认桌面后才能禁用此项。",
             "风险：部分系统入口（如信号源列表的“主页”）可能没反应",
             STOCK_HOME_PKG),
         new Group(KIND_APK, "TvPlayerKeep（LSPosed模块）",
@@ -131,15 +167,15 @@ public class MainActivity extends Activity {
             "修复 3.0.109 的 HDR 色调映射里 HGIG 档位错位。",
             null).mod("beekeeper_hgig_fix", "mod_hgig.zip"),
         new Group(KIND_MOD, "LDM 局部调光修复（Magisk模块）",
-            "调整 3.0.109 的局部调光参数，减轻 HDR/杜比视界过曝。取消后恢复原样。",
+            "调整 3.0.109 的局部调光参数，减轻 HDR/杜比视界过曝。",
             null).mod("beekeeper_ldm_fix", "mod_ldm.zip"),
         new Group(KIND_MOD, "Zygote64 修复（Magisk模块）",
             "让 LSPosed 模块开机后稳定生效。",
             "风险：关闭后 LSPosed 的模块可能不生效").mod("zygote64_fix", "mod_zygote.zip"),
-        new Group(KIND_MOD, "HDR10+（Magisk模块）",
+        new Group(KIND_MOD, "HDR10+支持（Magisk模块）",
             "上报HDR10+能力支持，实际效果未知。",
             null).mod("beekeeper_hdr10plus", "mod_hdr10plus.zip"),
-        new Group(KIND_MOD, "开启IMAX支持（Magisk模块）",
+        new Group(KIND_MOD, "IMAX支持（Magisk模块）",
             "在图像模式中显示IMAX。",
             null).mod("beekeeper_imax", "mod_imax.zip"),
         new Group(KIND_MOD, "AISR 强度调节（Magisk模块）",
@@ -148,7 +184,7 @@ public class MainActivity extends Activity {
         new Group(KIND_MOD, "音量均衡（Magisk模块）",
             "在声音设置里显示“音量均衡”。",
             null).mod("beekeeper_volume_balance", "mod_volbalance.zip"),
-        new Group(KIND_MOD, "开启LLDV支持（Magisk模块）",
+        new Group(KIND_MOD, "LLDV支持（Magisk模块）",
             "声明支持低延迟杜比视界（LLDV），让 Windows 能识别杜比视界PC支持。",
             null).mod("beekeeper_dv_edid", "mod_dvedid.zip"),
     };
@@ -168,13 +204,13 @@ public class MainActivity extends Activity {
     /** 设置菜单里没有入口、但能直接打开的页面。每一项都在 3.0.109 上用 am start 实测过能打开。 */
     private final Hidden[] HIDDEN = new Hidden[] {
         new Hidden("调试信息", "设备和系统的调试信息页。", null, viaSettings("DebugInfoActivity")),
-        new Hidden("调试页", "设置里的调试页面。", "风险：里面有调试开关，别乱改", viaSettings("DebugActivity")),
+        new Hidden("调试页", "设置里的调试页面。", "风险：内有调试开关，不建议改动", viaSettings("DebugActivity")),
         new Hidden("开机视频", "开机视频设置页。", null, viaSettings("BootVideoActivity")),
         new Hidden("色彩校准", "图像色彩校准页。", null, viaSettings("ColorCalibrationActivity")),
         new Hidden("息屏样式", "息屏显示的图案选择页。", null, viaSettings("AodStyle")),
         new Hidden("环绕声测试", "环绕音箱声道测试页。", null, viaSettings("surroundTest")),
         new Hidden("MTK 工厂菜单", "联发科工厂/设计菜单，能改面板、画质等底层参数。",
-            "风险：很高。改错可能让画面异常，没有把握不要动",
+            "风险：高风险，改错可能会让画面异常",
             "-n mediatek.factorymenu.ui/mediatek.tvsetting.factory.ui.designmenu.DesignMenuActivity"),
     };
 
@@ -1210,12 +1246,14 @@ public class MainActivity extends Activity {
         pageHid = new LinearLayout(this);
         pageHid.setOrientation(LinearLayout.VERTICAL);
         TextView hintHid = new TextView(this);
-        hintHid.setText("这些页面在设置菜单里看不到，但能直接打开。点按钮打开，按遥控器返回键退出。\n"
-            + "打开的是系统自带的页面，不会改动本应用的任何设置；页面里的操作要自己小心。");
+        hintHid.setText("以下是系统自带的页面，页面中的操作需注意。");
         hintHid.setTextSize(13);
         hintHid.setPadding(0, dp(4), 0, dp(8));
         pageHid.addView(hintHid);
+        java.util.Map<LinearLayout, LinearLayout> hidRows = new java.util.HashMap<LinearLayout, LinearLayout>();
         for (final Hidden h : HIDDEN) {
+            LinearLayout cell = new LinearLayout(this);
+            cell.setOrientation(LinearLayout.VERTICAL);
             Button bt = new Button(this);
             bt.setText(h.title);
             bt.setTextSize(15);
@@ -1226,13 +1264,14 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             blp.topMargin = dp(6);
-            pageHid.addView(bt, blp);
+            cell.addView(bt, blp);
             TextView d = new TextView(this);
             d.setText(h.desc + (h.warn == null ? "" : "\n⚠ " + h.warn));
             d.setTextSize(13);
             d.setTextColor(Color.LTGRAY);
             d.setPadding(dp(6), 0, dp(6), dp(2));
-            pageHid.addView(d);
+            cell.addView(d);
+            addBoxTwoColumns(pageHid, cell, hidRows);
         }
         TextView hintApps = new TextView(this);
         hintApps.setText("勾选 = 禁用该组应用，取消勾选 = 恢复。禁用只是停用，随时可以恢复。");
@@ -1245,23 +1284,25 @@ public class MainActivity extends Activity {
         hintOpt.setPadding(0, dp(4), 0, dp(8));
         pageOpt.addView(hintOpt);
         TextView hintFix = new TextView(this);
-        hintFix.setText("勾选 = 启用，取消勾选 = 关闭。改动需要重启电视后生效。");
+        hintFix.setText("勾选 = 启用，取消勾选 = 关闭。改动重启后生效。");
         hintFix.setTextSize(13);
         hintFix.setPadding(0, dp(4), 0, dp(8));
         pageFix.addView(hintFix);
 
+        java.util.Map<LinearLayout, LinearLayout> openRows = new java.util.HashMap<LinearLayout, LinearLayout>();
         for (Group g : GROUPS) {
             CheckBox cb = new CheckBox(this);
             cb.setTextSize(15);
             cb.setTextColor(Color.WHITE);
             cb.setPadding(dp(6), dp(6), dp(6), dp(6));
             g.box = cb;
-            ((g.kind == KIND_DB || g.kind == KIND_APK || isOptMod(g)) ? pageOpt : g.kind == KIND_MOD ? pageFix : pageApps).addView(cb);
+            addBoxTwoColumns((g.kind == KIND_DB || g.kind == KIND_APK || isOptMod(g)) ? pageOpt : g.kind == KIND_MOD ? pageFix : pageApps, cb, openRows);
         }
         LinearLayout pageAbout = new LinearLayout(this);
         pageAbout.setOrientation(LinearLayout.VERTICAL);
         TextView about = new TextView(this);
-        about.setText("小米电视团队是干嘛的？\n作者：酷安@pkkka\n项目地址：github.com/" + GH_REPO);
+        about.setText("小米电视团队是干嘛的？\n作者：酷安@pkkka\n项目地址：github.com/" + GH_REPO
+            + "\n有任何想法或建议，欢迎在项目地址的 Issue / Pull Request 中提交");
         about.setTextSize(16);
         about.setTextColor(Color.WHITE);
         about.setPadding(dp(6), dp(16), dp(6), dp(8));
@@ -1412,6 +1453,26 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout pageApps, pageOpt, pageFix, pageHid;
+    /** 每页的条目两个一行；奇数个时最后一行右边用占位撑住，保持左列宽度一致。 */
+    private void addBoxTwoColumns(LinearLayout page, View cb, java.util.Map<LinearLayout, LinearLayout> openRows) {
+        LinearLayout row = openRows.get(page);
+        if (row == null) {
+            row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            page.addView(row, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            row.addView(cb, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+            openRows.put(page, row);
+        } else {
+            row.removeViewAt(1);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            lp.leftMargin = dp(8);
+            row.addView(cb, lp);
+            openRows.remove(page);
+        }
+    }
+
     /** 放在优化类页的 Magisk 模块。 */
     private static boolean isOptMod(Group g) {
         return g.kind == KIND_MOD && ("mitv_adb_keeper".equals(g.modId) || "mitv_4kui_switch".equals(g.modId)
