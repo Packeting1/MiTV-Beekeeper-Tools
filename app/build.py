@@ -59,7 +59,7 @@ MODS = {  # asset suffix -> module zip glob
     'adbkeeper': 'MiTV-ADB-Keeper-*.zip', '4kui': 'MiTV-4K-UI-Switch-*.zip',
     'hdr10plus': 'Beekeeper_HDR10Plus_*.zip', 'imax': 'Beekeeper_IMAX_*.zip',
     'aisr': 'Beekeeper_AISR_Level_*.zip', 'volbalance': 'Beekeeper_VolumeBalance_*.zip',
-    'dvedid': 'Beekeeper_LLDV_*.zip',
+    'dvedid': 'Beekeeper_LLDV_*.zip', 'freesynckeep': 'Beekeeper_FreeSyncKeep_*.zip',
 }
 aerial = ROOT / 'bundled' / 'aerial.apk'
 AERIAL_REPO = 'pengchujin/aerial-tv'
@@ -136,7 +136,7 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, 'w', zipfile.ZIP_DE
     zout.write(aerial, 'assets/aerial.apk', zipfile.ZIP_STORED)
     for name, apk in (('tvplayerkeep', 'TvPlayerKeep'), ('signalkeep', 'SignalKeep'), ('castpip', 'CastPip'), ('homeref', 'HomeRef'),
                       ('installunlock', 'InstallUnlock'), ('nosignalaudiomode', 'NoSignalAudioMode'),
-                      ('moredisplaysettings', 'MoreDisplaySettings')):
+                      ('moredisplaysettings', 'MoreDisplaySettings'), ('dolbyvisiontitle', 'DolbyVisionTitle')):
         zout.write(REPO / 'modules' / 'lsposed' / 'dist' / (apk + '.apk'), 'assets/apk_%s.apk' % name, zipfile.ZIP_STORED)
     for name, pattern in MODS.items():
         found = sorted((REPO / 'modules' / 'magisk' / 'dist').glob(pattern))

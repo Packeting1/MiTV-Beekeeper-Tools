@@ -120,6 +120,12 @@ final class Catalog {
             new Group(KIND_APK, "MoreDisplaySettings（LSPosed模块）",
                 "菜单键悬浮窗的图像页新增“更多图像设置”，可直接进入图像参数。",
                 null, "com.beekeeper.moredisplaysettings").mod("com.beekeeper.moredisplaysettings", "apk_moredisplaysettings.apk"),
+            new Group(KIND_APK, "DolbyVisionTitle（LSPosed模块）",
+                "菜单键设置界面的标题在所有杜比视界图像模式下都显示 Dolby Vision。",
+                null, "com.beekeeper.dolbyvisiontitle").mod("com.beekeeper.dolbyvisiontitle", "apk_dolbyvisiontitle.apk"),
+            new Group(KIND_MOD, "FreeSync 保持图像模式（Magisk模块）",
+                "开启 FreeSync 或杜比视界信号带游戏标志时，不再自动切到游戏模式。",
+                "风险：仅适用于 OS 3.0.109，系统升级后自动失效").mod("beekeeper_freesync_keep", "mod_freesynckeep.zip"),
             new Group(KIND_MOD, "ADB 常开（Magisk模块）",
                 "开机后自动保持 ADB 开关和 5555 端口开启。",
                 null).mod("mitv_adb_keeper", "mod_adbkeeper.zip"),
@@ -189,6 +195,7 @@ final class Catalog {
         LS_SCOPES.put("com.beekeeper.nosignalaudiomode", new String[] { "com.xiaomi.mitv.tvplayer" });
         LS_SCOPES.put("com.beekeeper.moredisplaysettings", new String[] {
             "com.xiaomi.mitv.settings", "com.xiaomi.mitv.tvplayer" });
+        LS_SCOPES.put("com.beekeeper.dolbyvisiontitle", new String[] { "com.xiaomi.mitv.settings" });
     }
 
     /** 只改 mitv.config.xml 一个开关的模块：模块 id -> 开关 key。 */

@@ -27,6 +27,7 @@
 | Support AISR Level | 在“图像参数 > 清晰度”里显示超分辨率强度调节 |
 | Support Volume Balance | 在声音设置里显示音量均衡 |
 | Support LLDV | 声明支持低延迟杜比视界（LLDV），让 Windows 能识别杜比视界 PC 支持 |
+| FreeSync Keep Mode | 开启 FreeSync、或 PC 杜比视界信号带游戏标志时不再自动切到游戏模式（开机时把打过补丁的 libmtkapp.so 绑定挂载上去，不改分区，仅适用于 OS 3.0.109） |
 
 开关类模块开机时把对应项写入 `/data/system/mitv.config.xml` 并 `chattr +i` 锁定，防止云端配置覆盖；卸载时解锁并还原。
 
@@ -43,6 +44,7 @@ App 里勾选只负责安装，安装好后需在 LSPosed / Vector 里手动启�
 | InstallUnlock | 解除小米包安装器依据云端黑名单对部分应用的安装拦截 |
 | NoSignalAudioMode | 信号源在无信号倒计时结束后进入音响模式，信号恢复时自动亮屏 |
 | MoreDisplaySettings | 菜单键悬浮窗的图像页新增“更多图像设置”，可直接进入图像参数；打开图像页时自动收起底部游戏条 |
+| DolbyVisionTitle | 菜单键设置界面的标题在所有杜比视界图像模式下都显示 Dolby Vision |
 
 ## 自行构建
 
