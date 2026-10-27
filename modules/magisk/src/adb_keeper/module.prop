@@ -1,0 +1,6 @@
+id=mitv_adb_keeper
+name=ADB Keeper
+version=2026.10.28
+versionCode=20261028
+author=酷安@伏犬
+description=Keeps ADB and its TCP port enabled after boot or system resets.

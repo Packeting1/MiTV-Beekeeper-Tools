@@ -1,4 +1,6 @@
 * text=auto
+# Magisk 模块源码原样打进 zip（ini/xml 的字节不能被换行转换改动），脚本和 prop 仍用 LF
+modules/magisk/src/** -text
 *.sh text eol=lf
 *.prop text eol=lf
 update-binary text eol=lf

@@ -1,0 +1,6 @@
+id=beekeeper_hdr10plus
+name=Support HDR10+
+version=2026.10.28
+versionCode=20261028
+author=酷安@pkkka
+description=Reports HDR10+ capability support (actual effect unverified).

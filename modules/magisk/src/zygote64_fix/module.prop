@@ -1,6 +1,6 @@
 id=zygote64_fix
 name=Zygote64 Fix
-version=v1.1.1
-versionCode=111
+version=2026.10.28
+versionCode=20261028
 author=酷安@pkkka
 description=Fixes Zygisk Next missing zygote64 injection so LSPosed hooks work after boot.

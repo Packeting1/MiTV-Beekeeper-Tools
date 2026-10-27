@@ -60,11 +60,12 @@ set KS_PASS=...
 set KS_ALIAS=...
 set XPOSED_API=...\api-101.0.0.aar
 python modules\lsposed\build.py [模块名]
+python modules\magisk\build.py [模块目录名]
 python app\build.py
 ```
 
 - `XPOSED_API` 是 [libxposed API 101](https://github.com/libxposed/api)，Maven Central 上有。
-- LSPosed 模块输出到 `modules/lsposed/dist/`，App 构建时从这里取；App 输出到 `dist/`。
+- LSPosed 模块输出到 `modules/lsposed/dist/`；Magisk 模块（纯脚本，只需要 Python）从 `modules/magisk/src/` 打成 `modules/magisk/dist/` 里的 zip，版本号在各模块的 `module.prop`。App 构建时从这两个 `dist` 取；App 输出到 `dist/`。
 - 内置的 Aerial APK（[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT）在 `app/bundled/aerial.apk` 不存在时，会自动下载最新 Release 并按 GitHub 给出的 SHA-256 校验。
 
 ## 许可证

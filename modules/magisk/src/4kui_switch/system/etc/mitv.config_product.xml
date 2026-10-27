@@ -1,0 +1,302 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<items token="1497612014330">
+    <item key="displaysetting_switchto_mitvsetting" value="YES"/>
+    <item key="dolbysetting_switchto_mitvsetting" value="YES"/>
+
+    <!-- module id: MODULE_DOLBY_AUDIO_EFFECT -->
+    <item key="dolby_audio_effect" value="YES" platformid="1326,1327,1328,1329"/>
+
+    <!--  判断是否支持普通音效模式 -->
+    <item key="xiaomi_audio_effect" value="YES"/>
+
+    <!-- 判断是否支持动态色彩 -->
+    <item key="support_dynamic_color" value="NO"/>
+
+    <!-- 图像支持hdr10+ （注：支持hdr10+，一定支持hdr；支持hdr，不一定支持hdr10+）-->
+    <item key="support_hdr10_plus" value="NO"/>
+    <!-- 图像支持hdr。 -->
+    <item key="support_hdr" value="YES"/>
+    <!-- noise reduction -->
+    <item key="noise_reduction" value="YES"/>
+    <!-- gamma -->
+    <item key="gamma" value="NO"/>
+
+    <!-- local contrast -->
+    <item key="local_contrast" value="YES"/>
+    <!-- advanced local contrast -->
+    <item key="support_advanced_local_contrast" value="YES"/>
+
+    <!-- 设置模块: 图像是否支持重置功能 -->
+    <item key="support_display_reset" value="NO"/>
+
+    <!-- dtmb -->
+    <item key="dtmb_supported" value="YES"/>
+
+    <!-- multi screen settings -->
+    <item key="multi_screen_settings" value="NO"/>
+
+    <!-- 是否支持图像增强 -->
+    <item key="pq_supported" value="NO"/>
+
+    <!-- 是否支持色温自定义-->
+    <item key="newcolortempmode_supported" value="YES"/>
+
+    <!-- 是否支持dolby认证delay调节的ui-->
+    <item key="digital_out_delay" value="YES"/>
+  
+    <!-- 是否支持杜比模式-->
+    <item key="dolby_effect_supported" value="YES" platformid="1326,1327,1328,1329"/>
+
+    <!-- 是否支持杜比plus-->
+    <item key="dolbyplus_effect_supported" value="YES" platformid="1022,1103"/>
+
+    <!-- 是否 不支持录屏功能-->
+    <item key="screen_recorder_no_supported" value="YES"/>
+
+    <!-- 是否支持硬件codec-->
+    <item key="audio_codec_supported" value="NO"/>
+    <!-- 4K屏-->
+    <item key="4k_screen" value="YES"/>
+
+    <!--高清画报支持4k播放-->
+    <item key="migallery_enable_4k" value="YES"/>
+
+    <!-- 复位图像参数时， 是否需要复位色温RGB-->
+    <item key="reset_RGB_reset_picture" value="YES"/>
+    <!-- 添加低音炮，低音炮外观不同 -->
+    <item key="add_subwoofer_newview" value="NO"/>
+
+    <!-- 添加麦克风，麦克风外观不同 -->
+    <item key="add_ktv_newview" value="NO"/>
+
+    <!-- 添加小米家庭音响, 接口硬件不同 -->
+    <item key="add_soundbar_newview" value="NO"/>
+    <!-- 添加小米家庭音响，接口是光纤 -->
+    <item key="add_soundbar_optical_fiber" value="YES" />
+
+    <!-- 是否监听低音炮连接状态广播 -->
+    <item key="listen_subwoofer_connect" value="NO"/>
+
+    <!-- Dolby Test只保留EqDrc和Dts drc两个选项的特殊情况  -->
+    <item key="dolbytest_keep_eqdts" value="NO"/>
+
+    <!-- 低音炮是否支持线连  -->
+    <item key="subwoofer_byline_suppoert" value="NO"/>
+
+    <!-- 分体当盒子使用时 SoundView界面与盒子区分  -->
+    <item key="soundview_boxproduct_tvview" value="NO"/>
+
+    <!-- atmos声音测试声道不同  -->
+    <item key="platform_atmos" value="NO"/>
+
+    <!-- dolby是否支持virtual surround 和 voice enhance  -->
+    <item key="dolby_virtualsurround_support" value="YES"/>
+    <!--Debug菜单中隐藏service Mode菜单 -->
+    <item key="debug_audio_dolby_support_service_mode" value="NO"/>
+    <!--Debug菜单中隐藏dts certifaction mode菜单-->
+    <item key="debug_audio_dolby_support_dts_certifaction_mode" value="NO"/>
+    <!--Debug菜单中隐藏Dap Leveler菜单 -->
+    <item key="debug_audio_dolby_support_dap_leveler" value="NO" />
+    <!--Debug菜单中隐藏Audio Debug菜单 -->
+    <item key="debug_audio_dolby_support_audio_debug" value="YES" />
+    <!--Debug菜单中隐藏mDigitalOutDelaySwitcher -->
+    <item key="debug_audio_dolby_support_digital_out_delay" value="NO" />
+    <!--Debug菜单中添加mVolumeModelerCategory -->
+    <item key="debug_audio_dolby_support_volumemodeler" value="YES" />
+
+    <!-- 是否使用wifi MAC -->
+    <item key="use_wifi_mac" value="NO"/>
+
+    <!-- 是否显示系统更新 -->
+    <item key="show_system_update" value="NO"/>
+
+    <item key="can_power_suspend" value="NO"/>
+
+    <item key="show_bluetooth_touch" value="NO"/>
+    <!-- 设备出厂是否写入遥控器mac地址 -->
+    <item key="factory_write_ble_mac" value="NO"/>
+
+    <!-- ATV里面是否显示图像制式菜单 -->
+    <item key="show_atv_video_std" value="YES"/>
+
+    <!-- 是否显示Spdifin输入源 -->
+    <item key="show_Spdifin_source" value="NO"/>
+
+    <!-- 是否上传gamma值 -->
+    <item key="gamma_upload" value="NO"/>
+
+    <!-- BoxProduct中声音界面显示的是Tv的SoundView -->
+    <item key="SoundView_in_boxproduct" value="NO"/>
+
+    <!-- 设置首页只有6个格 -->
+    <item key="settings_mainview_6grid" value="NO"/>
+
+    <!-- 盒子设置声音digitaloutput是否有auto选项 -->
+    <item key="digitaloutput_auto_supported" value="NO"/>
+
+    <!-- 盒子是否支持CEC-->
+    <item key="cec_supported" value="YES"/>
+
+    <!--在TVplayer中是否显示dts菜单 -->
+    <item key="show_dts_in_hdmi" value="YES"/>
+
+    <!--当ATV无雪花效果时展示UI提示 -->
+    <item key="atv_show_signal_msg_without_snow_effect" value="YES" />
+
+    <!--是否支持用于网络和本地视频的底层PQ区分 -->
+    <item key="support_source_mpeg_network" value="YES" />
+    <item key="memc_support" value="YES" platformid="734,736,737,1022,1103,1227,1228,1229,1234,1235,1236"/>
+    <!--设置-图像菜单中是否支持专家模式 -->
+    <item key="support_display_expert_view" value="YES" />
+    <!--是否支持白平衡调节 -->
+    <item key="support_display_white_balance" value="YES" />
+    <!--是否支持颜色管理 -->
+    <item key="support_display_color_manager" value="YES" />
+    <!--是否支持色域转换 -->
+    <item key="support_display_color_space" value="YES" />
+    <!--是否支持语音遥控器 -->
+    <item key="support_voice_rc" value="YES" platformid="745,751,1022,1103"/>
+    <!--是否支持输入源最新接入选项 -->
+    <item key="support_inputsource_latest_insert" value="YES" />
+    <!-- 图片播放器在打开图片时，针对超大图片，是否支持压缩，只有使用系统MediaPLayer时才设置该值为YES -->
+    <item key="support_set_image_sample_size" value="YES" />
+
+    <!-- 电视AV插口只支持1个（默认3个） -->
+    <item key="av_source_support_one_port" value="YES" />
+    <!-- 电视是否支持短按电源键动作可配置 -->
+    <item key="support_shortpower_customizable" value="YES" feature="mitv.hardware.xiaoai_mode"/>
+
+    <!-- 电视是否支持 source notification -->
+    <item key="support_input_source_toast" value="YES" />
+    <item key="support_input_source_alert" value="YES" />
+    <!-- 是否支持CEC电视自动开机-->
+    <item key="support_hdmi_tv_auto_wakeup" value="YES"/>
+    <!-- 是否支持CEC电视自动关机-->
+    <item key="support_hdmi_device_auto_off" value="YES"/>
+    <!--是否支持消息观影免打扰 -->
+    <item key="support_notification_no_disturb" value="YES" />
+    <!--是否支持开发版发布 -->
+    <item key="support_dev_upgrade" value="YES" />
+
+    <!--是否监听nokeyInput广播退出界面 -->
+    <item key="support_quit_nokeyinput" value="YES" feature="mitv.hardware.panel.oled"/>
+    <!--是否支持identifier查询 -->
+    <item key="support_mitv_identifier" value="YES" />
+    <!--是否支持 Dtv Signal Diagnosis 菜单 -->
+    <item key="support_signal_diagnosis_menu" value="YES" />
+    <!--是否支持显示dolby认证相关菜单 -->
+    <item key="support_dolby_audio_menu" value="YES"/>
+    <!--是否支持显示dolby认证extra菜单 -->
+    <item key="support_dolby_audio_extra_menu" value="YES" />
+    <!--是否支持显示dolby认证Audio format菜单 -->
+    <item key="support_dolby_audio_format_menu" value="YES" />
+
+    <!-- 判断是否支持均衡器 -->
+    <item key="support_equalizer" value="YES"/>
+    <!--支持新模式-->
+    <item key="support_new_scene_mode" value="YES" />
+    <!-- 设置-图像设置-专家设置-颜色管理-只支持在movie模式下显示-->
+    <item key="support_colorManage_only_on_movie_mode" value="YES" platformid="1038,1057,1069"/>
+    <!-- 设置-图像设置-专家设置-白平衡 只在pic mode为movie时显示-->
+    <item key="support_wb_only_on_movie_mode" value="YES" platformid="1038,1057,1069"/>
+    <!--是否支持音量均衡-->
+    <item key="support_volume_balance" value="NO" />
+    <!-- 是否支持 云控修改短按开关键默认值 -->
+    <item key="support_change_shortPower_value" value="YES" />
+    <!-- 是否支持IMAX -->
+    <item key="support_display_IMAX" value="NO"/>
+    <!--支持4k显示 full:全4K,partial:部分4K,none or NULL :不显示4k-->
+    <item key="hw_ui_quality_values" value="partial" platformid="1069,1380"/>
+    <!--去除小爱layer-->
+    <item key="support_best_resolution_switch" value="YES" platformid="1069,1380"/>
+    <!--支持无操作自动待机-->
+    <item key="support_auto_shutdown_after_no_actions" value="YES"/>
+    <!--是否支持休眠-->
+    <item key="show_hibernate_menu" value="NO" />
+    <!-- 是否支持电视自动关机-->
+    <item key="support_hdmi_tv_auto_off" value="YES"/>
+    <!-- 下巴键是否支持添加遥控器-->
+    <item key="support_mitv_menu_add_remote" value="YES"/>
+    <!-- 支持超分辨率增强-->
+    <item key="support_display_AISR" value="YES"/>
+    <!-- 支持新版图像模式架构-->
+    <item key="support_new_display_mode" value="YES"/>
+    <!-- 支持颜色增强-->
+    <item key="support_display_color_booster" value="YES"/>
+    <!-- memc 支持调节平滑度和清晰度-->
+    <item key="support_smoothness_sharpness" value="YES"/>
+    <!-- memc 支持调节平滑度-->
+    <item key="support_memc_smoothness" value="YES"/>
+    <!-- memc 支持调节清晰度-->
+    <item key="support_memc_sharpness" value="YES"/>
+    <!-- game模式下支持memc"-->
+    <item key="support_game_memc" value="YES"/>
+    <!-- 支持预置场景-->
+    <item key="support_preset_scenario" value="YES"/>
+    <!-- 不支持AISR强度调节-->
+    <item key="support_display_AISR_level" value="NO"/>
+    <!-- 支持动态降噪-->
+    <item key="support_dynamic_noise_reduction" value="YES"/>
+    <!-- 支持MPEG 降噪-->
+    <item key="support_mpeg_noise_reduction" value="YES"/>
+    <!-- 支持平滑渐变-->
+    <item key="support_smooth_gradient" value="YES"/>
+    <!-- 支持播放通知音-->
+    <item key="support_play_notification_ogg" value="YES"/>
+    <!-- 配对遥控器在左下角-->
+    <item key="add_remote_left" value="YES"/>
+    <!-- 支持精密细节-->
+    <item key="support_precise_details" value="YES"/>
+    <!-- 支持暗场增强-->
+    <item key="support_black_stretch" value="YES"/>
+     <!--支持播放画质视频-->
+    <item key="support_play_xiaomi_pq_guide_video" value="YES" platformid="1109"/>
+    <!--支持Gamma offset-->
+    <item key="support_gamma_offset" value="YES"/>
+    <!--支持HDR 色调映射-->
+    <item key="support_hdr_tone_mapping" value="YES"/>
+    <!--支持响应时间-->
+    <item key="support_response_time" value="YES"/>
+    <!--支持黑色校正-->
+    <item key="support_black_stretch" value="YES"/>
+    <!--支持高级对比度增强-->
+    <item key="support_dynamic_contrast" value="YES"/>
+    <!--支持20点白平衡-->
+    <item key="support_white_balance_20" value="YES"/>
+    <!--支持手机校色-->
+    <item key="support_display_color_correction" value="YES" platformid="1109"/>
+    <!--支持游戏模式GameMode-->
+    <item key="support_hdmi_game_model" value="YES" />
+    <!--支持p2p_go-->
+    <item key="support_p2p_go" value="YES" platformid="1109"/>
+    <!--不支持p2p_go常开-->
+    <item key="support_p2p_go_alwayson" value="NO" platformid="1109"/>
+    <!--支持p2p sta共存-->
+    <item key="support_p2p_sta_concurrent" value="YES" platformid="1109"/>
+    <!--支持softap sta共存-->
+    <item key="support_sta_softap_concurrent" value="YES" platformid="1109"/>
+    <!-- 支持等比例显示4K图片 -->
+     <item key="support_sample_size_when_show_pic" value="YES" />
+    <!--支持gc_sta-->
+    <item key="support_gc_sta" value="YES" platformid="1109"/>
+    <!--支持多屏同色能力-->
+    <item key="support_multi_screen_same_color" value="YES"/>
+    <!--支持240HZ 模式-->
+    <item key="support_display_dlg" value="YES"/>
+    <!--支持动态清晰度-->
+    <item key="support_dynamic_defination" value="YES" platformid="1326,1327,1328,1329"/>
+    <!--支持杜比模式下隐藏动态背光-->
+    <item key="support_hide_local_dimming_in_dovi" value="YES" platformid="1330,1331,1332,1334,1337,1338"/>
+    <!--支持HDMI SPD获取-->
+    <item key="support_hdmi_source_product_description" value="YES"/>
+    <!-- 是否支持onetouch play控制-->
+    <item key="support_onetouch_play_control" value="YES" />
+    <!-- 是否支持game 60Hz控制-->
+    <item key="support_hdmi_game_60_direct" value="YES" />
+    <!-- 是否支持USB-C信号输入-->
+    <item key="support_port_usb_c" value="YES" platformid="1523,1524,1525"/>
+    <!-- 是否支持PM2-->
+    <item key="support_pm2_monitor" value="YES" platformid="1523,1524,1525"/>
+    <!-- 是否支持UI Agent系统侧适配 -->
+    <item key="support_uiagent_fw_solution" value="YES"/>
+</items>

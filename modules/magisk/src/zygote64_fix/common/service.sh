@@ -2,17 +2,17 @@
 #
 # 修复 Zygisk Next 漏注入主 zygote64 的问题
 #
-# 背景：Zygisk Next 通过 hook init 的 execve 抓 zygote，但主 zygote64 启动（约 4.6s）
-#       早于 hook 安装完成（约 5.2s），导致 zygote64 整轮开机都不被注入，
-#       而 LSPosed 是纯 64 位框架，于是管理器报「Zygisk 未启用」。
-#
-# 逻辑：late_start service 阶段（hook 已就绪）检查 zygote64 是否已注入；
-#       已注入 -> 什么都不做；未注入 -> 重启一次 zygote（soft reboot），
-#       新起的 zygote64 就会走 hook 被正常注入。
+# 背景：Zygisk Next 通过 hook init 的 execve 抓 zygote，但主 zygote64 启动早于 hook 安装完成，
+#       导致 zygote64 整轮开机都不被注入，LSPosed 不生效。
+# 做法：late_start 阶段检查 zygote64 是否已注入；没注入就重启一次 zygote。
+# v1.1：重启 zygote 时 LSPosed 守护进程(lspd)可能正好在启动，被冲掉后不会再起，
+#       表现为 LSPosed 没运行、模块不生效。现在重启后会检查 lspd，没起来就拉起并再重启一次 zygote
+#       （守护进程先于 system_server 存活，LSPosed 才能钩住系统服务）。最多补救 2 次。
+# v1.2：Magisk 在开机时会把 service 阶段触发两次，本脚本因此会被同时执行两份。
+#       现在用原子符号链接加锁，只让其中一份干活，另一份直接退出。
 #
 # 安全措施：
-#   - 每次开机最多执行一轮（用 boot_id 做标记），不会反复重启框架
-#   - 最多重启 1 次 + 校验，失败只写日志，不做更多动作
+#   - 每次开机最多执行一轮（用 boot_id 做标记）
 #   - Zygisk Next 模块被禁用/不存在时直接退出
 #
 # 日志：/data/adb/lsposed_zygote64_fix.log
@@ -20,6 +20,7 @@
 
 LOG=/data/adb/lsposed_zygote64_fix.log
 FLAG=/data/adb/.zygote64_fix_bootid
+LSP=/data/adb/modules/zygisk_lsposed
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >>"$LOG"; }
 
@@ -40,6 +41,14 @@ if [ -n "$BOOTID" ] && [ "$(cat "$FLAG" 2>/dev/null)" = "$BOOTID" ]; then
   exit 0
 fi
 
+# Magisk with Zygisk Next runs the service stage twice per boot, ~0.3 s apart, so two copies of
+# this script race. An atomic symlink lets exactly one of them do the work.
+LOCK=/data/adb/.zygote64_fix_lock
+if [ -n "$BOOTID" ]; then
+  if [ -L "$LOCK" ] && [ "$(readlink "$LOCK")" != "$BOOTID" ]; then rm -f "$LOCK"; fi
+  ln -s "$BOOTID" "$LOCK" 2>/dev/null || exit 0
+fi
+
 # 等 Zygisk Next 守护进程就绪，最多 60 秒
 i=0
 while [ $i -lt 120 ]; do
@@ -53,6 +62,41 @@ if [ $i -ge 120 ]; then
   exit 0
 fi
 sleep 3
+
+# 0 = lspd 在运行且已连上系统服务（或无法确认连接，按正常处理）；1 = lspd 没运行；2 = 在运行但没连上系统服务
+lsp_state() {
+  [ -d "$LSP" ] && [ ! -e "$LSP/disable" ] && [ ! -e "$LSP/remove" ] || return 0
+  pidof lspd >/dev/null 2>&1 || return 1
+  _o=$(timeout 20 sh "$LSP/lspctl" status 2>&1)
+  case "$_o" in
+    *"System server: not connected"*) return 2 ;;
+  esac
+  return 0
+}
+
+lsp_start() {
+  pidof lspd >/dev/null 2>&1 && return 0
+  log "lspd 没在运行，手动拉起"
+  /data/adb/magisk/busybox setsid "$LSP/daemon" --force </dev/null >/dev/null 2>&1 &
+  _i=0
+  while [ $_i -lt 20 ]; do
+    pidof lspd >/dev/null 2>&1 && return 0
+    _i=$((_i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+wait_boot() {
+  sleep 30
+  _i=0
+  while [ $_i -lt 60 ]; do
+    [ "$(getprop sys.boot_completed)" = "1" ] && break
+    _i=$((_i + 1))
+    sleep 1
+  done
+  sleep 5
+}
 
 ZPID=$(pidof zygote64)
 if [ -z "$ZPID" ]; then
@@ -69,13 +113,28 @@ fi
 log "zygote64($ZPID) 未注入，重启 zygote 使其走 hook"
 [ -n "$BOOTID" ] && echo "$BOOTID" >"$FLAG"
 setprop ctl.restart zygote
-
-# 等 framework 重启完成
-sleep 30
+wait_boot
 
 ZPID=$(pidof zygote64)
 if [ -n "$ZPID" ] && grep -q 'zygisk_lsposed' /proc/$ZPID/maps 2>/dev/null; then
   log "修复成功，zygote64($ZPID) 已注入"
 else
   log "修复失败，zygote64($ZPID) 仍未注入，请把日志发给开发者"
+  exit 0
 fi
+
+n=0
+while [ $n -lt 2 ]; do
+  lsp_state
+  _s=$?
+  [ $_s = 0 ] && { log "LSPosed 正常（lspd 在运行）"; exit 0; }
+  n=$((n + 1))
+  log "LSPosed 状态异常($_s)，第 $n 次补救：确保 lspd 在运行后再重启一次 zygote"
+  lsp_start || { log "lspd 拉不起来，放弃"; exit 0; }
+  sleep 5
+  setprop ctl.restart zygote
+  wait_boot
+done
+
+lsp_state
+log "补救结束，LSPosed 状态码 $?"

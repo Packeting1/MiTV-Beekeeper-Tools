@@ -56,7 +56,7 @@ version = re.search(r'versionName="([^"]+)"', manifest).group(1)
 
 MODS = {  # asset suffix -> module zip glob
     'hgig': 'Beekeeper_HGIG_Fix_*.zip', 'ldm': 'Beekeeper_LDM_Fix_*.zip', 'zygote': 'Zygote64_Fix_*.zip',
-    'adbkeeper': 'MiTV-ADB-Keeper-*.zip', '4kui': 'MiTV-4K-UI-Switch-*.zip',
+    'adbkeeper': 'Beekeeper_ADB_Keeper_*.zip', '4kui': 'Beekeeper_4KUI_Switch_*.zip',
     'hdr10plus': 'Beekeeper_HDR10Plus_*.zip', 'imax': 'Beekeeper_IMAX_*.zip',
     'aisr': 'Beekeeper_AISR_Level_*.zip', 'volbalance': 'Beekeeper_VolumeBalance_*.zip',
     'dvedid': 'Beekeeper_LLDV_*.zip', 'freesynckeep': 'Beekeeper_FreeSyncKeep_*.zip',
