@@ -4,7 +4,7 @@
 用法：python modules/magisk/build.py [模块目录名 ...]（不带参数＝全部）
 
 - 版本号在各模块 module.prop 的 version / versionCode，zip 文件名跟着它走，旧版本的同名前缀 zip 会被删掉。
-- 有 install.sh 的 legacy 模块会自动加上共用的 META-INF（modules/magisk/META-INF）。
+- 有 install.sh 的 legacy 模块会自动加上共用的 META-INF（modules/magisk/src/_shared/META-INF）。
 - 打出来的 zip 内容固定（排序、固定时间戳），源码不变则 zip 不变。
 """
 import pathlib
@@ -15,7 +15,7 @@ import zipfile
 ROOT = pathlib.Path(__file__).resolve().parent
 SRC = ROOT / 'src'
 DIST = ROOT / 'dist'
-META = ROOT / 'META-INF'
+META = SRC / '_shared' / 'META-INF'
 STAMP = (1980, 1, 1, 0, 0, 0)
 
 # 源码目录 -> zip 文件名前缀（后面接版本号）
