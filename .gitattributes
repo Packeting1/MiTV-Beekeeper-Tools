@@ -1,6 +1,8 @@
 * text=auto
 # Magisk 模块源码原样打进 zip（ini/xml 的字节不能被换行转换改动），脚本和 prop 仍用 LF
 modules/magisk/src/** -text
+# 4K UI Switch 的 original/ 是固件原文件（sha 记在 base-config.sha256），行尾空格保持原样
+modules/magisk/src/4kui_switch/original/** -whitespace
 *.sh text eol=lf
 *.prop text eol=lf
 update-binary text eol=lf

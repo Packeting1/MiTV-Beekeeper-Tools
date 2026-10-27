@@ -43,7 +43,7 @@
 
     <!-- 是否支持dolby认证delay调节的ui-->
     <item key="digital_out_delay" value="YES"/>
-  
+
     <!-- 是否支持杜比模式-->
     <item key="dolby_effect_supported" value="YES" platformid="1326,1327,1328,1329"/>
 
