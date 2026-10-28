@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.beekeeper.mediabadge"
+    android:versionCode="20261028"
+    android:versionName="2026.10.28">
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <application
+        android:label="MediaBadge"
+        android:allowBackup="false" />
+</manifest>

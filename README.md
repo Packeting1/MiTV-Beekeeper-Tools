@@ -37,7 +37,7 @@ App 里勾选只负责安装，安装好后需在 LSPosed / Vector 里手动启�
 
 | 模块 | 作用 |
 |---|---|
-| TvPlayerKeep | 从信号源进入系统设置（遥控器设置键、图像参数页）时不黑屏 |
+| TvPlayerKeep | 从信号源进入系统设置时不黑屏 |
 | SignalKeep | 减少信号源与电视系统切换的黑屏时长 |
 | CastPip | 投屏以小窗叠加在信号源画面上 |
 | HomeRef | 默认桌面不是系统桌面时，让系统的“回桌面”判断和跳转指向当前默认桌面 |
@@ -45,6 +45,7 @@ App 里勾选只负责安装，安装好后需在 LSPosed / Vector 里手动启�
 | NoSignalAudioMode | 信号源在无信号倒计时结束后进入音响模式，信号恢复时自动亮屏 |
 | MoreDisplaySettings | 菜单键悬浮窗的图像页新增“更多图像设置” |
 | DolbyVisionTitle | 菜单键设置界面的标题在所有杜比视界图像模式下都显示 Dolby Vision |
+| MediaBadge | 根据播放的媒体内容，显示 HDR10 / HLG / HDR Vivid / Dolby Vision / Technicolor 角标，以及 Dolby / DTS 系列音频角标。 |
 
 ## 自行构建
 

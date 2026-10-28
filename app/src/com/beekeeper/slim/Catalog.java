@@ -95,7 +95,7 @@ final class Catalog {
                 DB_PKG),
             new Group(KIND_NOHOME, "系统桌面 (占内存约 390MB)",
                 "禁用小米系统桌面。仅已安装“Aerial 桌面”和 HomeRef，且 Aerial 为默认桌面后才能禁用此项。",
-                "风险：部分系统入口（如信号源列表的“主页”）可能没反应",
+                null,
                 STOCK_HOME_PKG),
             new Group(KIND_APK, "TvPlayerKeep（LSPosed模块）",
                 "从信号源进入系统设置不黑屏。",
@@ -123,6 +123,9 @@ final class Catalog {
             new Group(KIND_APK, "DolbyVisionTitle（LSPosed模块）",
                 "菜单键设置界面的标题在所有杜比视界图像模式下都显示 Dolby Vision。",
                 null, "com.beekeeper.dolbyvisiontitle").mod("com.beekeeper.dolbyvisiontitle", "apk_dolbyvisiontitle.apk"),
+            new Group(KIND_APK, "MediaBadge（LSPosed模块）",
+                "根据播放的媒体内容，显示 HDR10 / HLG / HDR Vivid / Dolby Vision / Technicolor 角标，以及 Dolby / DTS 系列音频角标。",
+                null, "com.beekeeper.mediabadge").mod("com.beekeeper.mediabadge", "apk_mediabadge.apk"),
             new Group(KIND_MOD, "FreeSync 保持图像模式（Magisk模块）",
                 "开启 FreeSync 或杜比视界信号带游戏标志时，不再自动切到游戏模式。",
                 "风险：仅适用于 OS 3.0.109，系统升级后自动失效").mod("beekeeper_freesync_keep", "mod_freesynckeep.zip"),
@@ -196,6 +199,7 @@ final class Catalog {
         LS_SCOPES.put("com.beekeeper.moredisplaysettings", new String[] {
             "com.xiaomi.mitv.settings", "com.xiaomi.mitv.tvplayer" });
         LS_SCOPES.put("com.beekeeper.dolbyvisiontitle", new String[] { "com.xiaomi.mitv.settings" });
+        LS_SCOPES.put("com.beekeeper.mediabadge", new String[] { "mitv.service", "com.mitv.tvhome", "com.xiaomi.mitv.tvplayer" });
     }
 
     /** 只改 mitv.config.xml 一个开关的模块：模块 id -> 开关 key。 */

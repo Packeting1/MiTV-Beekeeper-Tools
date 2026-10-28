@@ -236,7 +236,7 @@ public class MainActivity extends Activity {
         android.text.SpannableString aboutText = new android.text.SpannableString(aboutHead
             + "\n项目作者：酷安@pkkka\n项目地址：github.com/" + GH_REPO
             + "\n有任何想法或建议，欢迎在项目地址的 Issue / Pull Request 中提交"
-            + "\n贡献者：Rin010、酷安@伏犬");
+            + "\n贡献者：@Rin010、酷安@伏犬、@Filey-Aaron");
         aboutText.setSpan(new android.text.style.RelativeSizeSpan(1.35f), 0, aboutHead.length(),
             android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         about.setText(aboutText);
