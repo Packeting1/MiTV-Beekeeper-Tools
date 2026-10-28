@@ -1,10 +1,7 @@
 package com.beekeeper.slim;
 
 import android.os.Handler;
-import java.util.ArrayList;
 import java.util.List;
-
-import static com.beekeeper.slim.Catalog.*;
 
 /** GitHub 访问（官方 + 镜像线路）、版本号比较和下载。 */
 final class Net {
@@ -13,16 +10,19 @@ final class Net {
 
     static final String GH_REPO = "Packeting1/MiTV-Beekeeper-Tools";
 
-    /** 按点分数字比较版本，忽略开头的 v 和 - 之后的后缀。 */
+    /** 按点分数字比较版本，忽略开头的 v；数字相同时带 - 后缀（如 rc）的比不带的低。 */
     static int cmpVersion(String a, String b) {
-        String[] x = a.replaceFirst("^[vV]", "").split("-")[0].split("\\.");
-        String[] y = b.replaceFirst("^[vV]", "").split("-")[0].split("\\.");
+        a = a.replaceFirst("^[vV]", "");
+        b = b.replaceFirst("^[vV]", "");
+        int i0 = a.indexOf('-'), j0 = b.indexOf('-');
+        String[] x = (i0 < 0 ? a : a.substring(0, i0)).split("\\.");
+        String[] y = (j0 < 0 ? b : b.substring(0, j0)).split("\\.");
         for (int i = 0; i < Math.max(x.length, y.length); i++) {
             int p = i < x.length ? Math.max(0, toInt(x[i])) : 0;
             int q = i < y.length ? Math.max(0, toInt(y[i])) : 0;
             if (p != q) return p < q ? -1 : 1;
         }
-        return 0;
+        return (i0 < 0 ? 1 : 0) - (j0 < 0 ? 1 : 0);
     }
 
     static String readAll(java.io.InputStream in) throws Exception {
@@ -70,8 +70,9 @@ final class Net {
     static String fetchApi(String repo, String path) throws Exception {
         Throwable last = null;
         for (String cand : withMirrors("https://api.github.com/repos/" + repo + "/" + path)) {
+            java.net.HttpURLConnection c = null;
             try {
-                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
+                c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
                 c.setConnectTimeout(6000);
                 c.setReadTimeout(8000);
                 c.setRequestProperty("Accept", "application/vnd.github+json");
@@ -82,6 +83,8 @@ final class Net {
                 return s;
             } catch (Throwable t) {
                 last = t;
+            } finally {
+                if (c != null) c.disconnect();
             }
         }
         throw new NetFail(last == null ? "无法连接" : String.valueOf(last));
@@ -159,10 +162,11 @@ final class Net {
         Throwable lastErr = null;
         for (String cand : cands) {
             if (tok.cancelled) throw new CancelledException();
+            java.net.HttpURLConnection c = null;
             try {
-                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
+                c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
                 tok.conn = c;
-                if (tok.cancelled) { c.disconnect(); throw new CancelledException(); }
+                if (tok.cancelled) throw new CancelledException();
                 c.setConnectTimeout(10000);
                 c.setReadTimeout(20000);
                 c.setRequestProperty("User-Agent", "MiTV-Beekeeper-Tools");
@@ -204,6 +208,8 @@ final class Net {
                 if (tok.cancelled) throw new CancelledException();
                 lastErr = t;
                 main.post(new Runnable() { public void run() { p.waiting("下载失败，正在切换线路重试……"); } });
+            } finally {
+                if (c != null) c.disconnect();
             }
         }
         throw new NetFail(lastErr == null ? "下载失败" : String.valueOf(lastErr));

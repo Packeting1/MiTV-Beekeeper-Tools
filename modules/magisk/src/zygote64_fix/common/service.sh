@@ -5,31 +5,23 @@
 # 背景：Zygisk Next 通过 hook init 的 execve 抓 zygote，但主 zygote64 启动早于 hook 安装完成，
 #       导致 zygote64 整轮开机都不被注入，LSPosed 不生效。
 # 做法：late_start 阶段检查 zygote64 是否已注入；没注入就重启一次 zygote。
-# v1.1：重启 zygote 时 LSPosed 守护进程(lspd)可能正好在启动，被冲掉后不会再起，
-#       表现为 LSPosed 没运行、模块不生效。现在重启后会检查 lspd，没起来就拉起并再重启一次 zygote
+#       重启 zygote 时 LSPosed 守护进程(lspd)可能正好在启动，被冲掉后不会再起，
+#       表现为 LSPosed 没运行、模块不生效。所以重启后会检查 lspd，没起来就拉起并再重启一次 zygote
 #       （守护进程先于 system_server 存活，LSPosed 才能钩住系统服务）。最多补救 2 次。
-# v1.2：Magisk 在开机时会把 service 阶段触发两次，本脚本因此会被同时执行两份。
-#       现在用原子符号链接加锁，只让其中一份干活，另一份直接退出。
 #
 # 安全措施：
-#   - 每次开机最多执行一轮（用 boot_id 做标记）
+#   - 每次开机最多执行一轮（用 boot_id 做标记；加锁见下面 LOCK）
 #   - Zygisk Next 模块被禁用/不存在时直接退出
 #
 # 日志：/data/adb/lsposed_zygote64_fix.log
-# 卸载：删掉本文件即可
 
 LOG=/data/adb/lsposed_zygote64_fix.log
 FLAG=/data/adb/.zygote64_fix_bootid
+# LSPosed 模块目录：旧版叫 zygisk_lsposed，Vector 叫 zygisk_vector
 LSP=/data/adb/modules/zygisk_lsposed
+[ -d /data/adb/modules/zygisk_vector ] && LSP=/data/adb/modules/zygisk_vector
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >>"$LOG"; }
-
-# A copy in service.d would run the same logic concurrently; let it own the job.
-OLD_COPY="${ZFIX_OLD_SCRIPT:-/data/adb/service.d/99-zygote64-lsposed-fix.sh}"
-if [ -f "$OLD_COPY" ]; then
-  log "service.d 中已有同名脚本，本模块不重复执行"
-  exit 0
-fi
 
 # 日志过大时保留最近 200 行
 if [ -f "$LOG" ] && [ "$(wc -c <"$LOG")" -gt 200000 ]; then
@@ -104,7 +96,7 @@ if [ -z "$ZPID" ]; then
   exit 0
 fi
 
-if grep -q 'zygisk_lsposed' /proc/$ZPID/maps 2>/dev/null; then
+if grep -qE 'zygisk_(lsposed|vector)' /proc/$ZPID/maps 2>/dev/null; then
   log "zygote64($ZPID) 已注入，跳过"
   [ -n "$BOOTID" ] && echo "$BOOTID" >"$FLAG"
   exit 0
@@ -116,7 +108,7 @@ setprop ctl.restart zygote
 wait_boot
 
 ZPID=$(pidof zygote64)
-if [ -n "$ZPID" ] && grep -q 'zygisk_lsposed' /proc/$ZPID/maps 2>/dev/null; then
+if [ -n "$ZPID" ] && grep -qE 'zygisk_(lsposed|vector)' /proc/$ZPID/maps 2>/dev/null; then
   log "修复成功，zygote64($ZPID) 已注入"
 else
   log "修复失败，zygote64($ZPID) 仍未注入，请把日志发给开发者"

@@ -59,20 +59,18 @@ final class LsStatus extends Part {
             return false;
         } finally {
             if (d != null) d.close();
-            new java.io.File(getCacheDir(), "lsp_modules_config.db").delete();
-            new java.io.File(getCacheDir(), "lsp_modules_config.db-wal").delete();
-            new java.io.File(getCacheDir(), "lsp_modules_config.db-shm").delete();
+            for (String suffix : new String[] { "", "-wal", "-shm" }) new java.io.File(db.getPath() + suffix).delete();
         }
     }
 
     String lsActual(String pkg) {
         if (!lsKnown) return "实际：未能读取 LSPosed 的状态";
         if (!lsRunning) return "实际：LSPosed 没有运行，模块不会生效";
-        if (!lsServer) return "实际：LSPosed 已运行，但未注入系统，重启再试";
         if (lsEnabled == null) return "实际：未能读取 LSPosed 的配置";
         Boolean e = lsEnabled.get(pkg);
         if (e == null) return "实际：LSPosed 未登记此模块";
         if (!e) return "实际：模块未在 LSPosed 里启用";
+        if (!lsServer) return "实际：LSPosed 已运行，但未注入系统，重启再试";
         String[] need = LS_SCOPES.get(pkg);
         if (need == null) return "实际：已在 LSPosed 启用";
         Set<String> have = lsScope == null ? null : lsScope.get(pkg);

@@ -29,8 +29,8 @@ final class SessionKeeper {
     private static final String EXTERNAL_SOURCE = "com.xiaomi.mitv.tvplayer.ExternalSourceActivity";
     private static Context context;
     private static TvView view;
-    private static Object owner;
-    private static Object keptActivity;
+    private static Activity owner;
+    private static Activity keptActivity;
     private static boolean allowDestroy;
     private static boolean videoLost;
     private static String retainedInputId;
@@ -50,6 +50,7 @@ final class SessionKeeper {
     private static Method inputInfoForSource;
 
     static void setContext(Context value) { context = value; }
+    static void error(String tag, String what, Throwable cause) { module.log(Log.ERROR, tag, what, cause); }
     private static Object sourceManager() throws ReflectiveOperationException {
         return tvContextSourceManager.invoke(tvContextInstance.invoke(null));
     }
@@ -65,19 +66,23 @@ final class SessionKeeper {
             }
             // 否则 handleIntent() 会回退到上次保存的信号源，可能是另一个端口。
             Settings.Global.putInt(context.getContentResolver(), "mitv.tvplayer.hdmi.last.source", source);
-            if (owner instanceof Activity && !((Activity) owner).isFinishing()) {
-                Activity activity = (Activity) owner;
-                Intent original = activity.getIntent();
+            if (owner != null && !owner.isFinishing()) {
+                Intent original = owner.getIntent();
                 Intent resume = original == null ? new Intent() : new Intent(original);
                 resume.putExtra("input", source);
                 resume.removeExtra("autosource");
-                activity.setIntent(resume);
+                owner.setIntent(resume);
                 targetSourceField.setInt(owner, source);
             }
             module.log(Log.INFO, TAG, "Recovery wake selects source=" + source + " input=" + inputId);
         } catch (Throwable error) {
-            module.log(Log.ERROR, TAG, "Recovery source preparation failed: " + error.getClass().getSimpleName());
+            error(TAG, "Recovery source preparation failed", error);
         }
+    }
+    /** 选好信号源后请求亮屏（原因 8 = 音响模式）。 */
+    static void wake(PowerManager power, String inputId, String reason) throws ReflectiveOperationException {
+        prepareInputWake(inputId);
+        HookEntry.wakeUp.invoke(power, SystemClock.uptimeMillis(), 8, reason);
     }
     static boolean audioMode() {
         return context != null && "xiaoai_mode".equals(
@@ -106,15 +111,15 @@ final class SessionKeeper {
     }
 
     /** 返回 true 表示要跳过原版 destoryPlayerAndSurface。 */
-    private static boolean retainSession(Object activity) throws ReflectiveOperationException {
-        if (allowDestroy || !audioMode() || ((Activity) activity).isFinishing()) return false;
+    private static boolean retainSession(Activity activity) throws ReflectiveOperationException {
+        if (allowDestroy || !audioMode() || activity.isFinishing()) return false;
         if (!activity.getClass().getName().equals(EXTERNAL_SOURCE)) return false;
         TvView current = (TvView) tvViewField.get(activity);
         if (current == null) return false;
         try { sinkSurface(); }
         catch (Throwable error) {
             releaseSink();
-            module.log(Log.ERROR, TAG, "Session retention unavailable: " + error.getClass().getSimpleName());
+            error(TAG, "Session retention unavailable", error);
             return false;
         }
         keptActivity = activity;
@@ -126,7 +131,7 @@ final class SessionKeeper {
             retainedInputId = info == null ? null : info.getId();
         } catch (Throwable error) {
             retainedInputId = null;
-            module.log(Log.WARN, TAG, "Retained input mapping unavailable: " + error.getClass().getSimpleName());
+            module.log(Log.WARN, TAG, "Retained input mapping unavailable", error);
         }
         AudioManager audio = (AudioManager) audioMgrField.get(activity);
         if (audio != null) audio.abandonAudioFocus(
@@ -135,10 +140,23 @@ final class SessionKeeper {
         return true;
     }
 
-    private static Field field(Class<?> type, String name) throws NoSuchFieldException {
+    static Field field(Class<?> type, String name) throws NoSuchFieldException {
         Field f = type.getDeclaredField(name);
         f.setAccessible(true);
         return f;
+    }
+
+    private static void clearState() {
+        keptActivity = null; view = null; owner = null;
+        videoLost = false; retainedInputId = null; releaseSink();
+    }
+
+    /** 用原版逻辑释放被保留的会话。 */
+    private static void releaseRetained(Object self) {
+        allowDestroy = true;
+        try { destroyMethod.invoke(self); }
+        catch (Throwable error) { error(TAG, "Retained session release failed", error); }
+        finally { allowDestroy = false; clearState(); }
     }
 
     static void install(XposedModule m, ClassLoader loader) throws Throwable {
@@ -166,58 +184,36 @@ final class SessionKeeper {
         module.hook(destroyMethod).intercept(chain -> {
             Object self = chain.getThisObject();
             try {
-                if (retainSession(self)) return null;
+                if (retainSession((Activity) self)) return null;
             } catch (Throwable error) {
-                module.log(Log.ERROR, TAG, "Session retention check failed: " + error.getClass().getSimpleName());
+                error(TAG, "Session retention check failed", error);
             }
             Object result = chain.proceed();
             try {
-                if (owner == self && tvViewField.get(self) == null) {
-                    view = null; owner = null; keptActivity = null; videoLost = false;
-                    retainedInputId = null; releaseSink();
-                }
+                if (owner == self && tvViewField.get(self) == null) clearState();
             } catch (Throwable error) {
-                module.log(Log.ERROR, TAG, "Session cleanup failed: " + error.getClass().getSimpleName());
+                error(TAG, "Session cleanup failed", error);
             }
             return result;
         });
         module.hook(base.getDeclaredMethod("createPlayerAndSurface")).intercept(chain -> {
             Object self = chain.getThisObject();
-            if (keptActivity == self) {
-                allowDestroy = true;
-                try { destroyMethod.invoke(self); }
-                catch (Throwable error) {
-                    module.log(Log.ERROR, TAG, "Retained session release failed: " + error.getClass().getSimpleName());
-                }
-                finally {
-                    allowDestroy = false; keptActivity = null; releaseSink();
-                }
-            }
+            if (keptActivity == self) releaseRetained(self);
             Object result = chain.proceed();
             try {
                 if (self.getClass().getName().equals(EXTERNAL_SOURCE)) {
                     view = (TvView) tvViewField.get(self);
-                    owner = self;
+                    owner = (Activity) self;
                     videoLost = false;
                 }
             } catch (Throwable error) {
-                module.log(Log.ERROR, TAG, "Session tracking failed: " + error.getClass().getSimpleName());
+                error(TAG, "Session tracking failed", error);
             }
             return result;
         });
         module.hook(base.getDeclaredMethod("onDestroy")).intercept(chain -> {
             Object self = chain.getThisObject();
-            if (keptActivity == self) {
-                allowDestroy = true;
-                try { destroyMethod.invoke(self); }
-                catch (Throwable error) {
-                    module.log(Log.ERROR, TAG, "Retained session release failed: " + error.getClass().getSimpleName());
-                }
-                finally {
-                    allowDestroy = false; keptActivity = null; view = null; owner = null;
-                    videoLost = false; retainedInputId = null; releaseSink();
-                }
-            }
+            if (keptActivity == self) releaseRetained(self);
             return chain.proceed();
         });
         module.hook(session.getDeclaredMethod("setSurface", Surface.class)).intercept(chain -> {
@@ -229,7 +225,7 @@ final class SessionKeeper {
                     module.log(Log.INFO, TAG, "Retained an offscreen signal surface");
                 }
             } catch (Throwable error) {
-                module.log(Log.ERROR, TAG, "Offscreen surface unavailable: " + error.getClass().getSimpleName());
+                error(TAG, "Offscreen surface unavailable", error);
             }
             return replacement == null ? chain.proceed() : chain.proceed(new Object[] { replacement });
         });
@@ -243,7 +239,7 @@ final class SessionKeeper {
                     module.log(Log.INFO, TAG, "Video unavailable reason=" + reason);
                 }
             } catch (Throwable error) {
-                module.log(Log.ERROR, TAG, "Video state tracking failed: " + error.getClass().getSimpleName());
+                error(TAG, "Video state tracking failed", error);
             }
             return result;
         });
@@ -257,16 +253,14 @@ final class SessionKeeper {
                     module.log(Log.INFO, TAG, "Video available; recovery=" + recovered);
                     if (recovered && context != null) {
                         PowerManager power = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-                        if (power != null && !power.isInteractive()) {
-                            prepareInputWake(retainedInputId);
-                            HookEntry.wakeUp.invoke(power, Long.valueOf(SystemClock.uptimeMillis()),
-                                    Integer.valueOf(8), "NoSignalXiaoAi:video-event");
+                        if (power != null && !power.isInteractive() && audioMode()) {
+                            wake(power, retainedInputId, "NoSignalXiaoAi:video-event");
                             module.log(Log.INFO, TAG, "Requested wake from video event");
                         }
                     }
                 }
             } catch (Throwable error) {
-                module.log(Log.ERROR, TAG, "Video recovery handling failed: " + error.getClass().getSimpleName());
+                error(TAG, "Video recovery handling failed", error);
             }
             return result;
         });

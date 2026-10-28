@@ -44,7 +44,7 @@ public final class HookEntry extends XposedModule {
                 try {
                     return chain.proceed();
                 } finally {
-                    inTitle.set(false);
+                    inTitle.remove();
                 }
             });
             hook(cl.loadClass(PICTURE_MANAGER).getMethod("getVideoInfoValue")).intercept(chain -> {

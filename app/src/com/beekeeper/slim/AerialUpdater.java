@@ -6,7 +6,6 @@ import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import static com.beekeeper.slim.Catalog.*;
@@ -161,14 +160,14 @@ final class AerialUpdater extends Part {
             s.append("rm -f $APK\n");
             final String out = runSu(s.toString());
             f.delete();
-            final boolean noRoot = out.contains("无法使用 root") || out.contains("可能没有授予 root");
+            final boolean denied = noRoot(out);
             final boolean ok = out.contains("Success");
             final boolean staged = out.contains("MODULE_OK");
             final boolean noModule = out.contains("NO_MODULE");
             main.post(new Runnable() { public void run() {
                 if (progress.isShowing()) progress.dismiss();
                 StringBuilder m = new StringBuilder();
-                if (noRoot) {
+                if (denied) {
                     m.append("没有 root 权限，无法安装。");
                 } else if (ok) {
                     m.append("Aerial 已更新到 ").append(tag).append("。");
@@ -179,7 +178,7 @@ final class AerialUpdater extends Part {
                 } else {
                     m.append("更新失败。");
                 }
-                if (!noRoot) m.append("\n\n").append(out.replace("MODULE_OK\n", "").replace("MODULE_FAIL\n", "")
+                if (!denied) m.append("\n\n").append(out.replace("MODULE_OK\n", "").replace("MODULE_FAIL\n", "")
                     .replace("NO_MODULE\n", "").trim());
                 showResult(m.toString());
                 refresh();

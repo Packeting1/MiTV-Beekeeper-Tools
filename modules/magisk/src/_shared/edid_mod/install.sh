@@ -23,7 +23,7 @@ on_install() {
   . "$MODPATH/edid_lib.sh"
   edid_apply
   case $? in
-    0) ui_print "$MSG_APPLIED" ;;
+    0) ui_print "EDID 已写入，请重启电视，并让 Windows 重新读取 EDID（重新插拔线或重启电脑）" ;;
     2) ui_print "EDID 已经是修改后的版本，或与已知原文件不同，已跳过" ;;
     *) ui_print "写入失败，模块已安装，开机时会自动重试。日志: $LOG" ;;
   esac

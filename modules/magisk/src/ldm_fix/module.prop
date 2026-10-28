@@ -1,6 +1,6 @@
 id=beekeeper_ldm_fix
 name=LDM Fix
-version=2026.10.28
-versionCode=20261028
+version=2026.10.29
+versionCode=20261029
 author=酷安@pkkka
 description=Restores OS2 local dimming parameters in ldm.ini to reduce HDR/Dolby Vision overexposure.

@@ -1,6 +1,6 @@
 id=beekeeper_freesync_keep
 name=FreeSync Keep Mode
-version=2026.10.28
-versionCode=20261028
+version=2026.10.29
+versionCode=20261029
 author=酷安@pkkka
 description=Keeps the picture mode unchanged when FreeSync is enabled, a Dolby Vision game flag appears or HDR/Dolby Vision is switched, by bind-mounting a patched libmtkapp.so at boot (partition untouched).

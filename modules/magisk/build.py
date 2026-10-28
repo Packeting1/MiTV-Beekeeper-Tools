@@ -5,8 +5,9 @@
 
 - 版本号在各模块 module.prop 的 version / versionCode，zip 文件名跟着它走，旧版本的同名前缀 zip 会被删掉。
 - 有 install.sh 的 legacy 模块会自动加上共用的 META-INF（modules/magisk/src/_shared/META-INF）。
-- EDID 类模块（dv_edid、dp_audio）自动加上 _shared/edid_mod 的脚本和 _shared/edid 的 EDID 文件与 list。
-- 打出来的 zip 内容固定（排序、固定时间戳），源码不变则 zip 不变。
+- SHARED 表里的模块自动加上 src/_shared 下对应目录的文件（install.sh、uninstall.sh 放 zip 根，其余放 common/）：
+  EDID 类（dv_edid、dp_audio）用 edid_mod 和 edid，配置开关类（hgig_fix 等五个）用 flag_mod。
+- 打出来的 zip 内容固定（排序、固定时间戳、固定为 Unix 属性），源码不变则 zip 不变。
 """
 import pathlib
 import re
@@ -17,8 +18,9 @@ ROOT = pathlib.Path(__file__).resolve().parent
 SRC = ROOT / 'src'
 DIST = ROOT / 'dist'
 META = SRC / '_shared' / 'META-INF'
-EDID_MODS = ('dv_edid', 'dp_audio')  # 共用 _shared/edid_mod 的脚本和 _shared/edid 的 EDID 文件
 STAMP = (1980, 1, 1, 0, 0, 0)
+SKIP_DIRS = {'original'}  # 只在重新生成覆盖文件时用，不进 zip
+TEXT_SUFFIXES = ('.sh', '.prop', '.conf', 'update-binary')
 
 # 源码目录 -> zip 文件名前缀（后面接版本号）
 PLAIN = {
@@ -36,20 +38,30 @@ PLAIN = {
     'volume_balance': 'Beekeeper_VolumeBalance_v',
 }
 
+# 模块目录 -> 共用的 src/_shared 子目录
+SHARED = {
+    'dv_edid': ('edid_mod', 'edid'),
+    'dp_audio': ('edid_mod', 'edid'),
+    'hgig_fix': ('flag_mod',),
+    'hdr10plus': ('flag_mod',),
+    'imax': ('flag_mod',),
+    'aisr_level': ('flag_mod',),
+    'volume_balance': ('flag_mod',),
+}
+
 
 def collect(directory):
     """目录里要打进 zip 的文件：{zip 内路径: 字节}。"""
     files = {}
     for path in sorted(directory.rglob('*')):
-        if not path.is_file() or path.suffix == '.py' or '__pycache__' in path.parts:
+        rel = path.relative_to(directory)
+        if not path.is_file() or path.suffix == '.py' or '__pycache__' in rel.parts or SKIP_DIRS & set(rel.parts):
             continue
-        files[path.relative_to(directory).as_posix()] = path.read_bytes()
-    if directory.name in EDID_MODS:
-        for path in sorted((SRC / '_shared' / 'edid_mod').iterdir()):
-            files[('' if path.name in ('install.sh', 'uninstall.sh') else 'common/') + path.name] = path.read_bytes()
-        for path in sorted((SRC / '_shared' / 'edid').iterdir()):
-            if path.suffix != '.py' and path.is_file():
-                files['common/' + path.name] = path.read_bytes()
+        files[rel.as_posix()] = path.read_bytes()
+    for shared in SHARED.get(directory.name, ()):
+        for path in sorted((SRC / '_shared' / shared).iterdir()):
+            if path.is_file() and path.suffix != '.py':
+                files[('' if path.name in ('install.sh', 'uninstall.sh') else 'common/') + path.name] = path.read_bytes()
     if 'install.sh' in files:
         for path in sorted(META.rglob('*')):
             if path.is_file():
@@ -58,7 +70,10 @@ def collect(directory):
 
 
 def pack(prefix, files):
-    version = re.search(rb'(?m)^version=(.+?)\r?$', files['module.prop']).group(1).decode()
+    version = re.search(rb'(?m)^version=(.+)$', files['module.prop']).group(1).decode()
+    for name, data in files.items():
+        if name.endswith(TEXT_SUFFIXES) and b'\r' in data:
+            sys.exit('%s: CRLF in %s' % (prefix, name))
     out = DIST / ('%s%s.zip' % (prefix, version))
     DIST.mkdir(exist_ok=True)
     for old in DIST.glob(prefix + '*.zip'):
@@ -69,12 +84,16 @@ def pack(prefix, files):
             executable = name.endswith('.sh') or name.endswith('update-binary')
             info.external_attr = (0o100755 if executable else 0o100644) << 16
             info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3  # 固定为 Unix，不同主机打出的 zip 才一致
             z.writestr(info, files[name])
     print('OK', out, out.stat().st_size)
 
 
 def main():
     wanted = set(sys.argv[1:])
+    unknown = wanted - set(PLAIN)
+    if unknown:
+        sys.exit('unknown module: %s (available: %s)' % (', '.join(sorted(unknown)), ', '.join(PLAIN)))
     for directory, prefix in PLAIN.items():
         if not wanted or directory in wanted:
             pack(prefix, collect(SRC / directory))

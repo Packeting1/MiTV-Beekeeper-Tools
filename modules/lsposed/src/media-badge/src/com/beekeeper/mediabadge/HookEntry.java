@@ -68,10 +68,11 @@ public final class HookEntry extends XposedModule {
     private String audioText;
     private final Runnable fadeTask = this::fadeOut;
     private int lastType = -1;
-    private Handler worker;
+    private volatile Handler worker;
     private final Runnable checkTask = this::checkNow;
     private String lastAudio = "";
     private int audioRetry;
+    private boolean fading;
     private final Runnable audioTask = this::checkAudio;
     private Object avMode;
     private Method getInfo;
@@ -99,14 +100,8 @@ public final class HookEntry extends XposedModule {
             Class<?> c = param.getDefaultClassLoader().loadClass(AV_MODE);
             avMode = c.getConstructor().newInstance();
             getInfo = c.getMethod("getVideoInfoValue", int.class);
-            ui = new Handler(Looper.getMainLooper());
-            ui.post(this::listenBadge);
-            ui.post(this::watchAudio);
-            HandlerThread t = new HandlerThread(TAG);
-            t.start();
-            worker = new Handler(t.getLooper());
             // 视频信息回调（HDR 类型变化也走这里）只用来触发检查；回调线程里不能直接回调原生接口，
-            // 所以在自己的线程上延迟读取，同时合并连续的事件
+            // 所以在自己的线程上延迟读取，同时合并连续的事件。先装 hook，失败就不启动线程和监听。
             Class<?> cb = param.getDefaultClassLoader().loadClass(CALLBACK);
             hook(cb.getDeclaredMethod("DO_notifyVideoInfoMessage",
                     int.class, int.class, int.class, int.class, int.class, int.class, int.class)).intercept(chain -> {
@@ -114,6 +109,12 @@ public final class HookEntry extends XposedModule {
                 scheduleCheck();
                 return r;
             });
+            ui = new Handler(Looper.getMainLooper());
+            ui.post(this::listenBadge);
+            ui.post(this::watchAudio);
+            HandlerThread t = new HandlerThread(TAG);
+            t.start();
+            worker = new Handler(t.getLooper());
             worker.post(checkTask);
             log(Log.INFO, TAG, "badge watcher started");
         } catch (Throwable e) {
@@ -211,7 +212,14 @@ public final class HookEntry extends XposedModule {
             try {
                 Class<?> c = cl.loadClass(name);
                 hook(c.getDeclaredMethod("showVideoLogoIfNeeded")).intercept(chain -> {
-                    return isPlainDolby(chain.getThisObject()) && notifyBadge(app(), true, null) ? null : chain.proceed();
+                    // 这里的异常不能传到桌面进程里，出错就按原样显示系统角标
+                    try {
+                        if (isPlainDolby(chain.getThisObject()) && notifyBadge(app(), true, null)) {
+                            return null;
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                    return chain.proceed();
                 });
                 log(Log.INFO, TAG, "native dolby logo muted: " + name);
             } catch (ClassNotFoundException | NoSuchMethodException ignored) {
@@ -288,13 +296,21 @@ public final class HookEntry extends XposedModule {
     }
 
     private void scheduleCheck() {
-        worker.removeCallbacks(checkTask);
-        worker.postDelayed(checkTask, SETTLE_MS);
+        Handler w = worker;
+        if (w != null) {
+            w.removeCallbacks(checkTask);
+            w.postDelayed(checkTask, SETTLE_MS);
+        }
     }
 
     private void checkNow() {
         try {
             Context ctx = app();
+            if (ctx == null) {
+                // 进程的 Application 还没就绪，稍后再查，不记录类型
+                scheduleCheck();
+                return;
+            }
             int type = (Integer) getInfo.invoke(avMode, VIDEOINFO_HDR_TYPE);
             if (type == lastType) {
                 return;
@@ -341,16 +357,9 @@ public final class HookEntry extends XposedModule {
         return null;
     }
 
-    private static View textBadge(Context ctx, String text) {
-        float dp = ctx.getResources().getDisplayMetrics().density;
+    private static View textBadge(Context ctx, String text, float dp) {
         int heightPx = Math.round(30 * dp);
-        // 渐变时不建离屏图层：图层在淡出结束切换时会闪一下
-        TextView v = new TextView(ctx) {
-            @Override
-            public boolean hasOverlappingRendering() {
-                return false;
-            }
-        };
+        TextView v = new TextView(ctx);
         v.setText(text);
         v.setTextColor(Color.WHITE);
         v.setTypeface(Typeface.DEFAULT_BOLD);
@@ -388,7 +397,7 @@ public final class HookEntry extends XposedModule {
             if (video == null && audio == null) {
                 return;
             }
-            boolean showing = box != null;
+            boolean showing = box != null && !fading;
             boolean changed = (video != null && !video.equals(videoText)) || (audio != null && !audio.equals(audioText));
             if (video != null) {
                 videoText = video;
@@ -402,6 +411,7 @@ public final class HookEntry extends XposedModule {
             WindowManager wm = (WindowManager) ctx.getSystemService(Context.WINDOW_SERVICE);
             float dp = ctx.getResources().getDisplayMetrics().density;
             if (box == null) {
+                // 渐变时不建离屏图层：图层在淡出结束切换时会闪一下
                 box = new LinearLayout(ctx) {
                     @Override
                     public boolean hasOverlappingRendering() {
@@ -419,11 +429,12 @@ public final class HookEntry extends XposedModule {
                 lp.gravity = Gravity.TOP | Gravity.END;
                 lp.y = Math.round(42 * dp);
                 lp.x = Math.round(30 * dp);
-                fill(ctx);
+                fill(ctx, dp);
                 wm.addView(box, lp);
             } else {
                 box.animate().setListener(null).cancel();
-                fill(ctx);
+                fading = false;
+                fill(ctx, dp);
             }
             box.animate().alpha(1f).setDuration(250).start();
             ui.removeCallbacks(fadeTask);
@@ -434,8 +445,7 @@ public final class HookEntry extends XposedModule {
         }
     }
 
-    private void fill(Context ctx) {
-        float dp = ctx.getResources().getDisplayMetrics().density;
+    private void fill(Context ctx, float dp) {
         box.removeAllViews();
         for (String t : new String[] {videoText, audioText}) {
             if (t != null) {
@@ -443,7 +453,7 @@ public final class HookEntry extends XposedModule {
                         LinearLayout.LayoutParams.WRAP_CONTENT, Math.round(30 * dp));
                 lp.gravity = Gravity.END;
                 lp.topMargin = box.getChildCount() > 0 ? Math.round(8 * dp) : 0;
-                box.addView(textBadge(ctx, t), lp);
+                box.addView(textBadge(ctx, t, dp), lp);
             }
         }
     }
@@ -453,6 +463,7 @@ public final class HookEntry extends XposedModule {
         if (b == null) {
             return;
         }
+        fading = true;
         b.animate().alpha(0f).setDuration(400).setListener(new AnimatorListenerAdapter() {
             @Override
             public void onAnimationEnd(Animator a) {
@@ -467,6 +478,7 @@ public final class HookEntry extends XposedModule {
     private void remove() {
         LinearLayout b = box;
         box = null;
+        fading = false;
         videoText = null;
         audioText = null;
         if (b != null) {

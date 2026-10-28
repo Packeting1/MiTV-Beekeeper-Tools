@@ -15,9 +15,8 @@
 #   0x33abf0 / 0x33ae90 / 0x33ae9c  开关 HDR/杜比时，游戏标志、杜比游戏、ALLM 成立也保持当前模式
 #   0x281ef8  HDR 类型变化时，FreeSync 开着也不按游戏模式配置覆盖目标模式
 #
-# 日志：/data/adb/freesync_keep/log.txt；在模块目录放一个 disable 文件即可停用
+# 日志：/data/adb/freesync_keep/log.txt
 
-MODDIR=${0%/*}
 SRC=/mnt/vendor/linux_rootfs/lib/libmtkapp.so
 DIR=/data/adb/freesync_keep
 DST=$DIR/libmtkapp.so
@@ -29,7 +28,6 @@ log() { echo "$(date '+%F %T') $*" >>"$LOG"; }
 sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 
 mkdir -p "$DIR"
-[ -f "$MODDIR/disable" ] && exit 0
 grep "$SRC" /proc/mounts | grep -q userdata && exit 0
 
 cur=$(sha "$SRC")

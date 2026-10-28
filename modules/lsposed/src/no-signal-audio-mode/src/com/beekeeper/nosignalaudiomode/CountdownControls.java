@@ -31,25 +31,19 @@ final class CountdownControls {
     private static Field handlerField;
     private static Field countdownField;
 
-    private static Field field(Class<?> type, String name) throws NoSuchFieldException {
-        Field f = type.getDeclaredField(name);
-        f.setAccessible(true);
-        return f;
-    }
-
     static void install(XposedModule m, ClassLoader loader) throws Throwable {
         module = m;
         Class<?> searching = loader.loadClass("com.xiaomi.mitv.tvplayer.widget.views.SearchingView");
-        homeField = field(searching, "mHomeBt");
-        standbyField = field(searching, "mStandby");
-        shutdownField = field(searching, "mShutDownBt");
-        handlerField = field(searching, "mHandler");
-        countdownField = field(searching, "updateRunnable");
+        homeField = SessionKeeper.field(searching, "mHomeBt");
+        standbyField = SessionKeeper.field(searching, "mStandby");
+        shutdownField = SessionKeeper.field(searching, "mShutDownBt");
+        handlerField = SessionKeeper.field(searching, "mHandler");
+        countdownField = SessionKeeper.field(searching, "updateRunnable");
         XposedInterface.Hooker update = chain -> {
             Object result = chain.proceed();
             try { update((ViewGroup) chain.getThisObject()); }
             catch (Throwable error) {
-                module.log(Log.ERROR, TAG, "Countdown UI unavailable: " + error.getClass().getSimpleName());
+                SessionKeeper.error(TAG, "Countdown UI unavailable", error);
             }
             return result;
         };
@@ -96,15 +90,14 @@ final class CountdownControls {
                     PowerManager power = (PowerManager) searching.getContext()
                             .getSystemService(Context.POWER_SERVICE);
                     if (power == null) return;
-                    HookEntry.goToSleep.invoke(power, Long.valueOf(SystemClock.uptimeMillis()),
-                            Integer.valueOf(8), Integer.valueOf(0));
+                    HookEntry.goToSleep.invoke(power, SystemClock.uptimeMillis(), 8, 0);
                     // 息屏请求成功后才取消这次倒计时。
                     Handler handler = (Handler) handlerField.get(searching);
                     Runnable countdown = (Runnable) countdownField.get(searching);
                     if (handler != null && countdown != null) handler.removeCallbacks(countdown);
                     module.log(Log.INFO, TAG, "Audio button: requested XiaoAi mode; countdown cancelled");
                 } catch (Throwable error) {
-                    module.log(Log.ERROR, TAG, "Audio button failed: " + error.getClass().getSimpleName());
+                    SessionKeeper.error(TAG, "Audio button failed", error);
                 }
             }
         });

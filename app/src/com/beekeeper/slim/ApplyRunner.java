@@ -19,10 +19,9 @@ final class ApplyRunner extends Part {
         final List<String> toDisable = new ArrayList<String>();
         final List<String> toEnable = new ArrayList<String>();
         for (Group g : a.GROUPS) {
-            if (g.kind != KIND_PKGS) continue;
+            if (g.kind != KIND_PKGS || g.box.isChecked() == g.shown) continue;
             for (String p : g.pkgs) {
                 int s = state(p);
-                if (s == MISSING) continue;
                 if (g.box.isChecked() && s == ENABLED) toDisable.add(p);
                 if (!g.box.isChecked() && s == DISABLED) toEnable.add(p);
             }
@@ -46,8 +45,7 @@ final class ApplyRunner extends Part {
             }
             if (g.kind != KIND_MOD || a.modPresent == null) continue;
             boolean want = g.box.isChecked(), cur = modInstalled(g);
-            boolean flagged = a.modPresent.contains(g.modId) && a.modRemoving.contains(g.modId);
-            if (want && (!cur || flagged)) modOn.add(g);
+            if (want && !cur) modOn.add(g);
             if (!want && cur) modOff.add(g);
         }
         if (toDisable.isEmpty() && toEnable.isEmpty() && !dbOn && !dbOff && !nhOn && !nhOff
@@ -97,13 +95,13 @@ final class ApplyRunner extends Part {
             }
             if (dbOn) {
                 try {
-                    String apk = copyAsset("aerial.apk", "aerial.apk");
+                    String apk = copyAsset("aerial.apk");
                     // 系统补丁 (PreferredActivityHelper) 拒绝把非系统应用设为默认桌面，所以要让Aerial成为系统应用：
                     // 写一个 Magisk 模块把它放进 /system/app，重启后生效；模块的 service.sh 每次开机再设默认桌面。
                     script.append("rm -rf /data/adb/modules/").append(OLD_DB_MODULE).append("\n");
                     script.append("PKG=").append(DB_PKG).append("\n");
                     script.append("MD=/data/adb/modules/").append(DB_MODULE).append("\n");
-                    script.append("if pm list packages -s | grep -q \"package:$PKG\\$\"; then\n");
+                    script.append("if [ -d $MD ] && pm list packages -s | grep -q \"package:$PKG\\$\"; then\n");
                     script.append("  cmd package set-home-activity --user 0 ").append(DB_COMP).append(" 2>&1\n");
                     script.append("  echo 已设为默认桌面\n");
                     script.append("else\n");
@@ -157,7 +155,7 @@ final class ApplyRunner extends Part {
             for (Group g : modOn) {
                 if (g.kind == KIND_APK) {
                     try {
-                        String apk = copyAsset(g.asset, g.asset);
+                        String apk = copyAsset(g.asset);
                         script.append("echo \"== 安装 ").append(g.title).append("\"\n");
                         script.append("pm install -r ").append(apk).append(" 2>&1\n");
                         script.append("rm -f ").append(apk).append("\n");
@@ -167,7 +165,7 @@ final class ApplyRunner extends Part {
                     continue;
                 }
                 try {
-                    String zip = copyAsset(g.asset, g.asset);
+                    String zip = copyAsset(g.asset);
                     script.append("echo \"== 安装 ").append(g.modId).append("\"\n");
                     script.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
                     script.append("  rm -f /data/adb/modules/").append(g.modId).append("/remove\n");
@@ -195,7 +193,6 @@ final class ApplyRunner extends Part {
             for (Group g : modOff) if (g.kind == KIND_MOD) modReboot = true;
             final boolean needReboot = dbOn || dbOff || modReboot;
             if (needReboot) script.append("echo 有改动需要重启电视后生效\n");
-            script.append("echo __DONE__\n");
             final String out = (err == null ? "" : err) + runSu(script.toString());
             main.post(new Runnable() { public void run() {
                 if (progress.isShowing()) progress.dismiss();

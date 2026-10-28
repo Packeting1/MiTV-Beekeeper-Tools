@@ -2,8 +2,11 @@ package com.beekeeper.tvplayerkeep;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.Instrumentation;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
+import android.media.tv.TvView;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
@@ -11,6 +14,7 @@ import android.provider.Settings;
 import android.util.Log;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -40,9 +44,13 @@ public final class HookEntry extends XposedModule {
     private static final String FLAG = "settings_window_showing";
     private static final String PENDING = "tvplayerkeep_settings_pending";
     private static final long PENDING_WINDOW_MS = 3000;
+    private static final int PICTURE_FLAGS = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK;
 
     private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
     private final Set<Object> kept = Collections.synchronizedSet(
+            Collections.newSetFromMap(new WeakHashMap<Object, Boolean>()));
+    private final Set<Object> watching = Collections.synchronizedSet(
             Collections.newSetFromMap(new WeakHashMap<Object, Boolean>()));
 
     @Override
@@ -71,11 +79,8 @@ public final class HookEntry extends XposedModule {
     }
 
     private void installPanel(ClassLoader cl) throws Throwable {
-        Set<String> names = new HashSet<String>();
-        names.add("getSettingsIntent");
-        names.add("launchSettings");
-        names.add("launchSettingsNew");
-        names.add("launchSettingsOffice");
+        Set<String> names = new HashSet<>(Arrays.asList(
+                "getSettingsIntent", "launchSettings", "launchSettingsNew", "launchSettingsOffice"));
         String[] classes = {"com.xiaomi.mitv.smartpanel.Utils",
                 "com.xiaomi.mitv.smartpanel.event.MessageLaunchEvent"};
         int n = 0;
@@ -106,21 +111,21 @@ public final class HookEntry extends XposedModule {
      */
     private void installLaunchMarker(final boolean fromSettingsProcess) throws Throwable {
         int n = 0;
-        for (Method m : android.app.Instrumentation.class.getDeclaredMethods()) {
+        for (Method m : Instrumentation.class.getDeclaredMethods()) {
             if (!m.getName().equals("execStartActivity")) {
                 continue;
             }
             hook(m).intercept(chain -> {
                 try {
                     for (Object o : chain.getArgs()) {
-                        if (o instanceof android.content.Intent) {
-                            android.content.Intent it = (android.content.Intent) o;
+                        if (o instanceof Intent) {
+                            Intent it = (Intent) o;
                             String cls = it.getComponent() != null ? it.getComponent().getClassName() : null;
                             String action = it.getAction();
                             // 图像参数从半透明设置页再拉起的是不透明的 MainActivity (SINGLE_TOP|CLEAR_TOP|NEW_TASK)，
                             // 它盖住了 HDMI 画面；改成同一页面的半透明版本，画面才看得见。
                             if (fromSettingsProcess && (SETTINGS + ".entry.MainActivity").equals(cls)
-                                    && (it.getFlags() & 0x34000000) == 0x34000000) {
+                                    && (it.getFlags() & PICTURE_FLAGS) == PICTURE_FLAGS) {
                                 it.setClassName(SETTINGS, SETTINGS + ".entry.TranslucentMainActivity");
                                 cls = SETTINGS + ".entry.TranslucentMainActivity";
                                 log(Log.INFO, TAG, "picture page: MainActivity -> TranslucentMainActivity");
@@ -154,7 +159,7 @@ public final class HookEntry extends XposedModule {
         }
     }
 
-    private String describeSettingsSignal(Activity a) {
+    private boolean settingsSignal(Activity a) {
         ContentResolver cr = a.getContentResolver();
         boolean flag = false;
         boolean fresh = false;
@@ -171,21 +176,11 @@ public final class HookEntry extends XposedModule {
             }
         } catch (Throwable ignored) {
         }
-        String top = "?";
-        boolean topIsSettings = false;
-        try {
-            ActivityManager am = (ActivityManager) a.getSystemService(Context.ACTIVITY_SERVICE);
-            List<ActivityManager.RunningTaskInfo> tasks = am.getRunningTasks(1);
-            if (tasks != null && !tasks.isEmpty() && tasks.get(0).topActivity != null) {
-                top = tasks.get(0).topActivity.getClassName();
-                topIsSettings = isMainEntryClass(top);
-            }
-        } catch (Throwable ignored) {
-        }
-        boolean showing = flag || fresh || topIsSettings;
+        String top = topClass(a);
+        boolean showing = flag || fresh || isMainEntryClass(top);
         log(Log.INFO, TAG, "onPause signals flag=" + flag + " pendingAgeMs=" + age
                 + " top=" + top + " -> keep=" + showing);
-        return showing ? "keep" : "";
+        return showing;
     }
 
     private void installPlayer(ClassLoader cl) throws Throwable {
@@ -204,7 +199,7 @@ public final class HookEntry extends XposedModule {
 
         hook(onPause).intercept(chain -> {
             Activity a = (Activity) chain.getThisObject();
-            if (!describeSettingsSignal(a).isEmpty()) {
+            if (settingsSignal(a)) {
                 kept.add(a);
                 superPause.invokeSpecial(a);
                 return null;
@@ -240,9 +235,8 @@ public final class HookEntry extends XposedModule {
 
         // 二级设置页是不透明的独立 Activity，会销毁 SurfaceView；TvView 随后把空 Surface 交给
         // 输入服务，输入服务才会释放 HDMI。保留期间拦下这一次空 Surface。
-        Class<?> tvView = Class.forName("android.media.tv.TvView");
-        int skipped = 0;
-        for (Method m : tvView.getDeclaredMethods()) {
+        int n = 0;
+        for (Method m : TvView.class.getDeclaredMethods()) {
             if (m.getName().equals("setSessionSurface") && m.getParameterTypes().length == 1) {
                 hook(m).intercept(chain -> {
                     if (chain.getArgs().get(0) == null && !kept.isEmpty()) {
@@ -251,11 +245,11 @@ public final class HookEntry extends XposedModule {
                     }
                     return chain.proceed();
                 });
-                skipped++;
+                n++;
             }
         }
 
-        log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + skipped);
+        log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + n);
     }
 
     private static boolean isMainEntryClass(String cls) {
@@ -293,6 +287,9 @@ public final class HookEntry extends XposedModule {
 
     /** 播放器被完全盖住后，每秒查一次：设置已离开前台（回桌面等）或息屏，就补跑拆除。 */
     private void startWatchdog(final Activity a, final XposedInterface.Invoker<?, Method> origPause) {
+        if (!watching.add(a)) {
+            return;
+        }
         final Handler h = new Handler(Looper.getMainLooper());
         h.post(new Runnable() {
             int idle = 0;
@@ -301,6 +298,7 @@ public final class HookEntry extends XposedModule {
             @Override
             public void run() {
                 if (!kept.contains(a)) {
+                    watching.remove(a);
                     return;
                 }
                 String top = topClass(a);
@@ -318,6 +316,7 @@ public final class HookEntry extends XposedModule {
                 if (idle >= 2) {
                     log(Log.INFO, TAG, "watchdog: settings left (top=" + top + ", awake=" + awake
                             + "), teardown");
+                    watching.remove(a);
                     teardown(a, origPause);
                     return;
                 }

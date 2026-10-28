@@ -8,12 +8,12 @@ Environment variables (same as app/build.py, plus XPOSED_API):
   R8_JAR        r8.jar (its bundled D8 is used)
   XPOSED_API    libxposed API 101: the api-101.0.0.aar (or its classes.jar) from
                 https://repo.maven.apache.org/maven2/io/github/libxposed/api/101.0.0/
-  JAVA_HOME     JDK 17+
+  JAVA_HOME     JDK 17+ (sources are compiled with --release 17 and dexed with min-api 26)
   KEYSTORE, KS_PASS, KS_ALIAS   signing key
 Each module dir under src/ holds AndroidManifest.xml, scope.txt (one target package per line) and
 src/<package path>/HookEntry.java (the entry class; other .java files under src/ are compiled too). Output: modules/lsposed/dist/<label>.apk
 """
-import os, re, shutil, subprocess, sys, zipfile
+import os, re, shutil, subprocess, sys, tempfile, zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -63,11 +63,18 @@ def build(mod):
     pkg = re.search(r'package="([^"]+)"', manifest).group(1)
     label = re.search(r'android:label="([^"]+)"', manifest).group(1)
     scope = [s.strip() for s in (mod / 'scope.txt').read_text(encoding='utf-8').splitlines() if s.strip()]
-    out = mod / 'out'
-    if out.exists():
-        shutil.rmtree(out)
-    out.mkdir()
+    entry = mod / 'src' / Path(*pkg.split('.')) / 'HookEntry.java'
+    if not entry.exists():
+        sys.exit('missing entry class source: %s' % entry)
+    # 构建中间文件放在源码树之外，失败也不会留下目录
+    out = Path(tempfile.mkdtemp(prefix='lsposed_'))
+    try:
+        compile_and_sign(mod, out, manifest_path, pkg, label, scope)
+    finally:
+        shutil.rmtree(out, ignore_errors=True)
 
+
+def compile_and_sign(mod, out, manifest_path, pkg, label, scope):
     if API.suffix == '.aar':
         with zipfile.ZipFile(API) as z:
             (out / 'api_classes.jar').write_bytes(z.read('classes.jar'))
@@ -111,9 +118,8 @@ def build(mod):
     apksigner = BT / 'lib' / 'apksigner.jar'
     run([java('java'), '-jar', apksigner, 'sign', '--ks', KS, '--ks-pass', 'pass:' + KS_PASS,
          '--ks-key-alias', KS_ALIAS, '--v1-signing-enabled', 'true', '--v2-signing-enabled', 'true',
-         '--out', final, aligned])
+         '--v4-signing-enabled', 'false', '--out', final, aligned])
     run([java('java'), '-jar', apksigner, 'verify', '-v', final])
-    shutil.rmtree(out)
     print('OK', final, final.stat().st_size)
 
 

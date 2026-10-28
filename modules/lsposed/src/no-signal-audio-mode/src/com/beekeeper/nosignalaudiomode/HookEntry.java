@@ -7,7 +7,6 @@ import android.media.tv.TvInputManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
-import android.os.SystemClock;
 import android.util.Log;
 
 import java.lang.reflect.Method;
@@ -65,14 +64,14 @@ public final class HookEntry extends XposedModule {
                 SessionKeeper.setContext(app);
                 watchInputs(app);
             } catch (Throwable error) {
-                log(Log.ERROR, TAG, "Input recovery watcher unavailable: " + error.getClass().getSimpleName());
+                log(Log.ERROR, TAG, "Input recovery watcher unavailable", error);
             }
             return result;
         });
         try { SessionKeeper.install(this, loader); }
-        catch (Throwable error) { log(Log.ERROR, TAG, "Session test unavailable: " + error.getClass().getSimpleName()); }
+        catch (Throwable error) { log(Log.ERROR, TAG, "Session test unavailable", error); }
         try { CountdownControls.install(this, loader); }
-        catch (Throwable error) { log(Log.ERROR, TAG, "Countdown controls unavailable: " + error.getClass().getSimpleName()); }
+        catch (Throwable error) { log(Log.ERROR, TAG, "Countdown controls unavailable", error); }
         hook(goToSleep).intercept(chain -> {
             if (((Integer) chain.getArg(1)).intValue() == 9) {
                 for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
@@ -103,12 +102,10 @@ public final class HookEntry extends XposedModule {
                 // 普通待机（电源键息屏等）不处理，只在音响模式下按信号恢复亮屏。
                 if (!SessionKeeper.audioMode()) return;
                 try {
-                    SessionKeeper.prepareInputWake(inputId);
-                    wakeUp.invoke(power, Long.valueOf(SystemClock.uptimeMillis()), Integer.valueOf(8),
-                            "NoSignalXiaoAi:input-restored");
+                    SessionKeeper.wake(power, inputId, "NoSignalXiaoAi:input-restored");
                     log(Log.INFO, TAG, "Input restored: requested screen wake");
                 } catch (Throwable error) {
-                    log(Log.ERROR, TAG, "Input wake failed: " + error.getClass().getSimpleName());
+                    log(Log.ERROR, TAG, "Input wake failed", error);
                 }
             }
         };

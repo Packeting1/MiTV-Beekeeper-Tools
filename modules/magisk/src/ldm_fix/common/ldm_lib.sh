@@ -25,10 +25,6 @@ ldm_state() {
   esac
 }
 
-keep_backup() {
-  [ "$(sha "$DATA_DIR/ldm.ini.3.0.109")" = "$H_ORIG" ] || cp -f "$MODDIR/ldm_orig.ini" "$DATA_DIR/ldm.ini.3.0.109"
-}
-
 # Raw fallback: the stock ldm.ini data sits at a fixed byte offset of tvconfig (same size, in place).
 # Used when remounting /vendor/tvconfig read-write is refused (seen from some Magisk app install contexts).
 BLK=${LDM_BLOCK:-/dev/block/by-name/tvconfig$(getprop ro.boot.slot_suffix)}
@@ -83,7 +79,6 @@ ldm_apply() {
   case "$(ldm_state)" in
     new) return 2 ;;
     orig)
-      keep_backup
       if ldm_write "$MODDIR/ldm_os2.ini" "$H_NEW" "$H_ORIG"; then
         log "apply: ldm.ini now OS2 values"
         return 0
@@ -110,7 +105,8 @@ ldm_restore() {
     *)
       # a raw patch is invisible to the mounted fs until reboot: undo it too
       if [ "$_raw" = "$H_NEW" ] && [ "$(ldm_state)" = orig ]; then
-        ldm_write_raw "$MODDIR/ldm_orig.ini" "$H_ORIG" "$H_NEW" && log "restore: raw patch undone"
+        ldm_write_raw "$MODDIR/ldm_orig.ini" "$H_ORIG" "$H_NEW" || return 1
+        log "restore: raw patch undone"
       fi
       return 0 ;;
   esac

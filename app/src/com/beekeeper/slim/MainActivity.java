@@ -88,14 +88,38 @@ public class MainActivity extends Activity {
 
     TextView updateText;
 
-    String modActual(Group g) {
-        String id = g.modId;
-        if (modDisabled.contains(id)) return "实际：在 Magisk 里被停用，没有生效";
-        boolean on = modActive.contains(id);
-        if ("mitv_4kui_switch".equals(id) || "mitv_adb_keeper".equals(id) || "beekeeper_hgig_fix".equals(id)
-            || "beekeeper_ldm_fix".equals(id) || "beekeeper_dv_edid".equals(id) || "beekeeper_dp_audio".equals(id) || "zygote64_fix".equals(id)
-            || "beekeeper_freesync_keep".equals(id) || FLAG_MODS.containsKey(id)) return on ? "实际：已生效" : "实际：未生效（需重启）";
-        return null;
+    /** 每页的条目两个一行；key 是页，value 是还缺右半边的那一行。 */
+    final java.util.Map<LinearLayout, LinearLayout> openRows = new java.util.HashMap<LinearLayout, LinearLayout>();
+
+    /** 刷新是否正在跑；跑的时候又来请求就记下来，跑完再来一次。 */
+    boolean refreshing, refreshAgain;
+
+    void hint(LinearLayout page, String text) {
+        TextView t = new TextView(this);
+        t.setText(text);
+        t.setTextSize(13);
+        t.setPadding(0, dp(4), 0, dp(8));
+        page.addView(t);
+    }
+
+    /** 顶部黄色更新提示条：第 0 个子视图是文字，右边是“查看更新”按钮。 */
+    LinearLayout newBar(View.OnClickListener onClick) {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(8), dp(4), dp(8), dp(4));
+        bar.setBackgroundColor(0x33FFB300);
+        TextView text = new TextView(this);
+        text.setTextSize(14);
+        text.setTextColor(0xFFFFD54F);
+        bar.addView(text, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        Button btn = new Button(this);
+        btn.setText("查看更新");
+        btn.setTextSize(14);
+        btn.setOnClickListener(onClick);
+        bar.addView(btn);
+        bar.setVisibility(View.GONE);
+        return bar;
     }
 
     @Override
@@ -129,42 +153,16 @@ public class MainActivity extends Activity {
         header.addView(power, new LinearLayout.LayoutParams(dp(40), dp(40)));
         root.addView(header);
 
-        updateBar = new LinearLayout(this);
-        updateBar.setOrientation(LinearLayout.HORIZONTAL);
-        updateBar.setGravity(Gravity.CENTER_VERTICAL);
-        updateBar.setPadding(dp(8), dp(4), dp(8), dp(4));
-        updateBar.setBackgroundColor(0x33FFB300);
-        updateText = new TextView(this);
-        updateText.setTextSize(14);
-        updateText.setTextColor(0xFFFFD54F);
-        updateBar.addView(updateText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        Button updateBtn = new Button(this);
-        updateBtn.setText("查看更新");
-        updateBtn.setTextSize(14);
-        updateBtn.setOnClickListener(new View.OnClickListener() {
+        updateBar = newBar(new View.OnClickListener() {
             public void onClick(View v) { modUp.confirmUpdate(); }
         });
-        updateBar.addView(updateBtn);
-        updateBar.setVisibility(View.GONE);
+        updateText = (TextView) updateBar.getChildAt(0);
         root.addView(updateBar);
 
-        aerial.aerialBar = new LinearLayout(this);
-        aerial.aerialBar.setOrientation(LinearLayout.HORIZONTAL);
-        aerial.aerialBar.setGravity(Gravity.CENTER_VERTICAL);
-        aerial.aerialBar.setPadding(dp(8), dp(4), dp(8), dp(4));
-        aerial.aerialBar.setBackgroundColor(0x33FFB300);
-        aerial.aerialBarText = new TextView(this);
-        aerial.aerialBarText.setTextSize(14);
-        aerial.aerialBarText.setTextColor(0xFFFFD54F);
-        aerial.aerialBar.addView(aerial.aerialBarText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        Button aerialBarBtn = new Button(this);
-        aerialBarBtn.setText("查看更新");
-        aerialBarBtn.setTextSize(14);
-        aerialBarBtn.setOnClickListener(new View.OnClickListener() {
+        aerial.aerialBar = newBar(new View.OnClickListener() {
             public void onClick(View v) { aerial.confirmAerialUpdate(); }
         });
-        aerial.aerialBar.addView(aerialBarBtn);
-        aerial.aerialBar.setVisibility(View.GONE);
+        aerial.aerialBarText = (TextView) aerial.aerialBar.getChildAt(0);
         root.addView(aerial.aerialBar);
 
         pageApps = new LinearLayout(this);
@@ -176,12 +174,7 @@ public class MainActivity extends Activity {
 
         pageHid = new LinearLayout(this);
         pageHid.setOrientation(LinearLayout.VERTICAL);
-        TextView hintHid = new TextView(this);
-        hintHid.setText("以下是系统自带的页面，页面中的操作需注意。");
-        hintHid.setTextSize(13);
-        hintHid.setPadding(0, dp(4), 0, dp(8));
-        pageHid.addView(hintHid);
-        java.util.Map<LinearLayout, LinearLayout> hidRows = new java.util.HashMap<LinearLayout, LinearLayout>();
+        hint(pageHid, "以下是系统自带的页面，页面中的操作需注意。");
         for (final Hidden h : HIDDEN) {
             LinearLayout cell = new LinearLayout(this);
             cell.setOrientation(LinearLayout.VERTICAL);
@@ -202,32 +195,19 @@ public class MainActivity extends Activity {
             d.setTextColor(Color.LTGRAY);
             d.setPadding(dp(6), 0, dp(6), dp(2));
             cell.addView(d);
-            addBoxTwoColumns(pageHid, cell, hidRows);
+            addBoxTwoColumns(pageHid, cell);
         }
-        TextView hintApps = new TextView(this);
-        hintApps.setText("勾选 = 禁用该组应用，取消勾选 = 恢复。禁用只是停用，随时可以恢复。");
-        hintApps.setTextSize(13);
-        hintApps.setPadding(0, dp(4), 0, dp(8));
-        pageApps.addView(hintApps);
-        TextView hintOpt = new TextView(this);
-        hintOpt.setText("勾选 = 启用，取消勾选 = 关闭。LSPosed 模块安装后需要在 LSPosed 里启用。改动重启后生效。");
-        hintOpt.setTextSize(13);
-        hintOpt.setPadding(0, dp(4), 0, dp(8));
-        pageOpt.addView(hintOpt);
-        TextView hintFix = new TextView(this);
-        hintFix.setText("勾选 = 启用，取消勾选 = 关闭。改动重启后生效。");
-        hintFix.setTextSize(13);
-        hintFix.setPadding(0, dp(4), 0, dp(8));
-        pageFix.addView(hintFix);
+        hint(pageApps, "勾选 = 禁用该组应用，取消勾选 = 恢复。禁用只是停用，随时可以恢复。");
+        hint(pageOpt, "勾选 = 启用，取消勾选 = 关闭。LSPosed 模块安装后需要在 LSPosed 里启用。改动重启后生效。");
+        hint(pageFix, "勾选 = 启用，取消勾选 = 关闭。改动重启后生效。");
 
-        java.util.Map<LinearLayout, LinearLayout> openRows = new java.util.HashMap<LinearLayout, LinearLayout>();
         for (Group g : GROUPS) {
             CheckBox cb = new CheckBox(this);
             cb.setTextSize(15);
             cb.setTextColor(Color.WHITE);
             cb.setPadding(dp(6), dp(6), dp(6), dp(6));
             g.box = cb;
-            addBoxTwoColumns((g.kind == KIND_DB || g.kind == KIND_APK || isOptMod(g)) ? pageOpt : g.kind == KIND_MOD ? pageFix : pageApps, cb, openRows);
+            addBoxTwoColumns(g.kind == KIND_PKGS || g.kind == KIND_NOHOME ? pageApps : g.fix ? pageFix : pageOpt, cb);
         }
         LinearLayout pageAbout = new LinearLayout(this);
         pageAbout.setOrientation(LinearLayout.HORIZONTAL);
@@ -338,7 +318,7 @@ public class MainActivity extends Activity {
         root.addView(host, hostLp);
         groupOfKind(KIND_DB).box.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton v, boolean on) {
-                updateNoHomeBox(false);
+                updateNoHomeBox();
             }
         });
 
@@ -400,7 +380,7 @@ public class MainActivity extends Activity {
     LinearLayout pageApps, pageOpt, pageFix, pageHid;
 
     /** 每页的条目两个一行；奇数个时最后一行右边用占位撑住，保持左列宽度一致。 */
-    void addBoxTwoColumns(LinearLayout page, View cb, java.util.Map<LinearLayout, LinearLayout> openRows) {
+    void addBoxTwoColumns(LinearLayout page, View cb) {
         LinearLayout row = openRows.get(page);
         if (row == null) {
             row = new LinearLayout(this);
@@ -419,13 +399,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** 放在优化类页的 Magisk 模块。 */
-    static boolean isOptMod(Group g) {
-        return g.kind == KIND_MOD && ("mitv_adb_keeper".equals(g.modId) || "mitv_4kui_switch".equals(g.modId)
-            || "beekeeper_dv_edid".equals(g.modId) || "beekeeper_dp_audio".equals(g.modId) || "beekeeper_freesync_keep".equals(g.modId)
-            || FLAG_MODS.containsKey(g.modId));
-    }
-
     View redDot() {
         View v = new View(this);
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
@@ -441,27 +414,20 @@ public class MainActivity extends Activity {
     }
 
     int state(String pkg) {
+        PackageManager pm = getPackageManager();
+        int s;
         try {
-            int s = getPackageManager().getApplicationEnabledSetting(pkg);
-            getPackageManager().getApplicationInfo(pkg, 0);
-            boolean off = s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                || s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER;
-            if (!off) {
-                off = !getPackageManager().getApplicationInfo(pkg, 0).enabled;
-            }
-            return off ? DISABLED : ENABLED;
+            s = pm.getApplicationEnabledSetting(pkg);
         } catch (Exception e) {
-            // A disabled app is still found with MATCH_DISABLED_COMPONENTS-less lookups only on some
-            // builds; treat a failed ApplicationInfo lookup after a DISABLED setting as disabled.
-            try {
-                int s = getPackageManager().getApplicationEnabledSetting(pkg);
-                if (s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                    || s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER) return DISABLED;
-                return ENABLED;
-            } catch (Exception e2) {
-                return MISSING;
-            }
+            return MISSING;
         }
+        boolean off = s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            || s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER;
+        if (!off) {
+            // 有些版本上被禁用的应用查不到 ApplicationInfo，这时只按启用设置判断。
+            try { off = !pm.getApplicationInfo(pkg, 0).enabled; } catch (Exception e) { /* 按设置值 */ }
+        }
+        return off ? DISABLED : ENABLED;
     }
 
     Group groupOfKind(int kind) {
@@ -504,7 +470,7 @@ public class MainActivity extends Activity {
     }
 
     /** 系统桌面开关：Aerial已装成系统应用且已是默认桌面、Aerial开关开着才能开；已经禁用时总能点，方便恢复。 */
-    void updateNoHomeBox(boolean fromRefresh) {
+    void updateNoHomeBox() {
         Group nh = groupOfKind(KIND_NOHOME);
         boolean alreadyOff = state(STOCK_HOME_PKG) == DISABLED;
         boolean allowed = noHomeReady() && groupOfKind(KIND_DB).box.isChecked();
@@ -519,6 +485,9 @@ public class MainActivity extends Activity {
 
     void refresh() {
         render();
+        // 查询线程共用缓存目录里的几个临时文件，同一时间只跑一个。
+        if (refreshing) { refreshAgain = true; return; }
+        refreshing = true;
         new Thread(new Runnable() { public void run() {
             // 读内置模块的版本（解压、解析安装包）和 su 脚本并行，各自耗时不叠加。
             final java.util.Map<String, String[]> bm = new java.util.HashMap<String, String[]>(),
@@ -561,7 +530,8 @@ public class MainActivity extends Activity {
                 + " 29adce40ed1a7a733d3f9799c55451b00903c5eb806ab2008d324dc94e389903|e48a381124833ee6173d83ca82b948edc3918a31795a250c09f9a395233f67fc)"
                 + " echo \"F:beekeeper_dp_audio\";; esac\n"
                 + "for z in $(pidof zygote64); do grep -qE 'zygisk_(lsposed|vector)' /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; done\n"
-                + "grep libmtkapp.so /proc/mounts | grep -q userdata && echo \"F:beekeeper_freesync_keep\"\n"
+                // 只有本模块会往这个路径 bind mount 补丁库
+                + "grep -q libmtkapp.so /proc/mounts && echo \"F:beekeeper_freesync_keep\"\n"
                 + "wait\n"
                 + "S=$(cat \"$CD/lsp_status\" 2>/dev/null); rc=$(cat \"$CD/lsp_rc\" 2>/dev/null); rm -f \"$CD/lsp_status\" \"$CD/lsp_rc\"\n"
                 + "[ \"$rc\" = 0 ] && echo \"L:run\"\n"
@@ -596,11 +566,10 @@ public class MainActivity extends Activity {
                     else if (line.equals("L:server")) lsS = true;
                 }
             }
-            final boolean[] lsFlags = new boolean[] { lsR, lsDead, lsS };
+            final boolean lsRun = lsR, lsSrv = lsS, lsKnown = ok && (lsR || lsDead);
             final java.util.Map<String, Boolean> lsEn = new java.util.HashMap<String, Boolean>();
             final java.util.Map<String, Set<String>> lsSc = new java.util.HashMap<String, Set<String>>();
             final boolean dbRead = ok && ls.readLsDb(lsEn, lsSc);
-            final boolean fOk = ok;
             if (bundledReader != null) {
                 try { bundledReader.join(); } catch (InterruptedException ignore) { }
             }
@@ -608,19 +577,21 @@ public class MainActivity extends Activity {
                 if (!bm.isEmpty() || !ba.isEmpty()) { bundledMod = bm; bundledApk = ba; }
                 modVer = vInst;
                 modUpVer = vUp;
-                modPresent = fOk ? present : null;
-                modRemoving = fOk ? removing : null;
-                modPending = fOk ? pending : null;
+                modPresent = ok ? present : null;
+                modRemoving = ok ? removing : null;
+                modPending = ok ? pending : null;
                 modDisabled = disabled;
                 modActive = active;
-                ls.lsKnown = fOk && (lsFlags[0] || lsFlags[1]);
-                ls.lsRunning = lsFlags[0];
-                ls.lsServer = lsFlags[2];
+                ls.lsKnown = lsKnown;
+                ls.lsRunning = lsRun;
+                ls.lsServer = lsSrv;
                 ls.lsEnabled = dbRead ? lsEn : null;
                 ls.lsScope = dbRead ? lsSc : null;
                 render();
-                modUp.updateBanner(fOk);
+                modUp.updateBanner();
                 hideLoading();
+                refreshing = false;
+                if (refreshAgain) { refreshAgain = false; refresh(); }
             }});
         }}, "slim-query").start();
     }
@@ -682,10 +653,10 @@ public class MainActivity extends Activity {
                     t = "当前：已关闭，重启后生效（再勾选可取消）";
                 } else if (modPresent.contains(g.modId)) {
                     boolean pend = modPending != null && modPending.contains(g.modId);
-                    String act = pend ? null : modActual(g);
                     String[] iv = modVer.get(g.modId);
-                    String vs = iv == null ? "" : " " + iv[1];
-                    t = pend ? "当前：已安装，重启后生效" : act == null ? "当前：已安装" + vs : "当前：已安装" + vs + "\n" + act;
+                    String act = modDisabled.contains(g.modId) ? "实际：在 Magisk 里被停用，没有生效"
+                        : modActive.contains(g.modId) ? "实际：已生效" : "实际：未生效（需重启）";
+                    t = pend ? "当前：已安装，重启后生效" : "当前：已安装" + (iv == null ? "" : " " + iv[1]) + "\n" + act;
                     if (ups.containsKey(g)) t += "\n⬆ 有新版本：" + ups.get(g)[0] + " → " + ups.get(g)[1];
                 } else {
                     t = "当前：未安装";
@@ -704,10 +675,11 @@ public class MainActivity extends Activity {
                 if (miss > 0 && dis == 0 && en == 0) st = "当前：本机没有这些应用";
                 sb.append("\n").append(st);
                 g.box.setText(sb.toString());
-                g.box.setChecked(dis > 0 && en == 0);
+                g.shown = dis > 0 && en == 0;
+                g.box.setChecked(g.shown);
             }
         }
-        updateNoHomeBox(true);
+        updateNoHomeBox();
         aerial.updateAerialUi();
     }
 
@@ -734,6 +706,15 @@ public class MainActivity extends Activity {
     }
 
     void showResult(String title, String text) {
+        if (isFinishing()) return;
+        new AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(scrollText(text))
+            .setPositiveButton("确定", null)
+            .show();
+    }
+
+    ScrollView scrollText(String text) {
         TextView tv = new TextView(this);
         tv.setText(text);
         tv.setTextSize(14);
@@ -741,10 +722,6 @@ public class MainActivity extends Activity {
         ScrollView sv = new ScrollView(this);
         sv.setFocusable(true);
         sv.addView(tv);
-        new AlertDialog.Builder(this)
-            .setTitle(title)
-            .setView(sv)
-            .setPositiveButton("确定", null)
-            .show();
+        return sv;
     }
 }

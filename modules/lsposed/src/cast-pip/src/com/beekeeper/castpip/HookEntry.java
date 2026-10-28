@@ -2,14 +2,18 @@ package com.beekeeper.castpip;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.Instrumentation;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
+import android.media.tv.TvView;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashSet;
@@ -58,6 +62,8 @@ public final class HookEntry extends XposedModule {
             Collections.newSetFromMap(new WeakHashMap<Object, Boolean>()));
     private final Set<Object> autoPipDone = Collections.synchronizedSet(
             Collections.newSetFromMap(new WeakHashMap<Object, Boolean>()));
+    private final Set<Object> watching = Collections.synchronizedSet(
+            Collections.newSetFromMap(new WeakHashMap<Object, Boolean>()));
 
     @Override
     public void onModuleLoaded(ModuleLoadedParam param) {
@@ -90,8 +96,8 @@ public final class HookEntry extends XposedModule {
     private void installTvService(ClassLoader cl) throws Throwable {
         Class<?> svc = cl.loadClass("mitv.service.TvService");
         final Method actions = svc.getDeclaredMethod("doActionsForPkg", String.class);
-        final java.lang.reflect.Field patchF = svc.getDeclaredField("mMtkAudioPatchManager");
-        final java.lang.reflect.Field inShareF = svc.getDeclaredField("mCurrentInSmartShare");
+        final Field patchF = svc.getDeclaredField("mMtkAudioPatchManager");
+        final Field inShareF = svc.getDeclaredField("mCurrentInSmartShare");
         patchF.setAccessible(true);
         inShareF.setAccessible(true);
         final Method sysGet = Class.forName("android.os.SystemProperties")
@@ -125,15 +131,15 @@ public final class HookEntry extends XposedModule {
      */
     private void installCast(ClassLoader cl) throws Throwable {
         int n = 0;
-        for (Method m : android.app.Instrumentation.class.getDeclaredMethods()) {
+        for (Method m : Instrumentation.class.getDeclaredMethods()) {
             if (!m.getName().equals("execStartActivity")) {
                 continue;
             }
             hook(m).intercept(chain -> {
                 try {
                     for (Object o : chain.getArgs()) {
-                        if (o instanceof android.content.Intent) {
-                            android.content.Intent it = (android.content.Intent) o;
+                        if (o instanceof Intent) {
+                            Intent it = (Intent) o;
                             String cls = it.getComponent() != null ? it.getComponent().getClassName() : null;
                             if (isCastPlayerClass(cls)) {
                                 markPending();
@@ -161,7 +167,7 @@ public final class HookEntry extends XposedModule {
                 return chain.proceed();
             });
         } catch (Throwable t) {
-            log(Log.WARN, TAG, "cast audio mute hook failed: " + t);
+            log(Log.WARN, TAG, "cast audio mute hook failed", t);
         }
 
         final Class<?> base = cl.loadClass(BASE_PIP_CAST);
@@ -209,6 +215,7 @@ public final class HookEntry extends XposedModule {
                         log(Log.INFO, TAG, "auto pip: entering for " + a.getClass().getSimpleName()
                                 + " try=" + tries);
                         pipEntry.invoke(a, -1f);
+                        return;
                     }
                 } catch (Throwable t) {
                     log(Log.ERROR, TAG, "auto pip failed", t);
@@ -254,7 +261,7 @@ public final class HookEntry extends XposedModule {
         }
     }
 
-    private String describeCastSignal(Activity a) {
+    private boolean castSignal(Activity a) {
         ContentResolver cr = a.getContentResolver();
         boolean fresh = false;
         long age = -1;
@@ -270,7 +277,7 @@ public final class HookEntry extends XposedModule {
         boolean topIsCast = isCastPlayerClass(top);
         boolean showing = fresh || topIsCast;
         log(Log.INFO, TAG, "onPause signals pendingAgeMs=" + age + " top=" + top + " -> keep=" + showing);
-        return showing ? "keep" : "";
+        return showing;
     }
 
     private void installPlayer(ClassLoader cl) throws Throwable {
@@ -290,7 +297,7 @@ public final class HookEntry extends XposedModule {
         hook(onPause).intercept(chain -> {
             Activity a = (Activity) chain.getThisObject();
             surfaceLost.remove(a);
-            if (!describeCastSignal(a).isEmpty()) {
+            if (castSignal(a)) {
                 kept.add(a);
                 superPause.invokeSpecial(a);
                 return null;
@@ -336,9 +343,8 @@ public final class HookEntry extends XposedModule {
 
         // 投屏页是不透明的独立 Activity，会销毁 SurfaceView；TvView 随后把空 Surface 交给
         // 输入服务，输入服务才会释放 HDMI。保留期间拦下这一次空 Surface。
-        Class<?> tvView = Class.forName("android.media.tv.TvView");
-        int skipped = 0;
-        for (Method m : tvView.getDeclaredMethods()) {
+        int n = 0;
+        for (Method m : TvView.class.getDeclaredMethods()) {
             if (m.getName().equals("setSessionSurface") && m.getParameterTypes().length == 1) {
                 hook(m).intercept(chain -> {
                     if (chain.getArgs().get(0) == null && !kept.isEmpty()) {
@@ -347,7 +353,7 @@ public final class HookEntry extends XposedModule {
                     }
                     return chain.proceed();
                 });
-                skipped++;
+                n++;
             }
         }
 
@@ -386,10 +392,10 @@ public final class HookEntry extends XposedModule {
                 return Boolean.FALSE;
             });
         } catch (Throwable e) {
-            log(Log.WARN, TAG, "SourceManagerImpl.isMiraCastMutualExclusion hook failed: " + e);
+            log(Log.WARN, TAG, "SourceManagerImpl.isMiraCastMutualExclusion hook failed", e);
         }
 
-        log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + skipped);
+        log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + n);
     }
 
     private static String topClass(Activity a) {
@@ -417,6 +423,9 @@ public final class HookEntry extends XposedModule {
 
     /** 播放器被完全盖住后，每秒查一次：投屏页已离开前台（回桌面等）或息屏，就补跑拆除。 */
     private void startWatchdog(final Activity a, final XposedInterface.Invoker<?, Method> origPause) {
+        if (!watching.add(a)) {
+            return;
+        }
         final Handler h = new Handler(Looper.getMainLooper());
         h.post(new Runnable() {
             int idle = 0;
@@ -425,6 +434,7 @@ public final class HookEntry extends XposedModule {
             @Override
             public void run() {
                 if (!kept.contains(a)) {
+                    watching.remove(a);
                     return;
                 }
                 String top = topClass(a);
@@ -442,6 +452,7 @@ public final class HookEntry extends XposedModule {
                 if (idle >= 2) {
                     log(Log.INFO, TAG, "watchdog: cast page left (top=" + top + ", awake=" + awake
                             + "), teardown");
+                    watching.remove(a);
                     teardown(a, origPause);
                     return;
                 }

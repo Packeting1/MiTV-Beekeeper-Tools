@@ -16,7 +16,7 @@ on_install() {
   if [ "$(getprop ro.product.name)" != "beekeeper" ]; then
     abort "! 不支持此设备"
   fi
-  cp -af "$TMPDIR/common.sh" "$MODPATH/common.sh" || abort "! 复制文件失败"
+  cp -af "$TMPDIR/common.sh" "$TMPDIR/flag.conf" "$MODPATH/" || abort "! 复制文件失败"
 }
 
 set_permissions() {

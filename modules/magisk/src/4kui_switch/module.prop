@@ -1,6 +1,6 @@
 id=mitv_4kui_switch
 name=4K UI Switch
-version=2026.10.28
-versionCode=20261028
+version=2026.10.29
+versionCode=20261029
 author=酷安@伏犬
 description=Exposes the native 4K UI resolution switch via a systemless XML overlay.

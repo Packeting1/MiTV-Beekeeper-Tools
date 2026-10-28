@@ -45,7 +45,7 @@ final class ModuleUpdater extends Part {
 
     String[] readBundledApk(String asset) {
         try {
-            String path = copyAsset(asset, "ver_" + asset);
+            String path = copyAsset(asset);
             try {
                 android.content.pm.PackageInfo pi = getPackageManager().getPackageArchiveInfo(path, 0);
                 if (pi == null) return null;
@@ -88,7 +88,7 @@ final class ModuleUpdater extends Part {
         return res;
     }
 
-    void updateBanner(boolean prompt) {
+    void updateBanner() {
         if (a.updateBar == null) return;
         java.util.LinkedHashMap<Group, String[]> ups = pendingUpdates();
         if (ups.isEmpty()) {
@@ -135,7 +135,7 @@ final class ModuleUpdater extends Part {
             boolean mod = false;
             for (Group g : list) {
                 try {
-                    String f = copyAsset(g.asset, g.asset);
+                    String f = copyAsset(g.asset);
                     script.append("echo \"== 更新 ").append(g.kind == KIND_APK ? g.title : g.modId).append("\"\n");
                     if (g.kind == KIND_APK) {
                         script.append("pm install -r ").append(f).append(" 2>&1\n");
@@ -149,7 +149,6 @@ final class ModuleUpdater extends Part {
                 }
             }
             if (mod) script.append("echo 模块更新需要重启电视后生效\n");
-            script.append("echo __DONE__\n");
             final String out = (err == null ? "" : err) + runSu(script.toString());
             main.post(new Runnable() { public void run() {
                 if (progress.isShowing()) progress.dismiss();

@@ -1,6 +1,9 @@
 package com.beekeeper.homeref;
 
+import android.app.Instrumentation;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ResolveInfo;
 import android.util.Log;
 
 import java.lang.reflect.Method;
@@ -56,9 +59,8 @@ public final class HookEntry extends XposedModule {
     /** 当前默认桌面的包名；解析失败返回 null。 */
     private static String defaultHomePackage(Context c) {
         try {
-            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_MAIN)
-                    .addCategory(android.content.Intent.CATEGORY_HOME);
-            android.content.pm.ResolveInfo ri = c.getPackageManager().resolveActivity(i, 0);
+            Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+            ResolveInfo ri = c.getPackageManager().resolveActivity(i, 0);
             return ri == null || ri.activityInfo == null ? null : ri.activityInfo.packageName;
         } catch (Throwable t) {
             return null;
@@ -70,10 +72,10 @@ public final class HookEntry extends XposedModule {
      */
     private void installHomeAlias(ClassLoader cl) throws Throwable {
         Class<?> rcv = cl.loadClass("mitv.service.TvService$17");
-        final Method onReceive = rcv.getDeclaredMethod("onReceive", Context.class, android.content.Intent.class);
+        final Method onReceive = rcv.getDeclaredMethod("onReceive", Context.class, Intent.class);
         hook(onReceive).intercept(chain -> {
             try {
-                android.content.Intent it = (android.content.Intent) chain.getArgs().get(1);
+                Intent it = (Intent) chain.getArgs().get(1);
                 Context ctx = (Context) chain.getArgs().get(0);
                 String p = it == null ? null : it.getStringExtra("package");
                 if (p != null && !p.equals(STOCK_HOME) && p.equals(defaultHomePackage(ctx))) {
@@ -92,28 +94,28 @@ public final class HookEntry extends XposedModule {
 
     private void installHomeRedirect() {
         int n = 0;
-        for (Method m : android.app.Instrumentation.class.getDeclaredMethods()) {
+        for (Method m : Instrumentation.class.getDeclaredMethods()) {
             if (!m.getName().equals("execStartActivity")) {
                 continue;
             }
             hook(m).intercept(chain -> {
                 try {
                     Context ctx = null;
-                    android.content.Intent it = null;
+                    Intent it = null;
                     for (Object o : chain.getArgs()) {
                         if (ctx == null && o instanceof Context) {
                             ctx = (Context) o;
                         }
-                        if (it == null && o instanceof android.content.Intent) {
-                            it = (android.content.Intent) o;
+                        if (it == null && o instanceof Intent) {
+                            it = (Intent) o;
                         }
                     }
                     if (ctx != null && it != null && HOME_PAGE_ACTION.equals(it.getAction())) {
                         String home = defaultHomePackage(ctx);
                         if (home != null && !home.equals(STOCK_HOME)) {
                             log(Log.INFO, TAG, "home redirect: HOME_PAGE -> default home " + home);
-                            it.setAction(android.content.Intent.ACTION_MAIN);
-                            it.addCategory(android.content.Intent.CATEGORY_HOME);
+                            it.setAction(Intent.ACTION_MAIN);
+                            it.addCategory(Intent.CATEGORY_HOME);
                             it.setPackage(null);
                         }
                     }

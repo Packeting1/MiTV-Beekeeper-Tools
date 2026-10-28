@@ -5,8 +5,6 @@ import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.view.View;
-import android.widget.ScrollView;
-import android.widget.TextView;
 
 import static com.beekeeper.slim.Net.*;
 
@@ -76,23 +74,12 @@ abstract class Part {
         } });
     }
 
-    ScrollView scrollText(String text) {
-        TextView tv = new TextView(a);
-        tv.setText(text);
-        tv.setTextSize(14);
-        tv.setPadding(dp(24), dp(12), dp(24), dp(12));
-        ScrollView sv = new ScrollView(a);
-        sv.setFocusable(true);
-        sv.addView(tv);
-        return sv;
-    }
-
     /** 更新确认框；说明了不止 2 个版本时多一个“查看完整更新日志”按钮。 */
     void showUpdateDialog(String title, String body, Release rel, final Runnable onUpdate, final Runnable onFull) {
         String notes = rel.notes == null || rel.notes.length() == 0 ? "（该版本没有更新说明）" : rel.notes;
         AlertDialog.Builder b = new AlertDialog.Builder(a)
             .setTitle(title)
-            .setView(scrollText(body + "\n\n更新说明：\n" + notes))
+            .setView(a.scrollText(body + "\n\n更新说明：\n" + notes))
             .setPositiveButton("更新", new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) { onUpdate.run(); }
             })
@@ -108,7 +95,7 @@ abstract class Part {
     void showFullNotes(String title, Release rel, final Runnable back) {
         new AlertDialog.Builder(a)
             .setTitle(title + "（共 " + rel.count + " 个版本）")
-            .setView(scrollText(rel.notesFull))
+            .setView(a.scrollText(rel.notesFull))
             .setPositiveButton("返回", new DialogInterface.OnClickListener() {
                 public void onClick(DialogInterface d, int w) { back.run(); }
             })
@@ -119,17 +106,14 @@ abstract class Part {
         showResult("网络连接失败", "所有线路都" + what + "失败。\n\n建议更换其他网络（例如手机热点）后重试。\n\n最后一个错误：" + detail);
     }
 
-    String copyAsset(String asset, String outName) throws Exception {
-        java.io.File f = new java.io.File(getCacheDir(), outName);
-        java.io.InputStream in = getAssets().open(asset);
-        java.io.FileOutputStream out = new java.io.FileOutputStream(f);
-        try {
+    /** 把内置资源复制到缓存目录（同名），让 root 能读到；返回路径。 */
+    String copyAsset(String asset) throws Exception {
+        java.io.File f = new java.io.File(getCacheDir(), asset);
+        try (java.io.InputStream in = getAssets().open(asset);
+             java.io.FileOutputStream out = new java.io.FileOutputStream(f)) {
             byte[] buf = new byte[65536];
             int n;
             while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-        } finally {
-            in.close();
-            out.close();
         }
         f.setReadable(true, false);
         return f.getAbsolutePath();

@@ -12,7 +12,6 @@ import json
 import os
 import sys
 
-SRC = r'E:\Data\27U EDID\image\research\edid\tv_edid_bin'
 OUT = os.path.dirname(os.path.abspath(__file__))
 
 DV_HDR = bytes([0xEB, 0x01, 0x46, 0xD0, 0x00])
@@ -112,6 +111,9 @@ def patch_audio(d, sads):
 
 
 def main():
+    if len(sys.argv) != 2:
+        sys.exit('usage: gen_edid.py <directory with the TV\'s stock GPro_HDMI*/GPro_DP* EDID files>')
+    SRC = sys.argv[1]
     files = sorted(f for f in os.listdir(SRC) if f.startswith(('GPro_HDMI', 'GPro_DP')))
     # DP gets the audio capabilities of the HDMI 2.1 ports (ver6.0, identical in all their files);
     # HDMI 3/4 are HDMI 2.0 ports with stereo LPCM only

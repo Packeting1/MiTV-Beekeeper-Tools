@@ -131,7 +131,7 @@ final class SelfUpdater extends Part {
                 + "setsid sh -c \"pm install -r " + f.getAbsolutePath() + " > " + log + " 2>&1; rm -f " + f.getAbsolutePath()
                 + "; am start --user 0 -n " + getPackageName() + "/.MainActivity >> " + log + " 2>&1\" >/dev/null 2>&1 &\n"
                 + "sleep 1\n");
-            if (res.contains("无法使用 root") || res.contains("可能没有授予 root")) {
+            if (noRoot(res)) {
                 f.delete();
                 final String r = res;
                 main.post(new Runnable() { public void run() {

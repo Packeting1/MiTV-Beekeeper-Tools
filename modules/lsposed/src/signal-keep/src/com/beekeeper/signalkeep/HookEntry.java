@@ -2,6 +2,7 @@ package com.beekeeper.signalkeep;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -13,13 +14,14 @@ import android.os.PowerManager;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
-import android.view.View;
-import android.view.ViewGroup;
+import android.view.Surface;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 
@@ -30,7 +32,7 @@ import io.github.libxposed.api.XposedModule;
  * 减少 PC 信号 (HDMI/DP) 与电视系统之间切换时的黑屏。作用域：tvplayer + com.mediatek.tvinput。
  *
  * A. 播放器不在前台 30 秒后会自己 killProcess (BaseActivity.mKillSelf)，下次进 PC 信号是冷启动。跳过它。
- * B. 按 HOME 回桌面时不拆 PC 信号：onPause 保留、媒体流静音，看门狗确认去向仍是桌面/设置才继续保留，
+ * B. 按 HOME 回桌面时不拆 PC 信号：onPause 保留、用 TV-Mute 静音 PC 声音，看门狗确认去向仍是桌面/设置才继续保留，
  *    去别的应用或息屏就补跑原始 onPause 拆除。回到 PC 时在 MtkTvInput 里允许把新 Surface 重绑到已打开的流。
  *
  * 和 TvPlayerKeep (设置键/图像参数页不黑屏) 互不依赖：设置相关的 onPause 交给它 (或原版)，本模块只处理
@@ -60,8 +62,8 @@ public final class HookEntry extends XposedModule {
     private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
     private final Set<Object> kept = Collections.synchronizedSet(
             Collections.newSetFromMap(new WeakHashMap<Object, Boolean>()));
-    private final Set<Object> watching = Collections.synchronizedSet(
-            Collections.newSetFromMap(new WeakHashMap<Object, Boolean>()));
+    /** 每个 Activity 当前有效的看门狗令牌；重新 onPause 会换新令牌，让旧的看门狗退出。 */
+    private final Map<Object, Object> watchers = Collections.synchronizedMap(new WeakHashMap<Object, Object>());
     private volatile long leaveHintAt;
 
     @Override
@@ -92,9 +94,9 @@ public final class HookEntry extends XposedModule {
      */
     private void installTvInput(ClassLoader cl) throws Throwable {
         Class<?> sess = cl.loadClass("com.mediatek.tvinputservice.AbstractTvInputServiceBase$AbstractTvInputSession");
-        final java.lang.reflect.Field opened = sess.getDeclaredField("mStreamOpened");
+        final Field opened = sess.getDeclaredField("mStreamOpened");
         opened.setAccessible(true);
-        Method onSetSurface = sess.getDeclaredMethod("onSetSurface", android.view.Surface.class);
+        Method onSetSurface = sess.getDeclaredMethod("onSetSurface", Surface.class);
         hook(onSetSurface).intercept(chain -> {
             try {
                 Object s = chain.getThisObject();
@@ -110,16 +112,24 @@ public final class HookEntry extends XposedModule {
         log(Log.INFO, TAG, "MtkTvInput hook installed");
     }
 
+    /** stamp 是毫秒时间戳字符串，距今不超过 windowMs。 */
+    private static boolean within(String stamp, long windowMs) {
+        if (stamp == null) {
+            return false;
+        }
+        try {
+            long age = System.currentTimeMillis() - Long.parseLong(stamp);
+            return age >= 0 && age < windowMs;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
     private boolean rebindRequested() {
         try {
             Class<?> at = Class.forName("android.app.ActivityThread");
             Context ctx = (Context) at.getMethod("currentApplication").invoke(null);
-            String s = Settings.System.getString(ctx.getContentResolver(), REBIND);
-            if (s == null) {
-                return false;
-            }
-            long age = System.currentTimeMillis() - Long.parseLong(s);
-            return age >= 0 && age < REBIND_WINDOW_MS;
+            return within(Settings.System.getString(ctx.getContentResolver(), REBIND), REBIND_WINDOW_MS);
         } catch (Throwable t) {
             return false;
         }
@@ -155,7 +165,7 @@ public final class HookEntry extends XposedModule {
                     && homeKeepEnabled(a) && isAwake(a)) {
                 log(Log.INFO, TAG, "onPause: user left player, keep PC signal (muted), watchdog decides");
                 kept.add(a);
-                setMuted(a, true);
+                audioMute(a, true);
                 hideSearching(a);
                 superPause.invokeSpecial(a);
                 startWatchdog(a, origPause, true);
@@ -175,7 +185,7 @@ public final class HookEntry extends XposedModule {
                 } catch (Throwable t) {
                     log(Log.ERROR, TAG, "rebind mark failed", t);
                 }
-                setMuted(a, false);
+                audioMute(a, false);
                 superResume.invokeSpecial(a);
                 return null;
             }
@@ -199,9 +209,8 @@ public final class HookEntry extends XposedModule {
         });
 
         // 保留期间 Activity 被盖住时 TvView 会把空 Surface 交给输入服务，输入服务据此释放 HDMI。拦下这一次。
-        Class<?> tvView = Class.forName("android.media.tv.TvView");
-        int skipped = 0;
-        for (Method m : tvView.getDeclaredMethods()) {
+        int n = 0;
+        for (Method m : TvView.class.getDeclaredMethods()) {
             if (m.getName().equals("setSessionSurface") && m.getParameterTypes().length == 1) {
                 hook(m).intercept(chain -> {
                     if (chain.getArgs().get(0) == null && !kept.isEmpty()) {
@@ -210,7 +219,7 @@ public final class HookEntry extends XposedModule {
                     }
                     return chain.proceed();
                 });
-                skipped++;
+                n++;
             }
         }
 
@@ -228,7 +237,7 @@ public final class HookEntry extends XposedModule {
         // 后台保留信号时 PC 若休眠/断开，无信号倒计时走完会让播放器直接关机；保留期间不显示它。
         try {
             Method show = cl.loadClass(PLAYER + ".widget.views.SearchingView")
-                    .getDeclaredMethod("show", android.os.Handler.class);
+                    .getDeclaredMethod("show", Handler.class);
             hook(show).intercept(chain -> {
                 if (!kept.isEmpty()) {
                     log(Log.INFO, TAG, "SearchingView.show skipped while signal is held in background");
@@ -240,14 +249,14 @@ public final class HookEntry extends XposedModule {
             log(Log.ERROR, TAG, "SearchingView hook failed", t);
         }
 
-        log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + skipped);
+        log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + n);
     }
 
     /** 离开时无信号倒计时可能已经在跑，走完会 shutDown()；原版 onPause 拆除时同样会先 hide()。 */
     private void hideSearching(Activity a) {
         try {
             for (Class<?> c = a.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-                java.lang.reflect.Field f;
+                Field f;
                 try {
                     f = c.getDeclaredField("mSearchingView");
                 } catch (NoSuchFieldException e) {
@@ -280,46 +289,30 @@ public final class HookEntry extends XposedModule {
     private static boolean settingsSignal(Activity a) {
         ContentResolver cr = a.getContentResolver();
         try {
-            if (Settings.System.getInt(cr, SETTINGS_FLAG, 0) == 1) {
+            if (Settings.System.getInt(cr, SETTINGS_FLAG, 0) == 1
+                    || within(Settings.System.getString(cr, SETTINGS_PENDING), PENDING_WINDOW_MS)) {
                 return true;
-            }
-        } catch (Throwable ignored) {
-        }
-        try {
-            String s = Settings.System.getString(cr, SETTINGS_PENDING);
-            if (s != null) {
-                long age = System.currentTimeMillis() - Long.parseLong(s);
-                if (age >= 0 && age < PENDING_WINDOW_MS) {
-                    return true;
-                }
             }
         } catch (Throwable ignored) {
         }
         return isMainEntryClass(topClass(a));
     }
 
-    private static String topClass(Activity a) {
+    private static ComponentName topActivity(Activity a) {
         try {
             ActivityManager am = (ActivityManager) a.getSystemService(Context.ACTIVITY_SERVICE);
             List<ActivityManager.RunningTaskInfo> tasks = am.getRunningTasks(1);
-            if (tasks != null && !tasks.isEmpty() && tasks.get(0).topActivity != null) {
-                return tasks.get(0).topActivity.getClassName();
+            if (tasks != null && !tasks.isEmpty()) {
+                return tasks.get(0).topActivity;
             }
         } catch (Throwable ignored) {
         }
         return null;
     }
 
-    private static String topPackage(Activity a) {
-        try {
-            ActivityManager am = (ActivityManager) a.getSystemService(Context.ACTIVITY_SERVICE);
-            List<ActivityManager.RunningTaskInfo> tasks = am.getRunningTasks(1);
-            if (tasks != null && !tasks.isEmpty() && tasks.get(0).topActivity != null) {
-                return tasks.get(0).topActivity.getPackageName();
-            }
-        } catch (Throwable ignored) {
-        }
-        return null;
+    private static String topClass(Activity a) {
+        ComponentName top = topActivity(a);
+        return top == null ? null : top.getClassName();
     }
 
     private static boolean homeKeepEnabled(Activity a) {
@@ -335,10 +328,11 @@ public final class HookEntry extends XposedModule {
         if (!homeKeepEnabled(a)) {
             return false;
         }
-        String pkg = topPackage(a);
-        if (pkg == null) {
+        ComponentName top = topActivity(a);
+        if (top == null) {
             return false;
         }
+        String pkg = top.getPackageName();
         if (TV_HOME.equals(pkg)) {
             return true;
         }
@@ -348,34 +342,6 @@ public final class HookEntry extends XposedModule {
             return ri != null && ri.activityInfo != null && pkg.equals(ri.activityInfo.packageName);
         } catch (Throwable t) {
             return false;
-        }
-    }
-
-    private static TvView findTvView(View v) {
-        if (v instanceof TvView) {
-            return (TvView) v;
-        }
-        if (v instanceof ViewGroup) {
-            ViewGroup g = (ViewGroup) v;
-            for (int i = 0; i < g.getChildCount(); i++) {
-                TvView t = findTvView(g.getChildAt(i));
-                if (t != null) {
-                    return t;
-                }
-            }
-        }
-        return null;
-    }
-
-    private void setMuted(Activity a, boolean mute) {
-        audioMute(a, mute);
-        try {
-            TvView tv = findTvView(a.getWindow().getDecorView());
-            if (tv != null) {
-                tv.setStreamVolume(mute ? 0f : 1f);
-            }
-        } catch (Throwable t) {
-            log(Log.ERROR, TAG, "setMuted failed", t);
         }
     }
 
@@ -427,7 +393,11 @@ public final class HookEntry extends XposedModule {
      */
     private void startWatchdog(final Activity a, final XposedInterface.Invoker<?, Method> origPause,
                                final boolean fromPause) {
-        if (!watching.add(a)) {
+        final Object token = new Object();
+        // onPause 总是接管旧的看门狗 (HOME→PC→HOME 间隔很短时旧的还没退出)；onStop 只在没有时才补一个。
+        if (fromPause) {
+            watchers.put(a, token);
+        } else if (watchers.putIfAbsent(a, token) != null) {
             return;
         }
         final Handler h = new Handler(Looper.getMainLooper());
@@ -440,8 +410,8 @@ public final class HookEntry extends XposedModule {
 
             @Override
             public void run() {
-                if (!kept.contains(a)) {
-                    watching.remove(a);
+                if (!kept.contains(a) || watchers.get(a) != token) {
+                    watchers.remove(a, token);
                     return;
                 }
                 String top = topClass(a);
@@ -459,11 +429,11 @@ public final class HookEntry extends XposedModule {
                 if (settingsTop) {
                     if (muted) {
                         muted = false;
-                        setMuted(a, false);
+                        audioMute(a, false);
                     }
                 } else if (home && !muted) {
                     muted = true;
-                    setMuted(a, true);
+                    audioMute(a, true);
                 }
                 if (home) {
                     long now = SystemClock.elapsedRealtime();
@@ -472,7 +442,7 @@ public final class HookEntry extends XposedModule {
                     } else if (now - homeSince >= HOME_HOLD_MS) {
                         log(Log.INFO, TAG, "watchdog: idle on home for " + (now - homeSince)
                                 + " ms, release PC signal to save CPU");
-                        watching.remove(a);
+                        watchers.remove(a, token);
                         teardown(a, origPause);
                         return;
                     }
@@ -483,7 +453,7 @@ public final class HookEntry extends XposedModule {
                 if (idle >= 2) {
                     log(Log.INFO, TAG, "watchdog: home/settings left (top=" + top + ", awake=" + awake
                             + "), teardown");
-                    watching.remove(a);
+                    watchers.remove(a, token);
                     teardown(a, origPause);
                     return;
                 }

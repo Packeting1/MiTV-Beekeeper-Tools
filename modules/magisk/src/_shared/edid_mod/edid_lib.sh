@@ -57,7 +57,6 @@ edid_count() {
 edid_switch() {
   [ "$(edid_count "$1")" -gt 0 ] || return 2
   remount_rw || { log "switch: remount rw refused: $(grep " $MNT " /proc/mounts)"; return 1; }
-  mkdir -p "$DATA_DIR/orig" 2>/dev/null
   _fail=0
   _done=0
   while read -r name c1 c2 c3 c4; do
@@ -71,7 +70,6 @@ edid_switch() {
       [ "$_c" = "$(col "$_f")" ] || continue
       _fs="$MODDIR/edid/$(state_name "$_f")_$name"
       _ts="$MODDIR/edid/$(state_name "$_t")_$name"
-      [ "$_f" = 1 ] && [ ! -f "$DATA_DIR/orig/$name" ] && cp -f "$_fs" "$DATA_DIR/orig/$name"
       cat "$_ts" >"$t"
       sync
       if [ "$(sha "$t")" = "$(col "$_t")" ]; then
