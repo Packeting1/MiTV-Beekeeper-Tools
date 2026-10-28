@@ -5,6 +5,7 @@
 
 - 版本号在各模块 module.prop 的 version / versionCode，zip 文件名跟着它走，旧版本的同名前缀 zip 会被删掉。
 - 有 install.sh 的 legacy 模块会自动加上共用的 META-INF（modules/magisk/src/_shared/META-INF）。
+- EDID 类模块（dv_edid、dp_audio）自动加上 _shared/edid_mod 的脚本和 _shared/edid 的 EDID 文件与 list。
 - 打出来的 zip 内容固定（排序、固定时间戳），源码不变则 zip 不变。
 """
 import pathlib
@@ -16,6 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parent
 SRC = ROOT / 'src'
 DIST = ROOT / 'dist'
 META = SRC / '_shared' / 'META-INF'
+EDID_MODS = ('dv_edid', 'dp_audio')  # 共用 _shared/edid_mod 的脚本和 _shared/edid 的 EDID 文件
 STAMP = (1980, 1, 1, 0, 0, 0)
 
 # 源码目录 -> zip 文件名前缀（后面接版本号）
@@ -23,6 +25,7 @@ PLAIN = {
     'adb_keeper': 'Beekeeper_ADB_Keeper_v',
     '4kui_switch': 'Beekeeper_4KUI_Switch_v',
     'dv_edid': 'Beekeeper_LLDV_v',
+    'dp_audio': 'Beekeeper_DPAudio_v',
     'freesync_keep': 'Beekeeper_FreeSyncKeep_v',
     'hgig_fix': 'Beekeeper_HGIG_Fix_v',
     'ldm_fix': 'Beekeeper_LDM_Fix_v',
@@ -41,6 +44,12 @@ def collect(directory):
         if not path.is_file() or path.suffix == '.py' or '__pycache__' in path.parts:
             continue
         files[path.relative_to(directory).as_posix()] = path.read_bytes()
+    if directory.name in EDID_MODS:
+        for path in sorted((SRC / '_shared' / 'edid_mod').iterdir()):
+            files[('' if path.name in ('install.sh', 'uninstall.sh') else 'common/') + path.name] = path.read_bytes()
+        for path in sorted((SRC / '_shared' / 'edid').iterdir()):
+            if path.suffix != '.py' and path.is_file():
+                files['common/' + path.name] = path.read_bytes()
     if 'install.sh' in files:
         for path in sorted(META.rglob('*')):
             if path.is_file():

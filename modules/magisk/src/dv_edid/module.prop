@@ -1,6 +1,6 @@
 id=beekeeper_dv_edid
 name=Support LLDV
-version=2026.10.28
-versionCode=20261028
+version=2026.10.29
+versionCode=20261029
 author=酷安@pkkka
 description=Declares Low-Latency Dolby Vision (LLDV) support so Windows can detect Dolby Vision on PC.

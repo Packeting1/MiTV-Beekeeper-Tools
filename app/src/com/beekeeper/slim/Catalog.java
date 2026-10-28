@@ -159,6 +159,9 @@ final class Catalog {
             new Group(KIND_MOD, "LLDV支持（Magisk模块）",
                 "声明支持低延迟杜比视界（LLDV），让 Windows 能识别杜比视界PC支持。",
                 null).mod("beekeeper_dv_edid", "mod_dvedid.zip"),
+            new Group(KIND_MOD, "DP 音频格式支持（Magisk模块）",
+                "让 DP 输入声明扩展为与 HDMI 相同的音频格式，可通过 DP 输出比特流。",
+                null).mod("beekeeper_dp_audio", "mod_dpaudio.zip"),
         };
     }
 

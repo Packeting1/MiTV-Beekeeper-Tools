@@ -1,8 +1,0 @@
-#!/system/bin/sh
-# Magisk runs this at boot after the module is removed: put the stock EDID files back
-# (takes effect on the following reboot) and delete the module's data.
-MODDIR=${0%/*}
-. "$MODDIR/edid_lib.sh"
-edid_restore
-rm -rf "$DATA_DIR"
-exit 0

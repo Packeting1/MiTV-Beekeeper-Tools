@@ -7,7 +7,7 @@ MODDIR=${0%/*}
 device_ok || exit 0
 COUNT=$DATA_DIR/reboot_tries
 
-if [ "$(edid_count orig)" = 0 ]; then
+if [ "$(edid_count "$APPLY")" = 0 ]; then
   rm -f "$COUNT"
   exit 0
 fi

@@ -93,7 +93,7 @@ public class MainActivity extends Activity {
         if (modDisabled.contains(id)) return "实际：在 Magisk 里被停用，没有生效";
         boolean on = modActive.contains(id);
         if ("mitv_4kui_switch".equals(id) || "mitv_adb_keeper".equals(id) || "beekeeper_hgig_fix".equals(id)
-            || "beekeeper_ldm_fix".equals(id) || "beekeeper_dv_edid".equals(id) || "zygote64_fix".equals(id)
+            || "beekeeper_ldm_fix".equals(id) || "beekeeper_dv_edid".equals(id) || "beekeeper_dp_audio".equals(id) || "zygote64_fix".equals(id)
             || "beekeeper_freesync_keep".equals(id) || FLAG_MODS.containsKey(id)) return on ? "实际：已生效" : "实际：未生效（需重启）";
         return null;
     }
@@ -422,7 +422,7 @@ public class MainActivity extends Activity {
     /** 放在优化类页的 Magisk 模块。 */
     static boolean isOptMod(Group g) {
         return g.kind == KIND_MOD && ("mitv_adb_keeper".equals(g.modId) || "mitv_4kui_switch".equals(g.modId)
-            || "beekeeper_dv_edid".equals(g.modId) || "beekeeper_freesync_keep".equals(g.modId)
+            || "beekeeper_dv_edid".equals(g.modId) || "beekeeper_dp_audio".equals(g.modId) || "beekeeper_freesync_keep".equals(g.modId)
             || FLAG_MODS.containsKey(g.modId));
     }
 
@@ -556,6 +556,10 @@ public class MainActivity extends Activity {
                 + "[ \"$L\" = 282d2ad2991845cd79660bb13111cba1da82e8116f1519e2b395606b27eb6dcf ] && echo \"F:beekeeper_ldm_fix\"\n"
                 + "E=$(sha256sum /vendor/tvconfig/bsp/common/EDID_BIN/GPro_HDMI1_FreeSync_ver6.0.bin 2>/dev/null | cut -d' ' -f1)\n"
                 + "[ \"$E\" = 04d48a32abcb0fe7e8a25cac683c09b9f6dbd00dd81b8d0ab170b3d5534237fc ] && echo \"F:beekeeper_dv_edid\"\n"
+                // DP 的 Enhanced EDID 已是带音频格式的版本（仅音频 / 音频+LLDV）
+                + "case $(sha256sum /vendor/tvconfig/bsp/common/EDID_BIN/GPro_DP_Enhanced_ver6.0.bin 2>/dev/null | cut -d' ' -f1) in"
+                + " 29adce40ed1a7a733d3f9799c55451b00903c5eb806ab2008d324dc94e389903|e48a381124833ee6173d83ca82b948edc3918a31795a250c09f9a395233f67fc)"
+                + " echo \"F:beekeeper_dp_audio\";; esac\n"
                 + "for z in $(pidof zygote64); do grep -qE 'zygisk_(lsposed|vector)' /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; done\n"
                 + "grep libmtkapp.so /proc/mounts | grep -q userdata && echo \"F:beekeeper_freesync_keep\"\n"
                 + "wait\n"

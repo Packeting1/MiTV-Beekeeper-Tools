@@ -27,6 +27,7 @@
 | Support AISR Level | 在“图像参数 > 清晰度”里显示超分辨率强度调节 |
 | Support Volume Balance | 在声音设置里显示音量均衡 |
 | Support LLDV | 声明支持低延迟杜比视界（LLDV），让 Windows 能识别杜比视界 PC 支持 |
+| Support DP Audio | 让 DP 输入声明与 HDMI 相同的音频格式，可通过 DP 输出比特流 |
 | FreeSync Keep Mode | 开启 FreeSync或杜比视界信号带游戏标志时不再自动切到游戏模式 |
 
 开关类模块开机时把对应项写入 `/data/system/mitv.config.xml` 并 `chattr +i` 锁定，防止云端配置覆盖；卸载时解锁并还原。

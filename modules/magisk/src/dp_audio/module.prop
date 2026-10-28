@@ -1,0 +1,6 @@
+id=beekeeper_dp_audio
+name=Support DP Audio
+version=2026.10.29
+versionCode=20261029
+author=酷安@pkkka
+description=Makes the DisplayPort input declare the same audio formats as HDMI (LPCM 8ch up to 192 kHz, AC-3, E-AC-3, DTS, DTS-HD, TrueHD).
