@@ -14,13 +14,17 @@ final class Progress {
     Progress(MainActivity a) {
         text = new TextView(a);
         text.setText("正在下载……0%");
-        text.setTextSize(14);
+        text.setTextSize(13);
+        text.setTextColor(Ui.TEXT);
         bar = new ProgressBar(a, null, android.R.attr.progressBarStyleHorizontal);
         bar.setMax(100);
         bar.setIndeterminate(true);
+        bar.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+        bar.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+        bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF3A4350));
         box = new LinearLayout(a);
         box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(a.dp(24), a.dp(16), a.dp(24), a.dp(8));
+        box.setPadding(0, a.dp(4), 0, a.dp(4));
         box.addView(text);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);

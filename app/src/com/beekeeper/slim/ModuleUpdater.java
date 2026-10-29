@@ -1,6 +1,5 @@
 package com.beekeeper.slim;
 
-import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.view.View;
 import java.io.BufferedReader;
@@ -114,7 +113,7 @@ final class ModuleUpdater extends Part {
             if (e.getKey().kind == KIND_MOD) hasMod = true;
         }
         if (hasMod) msg.append("\n模块更新后需要重启电视才生效。");
-        new AlertDialog.Builder(a)
+        new Dlg.Builder(a)
             .setTitle("发现更新")
             .setMessage(msg.toString())
             .setPositiveButton("全部更新", new DialogInterface.OnClickListener() {
@@ -125,7 +124,7 @@ final class ModuleUpdater extends Part {
     }
 
     void runUpdate(final List<Group> list) {
-        final AlertDialog progress = new AlertDialog.Builder(a)
+        final Dlg progress = new Dlg.Builder(a)
             .setTitle("正在更新")
             .setMessage("请在弹窗里允许 root……")
             .show();

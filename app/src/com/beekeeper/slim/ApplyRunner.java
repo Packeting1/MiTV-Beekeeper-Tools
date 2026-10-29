@@ -1,6 +1,5 @@
 package com.beekeeper.slim;
 
-import android.app.AlertDialog;
 import android.content.DialogInterface;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +62,7 @@ final class ApplyRunner extends Part {
         for (Group g : modOn) msg.append(g.kind == KIND_APK ? "将安装：" : "将启用：").append(g.title).append("\n");
         for (Group g : modOff) msg.append(g.kind == KIND_APK ? "将卸载：" : "将关闭：").append(g.title).append("\n");
         msg.append("\n确定继续吗？");
-        new AlertDialog.Builder(a)
+        new Dlg.Builder(a)
             .setTitle("确认")
             .setMessage(msg.toString())
             .setPositiveButton("确定", new DialogInterface.OnClickListener() {
@@ -79,7 +78,7 @@ final class ApplyRunner extends Part {
                           final boolean dbOn, final boolean dbOff,
                           final boolean nhOn, final boolean nhOff,
                           final List<Group> modOn, final List<Group> modOff) {
-        final AlertDialog progress = new AlertDialog.Builder(a)
+        final Dlg progress = new Dlg.Builder(a)
             .setTitle("正在执行")
             .setMessage("请在弹窗里允许 root……")
             .show();

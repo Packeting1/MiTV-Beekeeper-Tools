@@ -1,6 +1,5 @@
 package com.beekeeper.slim;
 
-import android.app.AlertDialog;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -111,7 +110,7 @@ final class SelfUpdater extends Part {
     void downloadAndInstall(final String url, final String digest) {
         final Progress p = new Progress(a);
         final CancelToken tok = new CancelToken();
-        final AlertDialog progress = showProgress("正在更新", p.box, tok, "已取消更新");
+        final Dlg progress = showProgress("正在更新", p.box, tok, "已取消更新");
         new Thread(new Runnable() { public void run() {
             final java.io.File f = new java.io.File(getCacheDir(), "selfupdate.apk");
             try {

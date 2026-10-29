@@ -20,6 +20,10 @@
 
 > 修改系统存在风险，请在充分了解的前提下使用，后果自行承担。所有模块均可在应用内取消勾选并重启后还原。
 
+<div align="center">
+<img src="docs/screenshots/apps.png" width="49%" alt="应用类"> <img src="docs/screenshots/opt.png" width="49%" alt="优化类">
+</div>
+
 ## 解决的问题
 
 | 问题 | 对应模块 |

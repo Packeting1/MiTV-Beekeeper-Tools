@@ -1,7 +1,5 @@
 package com.beekeeper.slim;
 
-import android.widget.CheckBox;
-
 import static com.beekeeper.slim.Catalog.*;
 
 /** 一个勾选项：应用组 / Aerial / Magisk 模块 / LSPosed 模块。 */
@@ -12,7 +10,7 @@ final class Group {
     String modId, asset;
     /** 放在“修复类”页的 Magisk 模块。 */
     boolean fix;
-    CheckBox box;
+    ItemView box;
     /** render 时给勾选框设的状态；应用类只在用户改过勾选时才处理，避免“部分禁用”的组被一并恢复。 */
     boolean shown;
     Group(String title, String desc, String warn, String... pkgs) {

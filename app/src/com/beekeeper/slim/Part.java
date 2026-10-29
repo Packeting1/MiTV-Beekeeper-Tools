@@ -1,6 +1,5 @@
 package com.beekeeper.slim;
 
-import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.os.Handler;
@@ -35,11 +34,11 @@ abstract class Part {
     boolean modInstalled(Group g) { return a.modInstalled(g); }
 
     /** 带“取消”按钮的进度弹窗；返回键同样取消。 */
-    AlertDialog showProgress(String title, View body, final CancelToken tok, final String cancelMsg) {
+    Dlg showProgress(String title, View body, final CancelToken tok, final String cancelMsg) {
         final Runnable doCancel = new Runnable() { public void run() {
             if (tok.cancel()) android.widget.Toast.makeText(a, cancelMsg, android.widget.Toast.LENGTH_SHORT).show();
         } };
-        return new AlertDialog.Builder(a)
+        return new Dlg.Builder(a)
             .setTitle(title)
             .setView(body)
             .setCancelable(true)
@@ -53,7 +52,7 @@ abstract class Part {
     }
 
     /** 下载或校验出错：收起进度弹窗并提示；用户取消时不提示。 */
-    void showDownloadError(final AlertDialog progress, Throwable t) {
+    void showDownloadError(final Dlg progress, Throwable t) {
         final boolean cancelled = t instanceof CancelledException;
         final boolean netFail = t instanceof NetFail;
         final String err = netFail ? t.getMessage() : String.valueOf(t);
@@ -66,10 +65,10 @@ abstract class Part {
     }
 
     /** 下载完成、开始安装：不能再取消。 */
-    void showInstalling(final AlertDialog progress, final Progress p, final String msg) {
+    void showInstalling(final Dlg progress, final Progress p, final String msg) {
         main.post(new Runnable() { public void run() {
             progress.setCancelable(false);
-            progress.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
+            progress.getButton(Dlg.BUTTON_NEGATIVE).setEnabled(false);
             p.waiting(msg);
         } });
     }
@@ -77,7 +76,7 @@ abstract class Part {
     /** 更新确认框；说明了不止 2 个版本时多一个“查看完整更新日志”按钮。 */
     void showUpdateDialog(String title, String body, Release rel, final Runnable onUpdate, final Runnable onFull) {
         String notes = rel.notes == null || rel.notes.length() == 0 ? "（该版本没有更新说明）" : rel.notes;
-        AlertDialog.Builder b = new AlertDialog.Builder(a)
+        Dlg.Builder b = new Dlg.Builder(a)
             .setTitle(title)
             .setView(a.scrollText(body + "\n\n更新说明：\n" + notes))
             .setPositiveButton("更新", new DialogInterface.OnClickListener() {
@@ -93,7 +92,7 @@ abstract class Part {
     }
 
     void showFullNotes(String title, Release rel, final Runnable back) {
-        new AlertDialog.Builder(a)
+        new Dlg.Builder(a)
             .setTitle(title + "（共 " + rel.count + " 个版本）")
             .setView(a.scrollText(rel.notesFull))
             .setPositiveButton("返回", new DialogInterface.OnClickListener() {

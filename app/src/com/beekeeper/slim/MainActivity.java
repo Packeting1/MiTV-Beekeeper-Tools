@@ -1,25 +1,22 @@
 package com.beekeeper.slim;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.TabHost;
-import android.widget.TabWidget;
 import android.widget.TextView;
 import java.util.HashSet;
 import java.util.Set;
@@ -59,7 +56,7 @@ public class MainActivity extends Activity {
 
     void confirmHidden(final Hidden h) {
         if (h.warn == null) { launchHidden(h); return; }
-        new AlertDialog.Builder(this)
+        new Dlg.Builder(this)
             .setTitle(h.title)
             .setMessage(h.warn + "\n\n确定打开吗？")
             .setPositiveButton("打开", new DialogInterface.OnClickListener() {
@@ -88,18 +85,55 @@ public class MainActivity extends Activity {
 
     TextView updateText;
 
-    /** 每页的条目两个一行；key 是页，value 是还缺右半边的那一行。 */
-    final java.util.Map<LinearLayout, LinearLayout> openRows = new java.util.HashMap<LinearLayout, LinearLayout>();
+    LinearLayout[] pages;
+
+    NavItem[] navs;
+
+    /** 当前显示的页；-1 = 还没选。 */
+    int cur = -1;
+
+    ScrollView scroll;
+
+    Button applyBtn;
 
     /** 刷新是否正在跑；跑的时候又来请求就记下来，跑完再来一次。 */
     boolean refreshing, refreshAgain;
 
-    void hint(LinearLayout page, String text) {
+    /** 一页内容：大标题 + 一行说明，条目由调用方继续往里加。 */
+    LinearLayout newPage(String title, String hintText) {
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setPadding(0, 0, 0, dp(16));
         TextView t = new TextView(this);
-        t.setText(text);
-        t.setTextSize(13);
-        t.setPadding(0, dp(4), 0, dp(8));
+        t.setText(title);
+        t.setTextSize(25);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setTextColor(Ui.TEXT);
         page.addView(t);
+        if (hintText != null) {
+            TextView h = new TextView(this);
+            h.setText(hintText);
+            h.setTextSize(12);
+            h.setTextColor(Ui.SUB);
+            h.setPadding(0, dp(4), 0, dp(4));
+            page.addView(h);
+        }
+        return page;
+    }
+
+    void addItem(LinearLayout page, View item) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(6);
+        page.addView(item, lp);
+    }
+
+    LinearLayout card() {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setBackground(Ui.shape(this, Ui.CARD, Ui.LINE, 1, 10));
+        c.setPadding(dp(16), dp(12), dp(16), dp(12));
+        return c;
     }
 
     /** 顶部黄色更新提示条：第 0 个子视图是文字，右边是“查看更新”按钮。 */
@@ -107,19 +141,57 @@ public class MainActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(8), dp(4), dp(8), dp(4));
-        bar.setBackgroundColor(0x33FFB300);
+        bar.setPadding(dp(14), dp(3), dp(6), dp(3));
+        bar.setBackground(Ui.shape(this, 0x26FFB300, 0x66FFB300, 1, 10));
         TextView text = new TextView(this);
-        text.setTextSize(14);
+        text.setTextSize(12);
         text.setTextColor(0xFFFFD54F);
         bar.addView(text, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        Button btn = new Button(this);
-        btn.setText("查看更新");
-        btn.setTextSize(14);
+        Button btn = Ui.button(this, "查看更新", false);
+        btn.setMinimumHeight(dp(32));
+        btn.setPadding(dp(10), dp(1), dp(10), dp(1));
         btn.setOnClickListener(onClick);
         bar.addView(btn);
         bar.setVisibility(View.GONE);
         return bar;
+    }
+
+    /** 页面里第一个能聚焦的控件。 */
+    static View firstFocusable(View v) {
+        if (v.getVisibility() != View.VISIBLE) return null;
+        if (v.isFocusable()) return v;
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                View f = firstFocusable(g.getChildAt(i));
+                if (f != null) return f;
+            }
+        }
+        return null;
+    }
+
+    /** 页面里所有能聚焦的控件，按左键都回到该页对应的导航项，而不是就近乱跳。 */
+    static void wireLeft(View v, int navId) {
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) wireLeft(g.getChildAt(i), navId);
+        }
+        if (v.isFocusable()) v.setNextFocusLeftId(navId);
+    }
+
+    void select(int i) {
+        if (i == cur) return;
+        cur = i;
+        for (int j = 0; j < navs.length; j++) navs[j].select(j == i);
+        scroll.removeAllViews();
+        scroll.addView(pages[i]);
+        scroll.scrollTo(0, 0);
+    }
+
+    void updatePending() {
+        int n = 0;
+        for (Group g : GROUPS) if (g.box.changed()) n++;
+        applyBtn.setText(n > 0 ? "应用（" + n + "）" : "应用");
     }
 
     @Override
@@ -131,243 +203,201 @@ public class MainActivity extends Activity {
             setContentView(t);
             return;
         }
-        ScrollView sv = new ScrollView(this);
+        getWindow().setBackgroundDrawable(new ColorDrawable(Ui.BG));
         LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(20);
-        root.setPadding(pad, dp(12), pad, dp(12));
-        sv.addView(root);
+        root.setOrientation(LinearLayout.HORIZONTAL);
 
+        // 左侧：标题、导航、操作按钮
+        LinearLayout side = new LinearLayout(this);
+        side.setOrientation(LinearLayout.VERTICAL);
+        side.setBackgroundColor(Ui.PANEL);
+        side.setPadding(dp(14), dp(22), dp(14), dp(18));
+        root.addView(side, new LinearLayout.LayoutParams(dp(176), LinearLayout.LayoutParams.MATCH_PARENT));
         TextView title = new TextView(this);
         title.setText("系统优化");
-        title.setTextSize(20);
-        title.setTextColor(Color.WHITE);
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        PowerIcon power = new PowerIcon(this);
-        power.setOnClickListener(new View.OnClickListener() {
+        title.setTextSize(24);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setTextColor(Ui.TEXT);
+        title.setPadding(dp(14), 0, 0, 0);
+        side.addView(title);
+        TextView ver = new TextView(this);
+        try {
+            ver.setText("v" + getPackageManager().getPackageInfo(getPackageName(), 0).versionName);
+        } catch (Exception e) {
+            // 读不到版本号就留空
+        }
+        ver.setTextSize(12);
+        ver.setTextColor(Ui.SUB);
+        ver.setPadding(dp(14), dp(2), 0, dp(16));
+        side.addView(ver);
+
+        String[] names = { "应用类", "优化类", "修复类", "隐藏项", "关于" };
+        navs = new NavItem[names.length];
+        for (int i = 0; i < names.length; i++) {
+            final int idx = i;
+            navs[i] = new NavItem(this, names[i]);
+            navs[i].setOnFocusChangeListener(new View.OnFocusChangeListener() {
+                public void onFocusChange(View v, boolean has) { if (has) select(idx); }
+            });
+            navs[i].setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    select(idx);
+                    View f = firstFocusable(pages[idx]);
+                    if (f != null) f.requestFocus();
+                }
+            });
+            LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            nlp.topMargin = dp(4);
+            side.addView(navs[i], nlp);
+        }
+        self.aboutDot = navs[4].dot;
+        side.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
+        applyBtn = Ui.button(this, "应用", true);
+        applyBtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) { applier.confirmApply(); }
+        });
+        side.addView(applyBtn, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        Button reboot = Ui.button(this, "重启电视", false);
+        reboot.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { confirmReboot(); }
         });
-        header.addView(power, new LinearLayout.LayoutParams(dp(40), dp(40)));
-        root.addView(header);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        rlp.topMargin = dp(6);
+        side.addView(reboot, rlp);
 
+        // 右侧：更新提示条 + 当前页
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(24), dp(16), dp(24), dp(4));
+        root.addView(content, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
         updateBar = newBar(new View.OnClickListener() {
             public void onClick(View v) { modUp.confirmUpdate(); }
         });
         updateText = (TextView) updateBar.getChildAt(0);
-        root.addView(updateBar);
-
         aerial.aerialBar = newBar(new View.OnClickListener() {
             public void onClick(View v) { aerial.confirmAerialUpdate(); }
         });
         aerial.aerialBarText = (TextView) aerial.aerialBar.getChildAt(0);
-        root.addView(aerial.aerialBar);
+        for (View bar : new View[] { updateBar, aerial.aerialBar }) {
+            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            blp.bottomMargin = dp(6);
+            content.addView(bar, blp);
+        }
+        scroll = new ScrollView(this);
+        scroll.setClipToPadding(false);
+        content.addView(scroll, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
-        pageApps = new LinearLayout(this);
-        pageApps.setOrientation(LinearLayout.VERTICAL);
-        pageOpt = new LinearLayout(this);
-        pageOpt.setOrientation(LinearLayout.VERTICAL);
-        pageFix = new LinearLayout(this);
-        pageFix.setOrientation(LinearLayout.VERTICAL);
+        pages = new LinearLayout[] {
+            newPage("应用类", "禁用后随时可以恢复。"),
+            newPage("优化类", "LSPosed 模块安装后需在 LSPosed 中启用。改动重启后生效。"),
+            newPage("修复类", "改动重启后生效。"),
+            newPage("隐藏项", "以下是系统自带的页面，页面中的操作需注意。"),
+            newPage("关于", null),
+        };
 
-        pageHid = new LinearLayout(this);
-        pageHid.setOrientation(LinearLayout.VERTICAL);
-        hint(pageHid, "以下是系统自带的页面，页面中的操作需注意。");
         for (final Hidden h : HIDDEN) {
-            LinearLayout cell = new LinearLayout(this);
-            cell.setOrientation(LinearLayout.VERTICAL);
-            Button bt = new Button(this);
-            bt.setText(h.title);
-            bt.setTextSize(15);
-            bt.setAllCaps(false);
-            bt.setOnClickListener(new View.OnClickListener() {
+            ItemView item = new ItemView(this, true);
+            item.setInfo(h.title, h.desc, h.warn, null, ItemView.NEUTRAL);
+            item.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) { confirmHidden(h); }
             });
-            LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            blp.topMargin = dp(6);
-            cell.addView(bt, blp);
-            TextView d = new TextView(this);
-            d.setText(h.desc + (h.warn == null ? "" : "\n⚠ " + h.warn));
-            d.setTextSize(13);
-            d.setTextColor(Color.LTGRAY);
-            d.setPadding(dp(6), 0, dp(6), dp(2));
-            cell.addView(d);
-            addBoxTwoColumns(pageHid, cell);
+            addItem(pages[3], item);
         }
-        hint(pageApps, "勾选 = 禁用该组应用，取消勾选 = 恢复。禁用只是停用，随时可以恢复。");
-        hint(pageOpt, "勾选 = 启用，取消勾选 = 关闭。LSPosed 模块安装后需在 LSPosed 中启用。改动重启后生效。");
-        hint(pageFix, "勾选 = 启用，取消勾选 = 关闭。改动重启后生效。");
+        log = new TextView(this);
+        log.setTextSize(11);
+        log.setTextColor(Ui.SUB);
+        log.setPadding(dp(4), dp(10), 0, 0);
+        pages[3].addView(log);
 
-        for (Group g : GROUPS) {
-            CheckBox cb = new CheckBox(this);
-            cb.setTextSize(15);
-            cb.setTextColor(Color.WHITE);
-            cb.setPadding(dp(6), dp(6), dp(6), dp(6));
-            g.box = cb;
-            addBoxTwoColumns(g.kind == KIND_PKGS || g.kind == KIND_NOHOME ? pageApps : g.fix ? pageFix : pageOpt, cb);
+        for (final Group g : GROUPS) {
+            ItemView item = new ItemView(this, false);
+            item.setListener(new ItemView.Listener() {
+                public void onChange(boolean on) {
+                    if (g.kind == KIND_DB) updateNoHomeBox();
+                    updatePending();
+                }
+            });
+            g.box = item;
+            addItem(pages[g.kind == KIND_PKGS || g.kind == KIND_NOHOME ? 0 : g.fix ? 2 : 1], item);
         }
-        LinearLayout pageAbout = new LinearLayout(this);
-        pageAbout.setOrientation(LinearLayout.HORIZONTAL);
-        TextView about = new TextView(this);
+
+        LinearLayout about = card();
+        TextView aboutText = new TextView(this);
         String aboutHead = "小米电视团队是干嘛的？";
-        android.text.SpannableString aboutText = new android.text.SpannableString(aboutHead
+        android.text.SpannableString aboutSpan = new android.text.SpannableString(aboutHead
             + "\n项目作者：酷安@pkkka\n项目地址：github.com/" + GH_REPO
             + "\n有任何想法或建议，欢迎在项目地址的 Issue / Pull Request 中提交"
             + "\n贡献者：@Rin010、酷安@伏犬、@Filey-Aaron");
-        aboutText.setSpan(new android.text.style.RelativeSizeSpan(1.35f), 0, aboutHead.length(),
+        aboutSpan.setSpan(new android.text.style.RelativeSizeSpan(1.35f), 0, aboutHead.length(),
             android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        about.setText(aboutText);
-        about.setTextSize(16);
-        about.setTextColor(Color.WHITE);
-        about.setPadding(dp(6), dp(16), dp(6), dp(8));
-        pageAbout.addView(about, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        LinearLayout aboutRight = new LinearLayout(this);
-        aboutRight.setOrientation(LinearLayout.VERTICAL);
-        aboutRight.setGravity(Gravity.END);
-        aboutRight.setPadding(dp(16), dp(12), dp(6), 0);
-        pageAbout.addView(aboutRight, new LinearLayout.LayoutParams(
-            dp(260), LinearLayout.LayoutParams.WRAP_CONTENT));
+        aboutText.setText(aboutSpan);
+        aboutText.setTextSize(13);
+        aboutText.setTextColor(Ui.TEXT);
+        aboutText.setLineSpacing(0, 1.2f);
+        about.addView(aboutText);
+        addItem(pages[4], about);
+
+        LinearLayout verCard = card();
+        verCard.setOrientation(LinearLayout.HORIZONTAL);
+        verCard.setGravity(Gravity.CENTER_VERTICAL);
         self.selfStatus = new TextView(this);
-        self.selfStatus.setTextSize(15);
-        self.selfStatus.setTextColor(Color.LTGRAY);
-        self.selfStatus.setGravity(Gravity.END);
-        self.selfStatus.setPadding(dp(6), dp(4), dp(6), dp(8));
-        aboutRight.addView(self.selfStatus, new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        self.checkBtn = new Button(this);
-        self.checkBtn.setText("检查更新");
-        self.checkBtn.setTextSize(15);
-        self.checkBtn.setAllCaps(false);
+        self.selfStatus.setTextSize(13);
+        self.selfStatus.setTextColor(Ui.SUB);
+        verCard.addView(self.selfStatus, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        self.checkBtn = Ui.button(this, "检查更新", false);
+        self.checkBtn.setId(View.generateViewId());
         self.checkBtn.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) { self.onCheckButton(); }
         });
         FrameLayout btnWrap = new FrameLayout(this);
         btnWrap.addView(self.checkBtn, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-        self.btnDot = redDot();
-        // Material 主题的按钮有 elevation，会盖住后加的兄弟视图；红点要比按钮更高才画得出来。
+        self.btnDot = Ui.dot(this);
         btnWrap.setPadding(0, dp(6), dp(6), 0);
         btnWrap.setClipChildren(false);
         btnWrap.setClipToPadding(false);
-        FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.TOP | Gravity.END);
-        self.btnDot.setElevation(dp(12));
-        btnWrap.addView(self.btnDot, dlp);
-        aboutRight.addView(btnWrap, new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        final TabHost host = new TabHost(this, null);
-        LinearLayout hostBody = new LinearLayout(this);
-        hostBody.setOrientation(LinearLayout.VERTICAL);
-        TabWidget widget = new TabWidget(this);
-        widget.setId(android.R.id.tabs);
-        FrameLayout content = new FrameLayout(this);
-        content.setId(android.R.id.tabcontent);
-        hostBody.addView(widget, new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        hostBody.addView(content, new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        host.addView(hostBody, new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-        host.setup();
-        host.addTab(host.newTabSpec("apps").setIndicator("应用类").setContent(new TabHost.TabContentFactory() {
-            public View createTabContent(String tag) { return pageApps; }
-        }));
-        host.addTab(host.newTabSpec("opt").setIndicator("优化类").setContent(new TabHost.TabContentFactory() {
-            public View createTabContent(String tag) { return pageOpt; }
-        }));
-        host.addTab(host.newTabSpec("fix").setIndicator("修复类").setContent(new TabHost.TabContentFactory() {
-            public View createTabContent(String tag) { return pageFix; }
-        }));
-        host.addTab(host.newTabSpec("hid").setIndicator("隐藏项").setContent(new TabHost.TabContentFactory() {
-            public View createTabContent(String tag) { return pageHid; }
-        }));
-        LinearLayout aboutTab = new LinearLayout(this);
-        aboutTab.setOrientation(LinearLayout.HORIZONTAL);
-        aboutTab.setGravity(Gravity.CENTER);
-        TextView aboutTitle = new TextView(this);
-        aboutTitle.setId(android.R.id.title);
-        aboutTitle.setText("关于");
-        aboutTitle.setTextColor(Color.WHITE);
-        aboutTab.addView(aboutTitle);
-        self.aboutDot = redDot();
-        self.aboutDot.setVisibility(View.GONE);
-        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(dp(8), dp(8));
-        tlp.leftMargin = dp(3);
-        tlp.bottomMargin = dp(10);
-        aboutTab.addView(self.aboutDot, tlp);
-        host.addTab(host.newTabSpec("about").setIndicator(aboutTab).setContent(new TabHost.TabContentFactory() {
-            public View createTabContent(String tag) { return pageAbout; }
-        }));
-        // 自定义指示器不带系统的选中/焦点背景，照着前面几个标签复制一份，遥控器高亮才会显示。
-        View firstTab = widget.getChildTabViewAt(0);
-        View lastTab = widget.getChildTabViewAt(widget.getTabCount() - 1);
-        if (firstTab.getBackground() != null && firstTab.getBackground().getConstantState() != null) {
-            lastTab.setBackgroundDrawable(firstTab.getBackground().getConstantState().newDrawable());
+        btnWrap.addView(self.btnDot, new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.TOP | Gravity.END));
+        verCard.addView(btnWrap);
+        addItem(pages[4], verCard);
+
+        for (int i = 0; i < pages.length; i++) {
+            View first = firstFocusable(pages[i]);
+            if (first != null) navs[i].setNextFocusRightId(first.getId());
+            wireLeft(pages[i], navs[i].getId());
         }
-        lastTab.setFocusable(true);
-        for (int i = 0; i < widget.getTabCount(); i++) {
-            View tv = widget.getChildTabViewAt(i).findViewById(android.R.id.title);
-            if (tv instanceof TextView) ((TextView) tv).setTextSize(16);
-            widget.getChildTabViewAt(i).setPadding(dp(16), dp(6), dp(16), dp(6));
-        }
-        LinearLayout.LayoutParams hostLp = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        hostLp.topMargin = dp(6);
-        root.addView(host, hostLp);
-        groupOfKind(KIND_DB).box.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            public void onCheckedChanged(CompoundButton v, boolean on) {
-                updateNoHomeBox();
-            }
-        });
 
-        final LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(0, dp(8), 0, dp(4));
-        Button apply = new Button(this);
-        apply.setText("应用");
-        apply.setTextSize(15);
-        apply.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) { applier.confirmApply(); }
-        });
-        bar.addView(apply);
-        root.addView(bar);
-        host.setOnTabChangedListener(new TabHost.OnTabChangeListener() {
-            public void onTabChanged(String tag) {
-                bar.setVisibility("about".equals(tag) || "hid".equals(tag) ? View.GONE : View.VISIBLE);
-            }
-        });
-
-        log = new TextView(this);
-        log.setTextSize(12);
-        log.setTextColor(Color.LTGRAY);
-        root.addView(log);
-
-        setContentView(sv);
+        setContentView(root);
+        select(0);
+        navs[0].requestFocus();
         showLoading();
         refresh();
         self.checkSelfUpdate(false);
         aerial.checkAerialUpdate();
     }
 
-    AlertDialog loadingDlg;
+    Dlg loadingDlg;
 
     /** 首次读取模块状态要走 root，可能要几秒（还会弹 Magisk 授权），读完前挡一个加载提示。 */
     void showLoading() {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(24), dp(20), dp(24), dp(20));
+        row.setPadding(0, dp(8), 0, dp(8));
         android.widget.ProgressBar pb = new android.widget.ProgressBar(this);
+        pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
         row.addView(pb, new LinearLayout.LayoutParams(dp(40), dp(40)));
         TextView t = new TextView(this);
         t.setText("正在加载模块状态中……");
-        t.setTextSize(16);
+        t.setTextSize(14);
+        t.setTextColor(Ui.TEXT);
         t.setPadding(dp(16), 0, 0, 0);
         row.addView(t);
-        loadingDlg = new AlertDialog.Builder(this).setView(row).create();
+        loadingDlg = new Dlg.Builder(this).setView(row).create();
         loadingDlg.show();
     }
 
@@ -375,38 +405,6 @@ public class MainActivity extends Activity {
         if (loadingDlg == null) return;
         try { loadingDlg.dismiss(); } catch (Exception e) { /* 窗口已不在 */ }
         loadingDlg = null;
-    }
-
-    LinearLayout pageApps, pageOpt, pageFix, pageHid;
-
-    /** 每页的条目两个一行；奇数个时最后一行右边用占位撑住，保持左列宽度一致。 */
-    void addBoxTwoColumns(LinearLayout page, View cb) {
-        LinearLayout row = openRows.get(page);
-        if (row == null) {
-            row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            page.addView(row, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-            row.addView(cb, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-            row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
-            openRows.put(page, row);
-        } else {
-            row.removeViewAt(1);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-            lp.leftMargin = dp(8);
-            row.addView(cb, lp);
-            openRows.remove(page);
-        }
-    }
-
-    View redDot() {
-        View v = new View(this);
-        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
-        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        g.setColor(0xFFF44336);
-        v.setBackgroundDrawable(g);
-        v.setVisibility(View.GONE);
-        return v;
     }
 
     int dp(int v) {
@@ -474,8 +472,9 @@ public class MainActivity extends Activity {
         Group nh = groupOfKind(KIND_NOHOME);
         boolean alreadyOff = state(STOCK_HOME_PKG) == DISABLED;
         boolean allowed = noHomeReady() && groupOfKind(KIND_DB).box.isChecked();
-        nh.box.setEnabled(allowed || alreadyOff);
+        nh.box.setLocked(!allowed && !alreadyOff);
         if (!allowed && !alreadyOff) nh.box.setChecked(false);
+        updatePending();
     }
 
     boolean modInstalled(Group g) {
@@ -608,26 +607,28 @@ public class MainActivity extends Activity {
     void render() {
         java.util.LinkedHashMap<Group, String[]> ups = modUp.pendingUpdates();
         for (Group g : GROUPS) {
-            StringBuilder sb = new StringBuilder(g.title).append("\n").append(g.desc);
-            if (g.warn != null) sb.append("\n⚠ ").append(g.warn);
+            String t;
+            int lv = ItemView.NEUTRAL;
             if (g.kind == KIND_DB) {
                 int st = dbState();
-                String t = st == DB_ACTIVE ? "当前：已是默认桌面"
+                t = st == DB_ACTIVE ? "当前：已是默认桌面"
                     : st == DB_SYSTEM ? "当前：已安装，尚未设为默认桌面（请再次点击“应用”）"
                     : st == DB_PENDING ? "当前：已安装，重启电视后生效"
                     : st == DB_REMOVING ? "当前：已移除，重启电视后 Aerial 消失"
                     : st == DB_USERAPP ? "当前：已装成普通应用，不能设为默认桌面（勾选并应用后可改正）"
                     : "当前：未安装";
+                lv = st == DB_ACTIVE ? ItemView.GOOD : st == DB_NONE ? ItemView.NEUTRAL : ItemView.WARN;
                 String av = aerial.aerialVersion();
                 if (av != null && aerial.aerialInstalledOk()) t += "\n版本：" + av;
-                sb.append("\n").append(t);
-                g.box.setText(sb.toString());
                 g.box.setChecked(st == DB_ACTIVE || st == DB_SYSTEM || st == DB_PENDING);
             } else if (g.kind == KIND_NOHOME) {
                 boolean off = state(STOCK_HOME_PKG) == DISABLED;
-                sb.append("\n").append(off ? "当前：已禁用" : "当前：启用中");
-                if (!noHomeReady() && !off) sb.append("（需要先安装 Aerial 桌面并设为默认桌面，且安装 HomeRef）");
-                g.box.setText(sb.toString());
+                t = off ? "当前：已禁用" : "当前：启用中";
+                lv = off ? ItemView.GOOD : ItemView.NEUTRAL;
+                if (!noHomeReady() && !off) {
+                    t += "（需要先安装 Aerial 桌面并设为默认桌面，且安装 HomeRef）";
+                    lv = ItemView.WARN;
+                }
                 g.box.setChecked(off);
             } else if (g.kind == KIND_APK) {
                 boolean inst = state(g.pkgs[0]) != MISSING;
@@ -640,51 +641,55 @@ public class MainActivity extends Activity {
                         // 读不到版本就不显示
                     }
                 }
-                sb.append("\n").append(inst ? "当前：已安装" + apkVer : "当前：未安装");
-                if (ups.containsKey(g)) sb.append("\n⬆ 有新版本：").append(ups.get(g)[0]).append(" → ").append(ups.get(g)[1]);
-                if (inst) sb.append("\n").append(ls.lsActual(g.pkgs[0]));
-                g.box.setText(sb.toString());
+                t = inst ? "当前：已安装" + apkVer : "当前：未安装";
+                if (ups.containsKey(g)) t += "\n⬆ 有新版本：" + ups.get(g)[0] + " → " + ups.get(g)[1];
+                if (inst) {
+                    String act = ls.lsActual(g.pkgs[0]);
+                    t += "\n" + act;
+                    lv = act.startsWith("实际：已在") && !act.contains("缺") ? ItemView.GOOD : ItemView.WARN;
+                }
                 g.box.setChecked(inst);
             } else if (g.kind == KIND_MOD) {
-                String t;
                 if (modPresent == null) {
                     t = "当前：正在读取状态（需要 root 授权）";
                 } else if (modPresent.contains(g.modId) && modRemoving.contains(g.modId)) {
                     t = "当前：已关闭，重启后生效（再勾选可取消）";
+                    lv = ItemView.WARN;
                 } else if (modPresent.contains(g.modId)) {
                     boolean pend = modPending != null && modPending.contains(g.modId);
                     String[] iv = modVer.get(g.modId);
-                    String act = modDisabled.contains(g.modId) ? "实际：在 Magisk 中被停用，未生效"
-                        : modActive.contains(g.modId) ? "实际：已生效" : "实际：未生效（需重启）";
+                    boolean off = modDisabled.contains(g.modId), on = modActive.contains(g.modId);
+                    String act = off ? "实际：在 Magisk 中被停用，未生效"
+                        : on ? "实际：已生效" : "实际：未生效（需重启）";
                     t = pend ? "当前：已安装，重启后生效" : "当前：已安装" + (iv == null ? "" : " " + iv[1]) + "\n" + act;
+                    lv = pend || off || !on ? ItemView.WARN : ItemView.GOOD;
                     if (ups.containsKey(g)) t += "\n⬆ 有新版本：" + ups.get(g)[0] + " → " + ups.get(g)[1];
                 } else {
                     t = "当前：未安装";
                 }
-                sb.append("\n").append(t);
-                g.box.setText(sb.toString());
                 g.box.setChecked(modInstalled(g));
-                g.box.setEnabled(modPresent != null);
+                g.box.setLocked(modPresent == null);
             } else {
                 int dis = 0, en = 0, miss = 0;
                 for (String p : g.pkgs) {
                     int s = state(p);
                     if (s == DISABLED) dis++; else if (s == ENABLED) en++; else miss++;
                 }
-                String st = dis == 0 ? "当前：启用中" : (en == 0 ? "当前：已禁用" : "当前：部分已禁用");
-                if (miss > 0 && dis == 0 && en == 0) st = "当前：本机没有这些应用";
-                sb.append("\n").append(st);
-                g.box.setText(sb.toString());
+                t = dis == 0 ? "当前：启用中" : (en == 0 ? "当前：已禁用" : "当前：部分已禁用");
+                if (miss > 0 && dis == 0 && en == 0) t = "当前：本机没有这些应用";
+                lv = dis > 0 && en == 0 ? ItemView.GOOD : dis > 0 ? ItemView.WARN : ItemView.NEUTRAL;
                 g.shown = dis > 0 && en == 0;
                 g.box.setChecked(g.shown);
             }
+            g.box.setInfo(g.title, g.desc, g.warn, t, lv);
+            g.box.markBase();
         }
         updateNoHomeBox();
         aerial.updateAerialUi();
     }
 
     void confirmReboot() {
-        new AlertDialog.Builder(this)
+        new Dlg.Builder(this)
             .setTitle("重启电视")
             .setMessage("确定要现在重启电视吗？")
             .setPositiveButton("重启", new DialogInterface.OnClickListener() {
@@ -707,7 +712,7 @@ public class MainActivity extends Activity {
 
     void showResult(String title, String text) {
         if (isFinishing()) return;
-        new AlertDialog.Builder(this)
+        new Dlg.Builder(this)
             .setTitle(title)
             .setView(scrollText(text))
             .setPositiveButton("确定", null)
@@ -717,8 +722,9 @@ public class MainActivity extends Activity {
     ScrollView scrollText(String text) {
         TextView tv = new TextView(this);
         tv.setText(text);
-        tv.setTextSize(14);
-        tv.setPadding(dp(24), dp(12), dp(24), dp(12));
+        tv.setTextSize(13);
+        tv.setTextColor(Ui.TEXT);
+        tv.setLineSpacing(0, 1.2f);
         ScrollView sv = new ScrollView(this);
         sv.setFocusable(true);
         sv.addView(tv);
