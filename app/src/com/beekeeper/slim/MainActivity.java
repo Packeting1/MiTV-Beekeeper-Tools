@@ -198,7 +198,7 @@ public class MainActivity extends Activity {
             addBoxTwoColumns(pageHid, cell);
         }
         hint(pageApps, "勾选 = 禁用该组应用，取消勾选 = 恢复。禁用只是停用，随时可以恢复。");
-        hint(pageOpt, "勾选 = 启用，取消勾选 = 关闭。LSPosed 模块安装后需要在 LSPosed 里启用。改动重启后生效。");
+        hint(pageOpt, "勾选 = 启用，取消勾选 = 关闭。LSPosed 模块安装后需在 LSPosed 中启用。改动重启后生效。");
         hint(pageFix, "勾选 = 启用，取消勾选 = 关闭。改动重启后生效。");
 
         for (Group g : GROUPS) {
@@ -613,7 +613,7 @@ public class MainActivity extends Activity {
             if (g.kind == KIND_DB) {
                 int st = dbState();
                 String t = st == DB_ACTIVE ? "当前：已是默认桌面"
-                    : st == DB_SYSTEM ? "当前：已安装，还没设为默认桌面（再点一次“应用”）"
+                    : st == DB_SYSTEM ? "当前：已安装，尚未设为默认桌面（请再次点击“应用”）"
                     : st == DB_PENDING ? "当前：已安装，重启电视后生效"
                     : st == DB_REMOVING ? "当前：已移除，重启电视后 Aerial 消失"
                     : st == DB_USERAPP ? "当前：已装成普通应用，不能设为默认桌面（勾选并应用后可改正）"
@@ -654,7 +654,7 @@ public class MainActivity extends Activity {
                 } else if (modPresent.contains(g.modId)) {
                     boolean pend = modPending != null && modPending.contains(g.modId);
                     String[] iv = modVer.get(g.modId);
-                    String act = modDisabled.contains(g.modId) ? "实际：在 Magisk 里被停用，没有生效"
+                    String act = modDisabled.contains(g.modId) ? "实际：在 Magisk 中被停用，未生效"
                         : modActive.contains(g.modId) ? "实际：已生效" : "实际：未生效（需重启）";
                     t = pend ? "当前：已安装，重启后生效" : "当前：已安装" + (iv == null ? "" : " " + iv[1]) + "\n" + act;
                     if (ups.containsKey(g)) t += "\n⬆ 有新版本：" + ups.get(g)[0] + " → " + ups.get(g)[1];

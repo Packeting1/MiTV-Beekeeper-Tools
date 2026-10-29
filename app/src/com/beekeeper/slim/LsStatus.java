@@ -69,8 +69,8 @@ final class LsStatus extends Part {
         if (lsEnabled == null) return "实际：未能读取 LSPosed 的配置";
         Boolean e = lsEnabled.get(pkg);
         if (e == null) return "实际：LSPosed 未登记此模块";
-        if (!e) return "实际：模块未在 LSPosed 里启用";
-        if (!lsServer) return "实际：LSPosed 已运行，但未注入系统，重启再试";
+        if (!e) return "实际：模块未在 LSPosed 中启用";
+        if (!lsServer) return "实际：LSPosed 已运行，但未注入系统，请重启后重试";
         String[] need = LS_SCOPES.get(pkg);
         if (need == null) return "实际：已在 LSPosed 启用";
         Set<String> have = lsScope == null ? null : lsScope.get(pkg);
