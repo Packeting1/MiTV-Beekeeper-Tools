@@ -133,6 +133,10 @@ final class Catalog {
                 "根据播放的媒体内容，显示 HDR10 / HLG / HDR Vivid / Dolby Vision / Technicolor 角标，以及 Dolby / DTS 系列音频角标。",
                 null,
                 "com.beekeeper.mediabadge", "apk_mediabadge.apk"),
+            new Group(KIND_MOD, "装饰灯 RGB（Magisk + LSPosed）",
+                "自定义颜色、DDP / sACN；原厂整灯控制，自定义 MCU 支持 24 颗独立控制。",
+                "需在 LSPosed 启用配套模块；MCU 刷写可能黑屏，卸载不会回滚固件。",
+                "io.github.rin.beekeeper.rgb").mod("beekeeper_rgb", "mod_rgb.zip"),
             new Group(KIND_MOD, "FreeSync 保持图像模式（Magisk模块）",
                 "开启 FreeSync，或杜比视界信号带有游戏标志时，不再自动切换到游戏模式。",
                 "风险：在信号切换或重载时画面可能出现异常；仅适用于 OS 3.0.109，系统升级后自动失效").mod("beekeeper_freesync_keep", "mod_freesynckeep.zip"),
@@ -196,6 +200,7 @@ final class Catalog {
     static final java.util.Map<String, String[]> LS_SCOPES = new java.util.HashMap<String, String[]>();
 
     static {
+        LS_SCOPES.put("io.github.rin.beekeeper.rgb", new String[] { "com.xiaomi.mitv.settings", "mitv.service" });
         LS_SCOPES.put("com.beekeeper.tvplayerkeep", new String[] {
             "com.xiaomi.mitv.tvplayer", "com.xiaomi.mitv.smartpanel", "com.xiaomi.mitv.settings" });
         LS_SCOPES.put("com.beekeeper.signalkeep", new String[] {

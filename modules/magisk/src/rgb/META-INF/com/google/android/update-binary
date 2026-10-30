@@ -1,0 +1,13 @@
+#!/sbin/sh
+#MAGISK
+umask 022
+OUTFD=$2
+ZIPFILE=$3
+export OUTFD ZIPFILE
+if [ ! -f /data/adb/magisk/util_functions.sh ]; then
+  echo "Magisk is required. Install from Magisk after Android has booted."
+  exit 1
+fi
+. /data/adb/magisk/util_functions.sh
+install_module
+exit 0

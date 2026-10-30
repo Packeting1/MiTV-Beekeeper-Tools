@@ -531,6 +531,7 @@ public class MainActivity extends Activity {
                 + "for z in $(pidof zygote64); do grep -qE 'zygisk_(lsposed|vector)' /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; done\n"
                 // 只有本模块会往这个路径 bind mount 补丁库
                 + "grep -q libmtkapp.so /proc/mounts && echo \"F:beekeeper_freesync_keep\"\n"
+                + "[ \"$(getprop sys.beekeeper_rgb.native)\" = 1 ] && [ \"$(getprop sys.beekeeper_rgb.effects)\" = 1 ] && echo \"F:beekeeper_rgb\"\n"
                 + "wait\n"
                 + "S=$(cat \"$CD/lsp_status\" 2>/dev/null); rc=$(cat \"$CD/lsp_rc\" 2>/dev/null); rm -f \"$CD/lsp_status\" \"$CD/lsp_rc\"\n"
                 + "[ \"$rc\" = 0 ] && echo \"L:run\"\n"
@@ -669,6 +670,13 @@ public class MainActivity extends Activity {
                 }
                 g.box.setChecked(modInstalled(g));
                 g.box.setLocked(modPresent == null);
+                // 带配套 APK 的 Magisk 模块同时显示 LSPosed 启用及作用域状态。
+                if (modInstalled(g) && g.pkgs.length > 0) {
+                    String companion = state(g.pkgs[0]) == MISSING ? "实际：配套 APK 未安装，请重新安装模块"
+                        : state(g.pkgs[0]) == DISABLED ? "实际：配套 APK 已停用" : ls.lsActual(g.pkgs[0]);
+                    t += "\n" + companion;
+                    if (!companion.equals("实际：已在 LSPosed 启用，作用域齐全")) lv = ItemView.WARN;
+                }
             } else {
                 int dis = 0, en = 0, miss = 0;
                 for (String p : g.pkgs) {

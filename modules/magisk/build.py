@@ -36,6 +36,7 @@ PLAIN = {
     'imax': 'Beekeeper_IMAX_v',
     'aisr_level': 'Beekeeper_AISR_Level_v',
     'volume_balance': 'Beekeeper_VolumeBalance_v',
+    'rgb': 'Beekeeper_RGB_v',
 }
 
 # 模块目录 -> 共用的 src/_shared 子目录

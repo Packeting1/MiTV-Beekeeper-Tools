@@ -1,0 +1,33 @@
+{
+  "original_sha256": "986aa78c1761d22142463183b69db729f40be10ba45485e9aca68e2d5972a992",
+  "patched_sha256": "5aac620745177370f59b0627e9b2f75dd95be2a4cf428d2658f8b5b7e44b4f11",
+  "file_offset": 67004,
+  "virtual_address": "0x105bc",
+  "original_hex": "1f2003d56164f95082ffffd042683e914607805287108052c0008052e303132ae4031f2a85018052330d0094a0000014",
+  "patched_hex": "7315c036687e1053e8130039687e0853e8170039f31b003908010090164943f9761400b47c0000141f2003d51f2003d5",
+  "assembly": "tbz w19, #24, 0x10868\nlsr w8, w19, #16\nstrb w8, [sp, #4]\nlsr w8, w19, #8\nstrb w8, [sp, #5]\nstrb w19, [sp, #6]\nadrp x8, 0x30000\nldr x22, [x8, #0x690]\ncbz x22, 0x10868\nb 0x107d0\nnop\nnop",
+  "additional_patches": [
+    {
+      "file_offset": 66944,
+      "virtual_address": "0x10580",
+      "original_hex": "1f2003d5",
+      "patched_hex": "0f000014",
+      "assembly": "b 0x105bc"
+    },
+    {
+      "file_offset": 66832,
+      "virtual_address": "0x10510",
+      "original_hex": "1f2003d5c169f95082fffff0",
+      "patched_hex": "9f36007180030054d4000014",
+      "assembly": "cmp w20, #13; b.eq 0x10584; b 0x10868"
+    },
+    {
+      "file_offset": 66948,
+      "virtual_address": "0x10584",
+      "original_hex": "4166f95082fffff042a41491c0008052e303132ae4031f2a85018052",
+      "patched_hex": "08010090084943f9e81600b4080d40f9a81600b400013fd6b4000014",
+      "assembly": "adrp x8, 0x30000; ldr x8, [x8, #0x690]; cbz x8, 0x10868; ldr x8, [x8, #0x18]; cbz x8, 0x10868; blr x8; b 0x1086c"
+    }
+  ],
+  "protocol": "modes 1 (steady) and 2 (breath), color=(0x01000000 | 24-bit RRGGBB); mode 13 stops the LED timer for network ownership. Valid preset paths and shared error epilogues remain untouched."
+}
