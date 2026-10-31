@@ -12,6 +12,9 @@ final class Group {
   /** 放在“修复类”页的 Magisk 模块。 */
   boolean fix;
 
+  /** 只适用于 Catalog.FIRMWARE：其它固件上未安装时不能勾选。 */
+  boolean fwOnly;
+
   ItemView box;
 
   /** render 时给勾选框设的状态；应用类只在用户改过勾选时才处理，避免“部分禁用”的组被一并恢复。 */
@@ -50,6 +53,11 @@ final class Group {
 
   Group fix() {
     this.fix = true;
+    return this;
+  }
+
+  Group fwOnly() {
+    this.fwOnly = true;
     return this;
   }
 

@@ -5,6 +5,9 @@ final class Catalog {
 
   private Catalog() {}
 
+  /** 固件相关的模块（fwOnly）只在这个版本上开放。 */
+  static final String FIRMWARE = "OS3.0.109.0.UFFMAMN";
+
   static final String DB_PKG = "app.orchard.tv";
 
   static final String DB_COMP = DB_PKG + "/app.orchard.tv.MainActivity";
@@ -143,7 +146,8 @@ final class Catalog {
               "FreeSync 保持图像模式（Magisk模块）",
               "开启 FreeSync，或杜比视界信号带有游戏标志时，不再自动切换到游戏模式。",
               "风险：在信号切换或重载时画面可能出现异常；仅适用于 OS 3.0.109，系统升级后自动失效")
-          .mod("beekeeper_freesync_keep", "mod_freesynckeep.zip"),
+          .mod("beekeeper_freesync_keep", "mod_freesynckeep.zip")
+          .fwOnly(),
       new Group(KIND_MOD, "ADB 常开（Magisk模块）", "开机后保持 ADB 开关与 5555 端口开启。", null)
           .mod("mitv_adb_keeper", "mod_adbkeeper.zip"),
       new Group(
@@ -154,10 +158,12 @@ final class Catalog {
           .mod("mitv_4kui_switch", "mod_4kui.zip"),
       new Group(KIND_MOD, "HGIG 修复（Magisk模块）", "修复 OS 3.0.109 中 HDR 色调映射的 HGIG 档位错位。", null)
           .mod("beekeeper_hgig_fix", "mod_hgig.zip")
-          .fix(),
+          .fix()
+          .fwOnly(),
       new Group(KIND_MOD, "LDM 局部调光修复（Magisk模块）", "调整 OS 3.0.109 的局部调光参数，减轻 HDR / 杜比视界过曝。", null)
           .mod("beekeeper_ldm_fix", "mod_ldm.zip")
-          .fix(),
+          .fix()
+          .fwOnly(),
       new Group(
               KIND_MOD,
               "Zygote64 修复（Magisk模块）",

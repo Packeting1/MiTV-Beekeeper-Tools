@@ -94,7 +94,18 @@ public class MainActivity extends Activity {
             modPresent == null || g.box.isChecked(), g.box.isChecked() ? "需先取消依赖它的模块" : null);
       }
     }
+    for (Group g : GROUPS) {
+      if (fwMismatch(g) && !modInstalled(g)) {
+        g.box.setChecked(false);
+        g.box.setLocked(true, "仅适用于 " + FIRMWARE + "，当前固件为 " + Build.VERSION.INCREMENTAL);
+      }
+    }
     updatePending();
+  }
+
+  /** 固件相关的模块在其它固件上：未安装的不能勾选，已安装的仍可取消。 */
+  boolean fwMismatch(Group g) {
+    return g.fwOnly && !FIRMWARE.equals(Build.VERSION.INCREMENTAL);
   }
 
   void confirmEnable(final Group g) {
@@ -860,6 +871,10 @@ public class MainActivity extends Activity {
           if (ups.containsKey(g)) t += "\n⬆ 有新版本：" + ups.get(g)[0] + " → " + ups.get(g)[1];
         } else {
           t = "当前：未安装";
+        }
+        if (fwMismatch(g)) {
+          t += "\n固件不匹配：仅适用于 " + FIRMWARE + "，当前为 " + Build.VERSION.INCREMENTAL;
+          lv = ItemView.WARN;
         }
         g.box.setChecked(modInstalled(g));
         g.box.setLocked(modPresent == null);
