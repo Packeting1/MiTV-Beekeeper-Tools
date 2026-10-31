@@ -99,7 +99,7 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | FreeSync Keep Mode | 开启 FreeSync，或杜比视界信号带有游戏标志时，不再自动切换到游戏模式 |
 | 装饰灯 RGB | 自定义颜色、DDP / sACN；原厂整灯控制，自定义 MCU 支持 24 颗独立控制，内置配套 LSPosed APK |
 
-装饰灯 RGB 安装后，在 LSPosed 启用配套模块 RgbLight 并勾选 `com.xiaomi.mitv.settings`、`mitv.service`。入口为系统设置中的「炫彩灯」。普通安装不刷写 MCU；MCU 刷写可能导致黑屏，卸载不会回滚固件。详见 [模块说明](docs/rgb/README.md)。
+装饰灯 RGB 安装后，在 LSPosed 启用配套模块 RgbLight 并勾选 `com.xiaomi.mitv.settings`、`mitv.service`。入口为系统设置中的「炫彩灯」。普通安装不刷写 MCU；MCU 刷写可能导致黑屏，卸载不会回滚固件。详见 [模块说明](modules/lsposed/src/rgb-light/README.md)。
 
 ### LSPosed 模块
 
@@ -152,7 +152,7 @@ python app\build.py
 
 - `XPOSED_API` 为 [libxposed API 101](https://github.com/libxposed/api)，可从 Maven Central 获取。
 - LSPosed 模块输出到 `modules/lsposed/dist/`。Magisk 模块从 `modules/magisk/src/` 打包为 `modules/magisk/dist/` 中的 zip，版本号见各模块的 `module.prop`。应用构建时从这两个 `dist` 目录取用，输出到 `dist/`。
-- 装饰灯 RGB 的 APK 为 LSPosed 模块 `rgb-light`，复制到 `modules/magisk/src/rgb/app/RgbLight.apk` 后再打包 Magisk 模块；其中的预编译原生程序的生成方法见 [说明](docs/rgb/README.md)。
+- 装饰灯 RGB 的 APK 为 LSPosed 模块 `rgb-light`，复制到 `modules/magisk/src/rgb/app/RgbLight.apk` 后再打包 Magisk 模块；其中的预编译原生程序的生成方法见 [说明](modules/lsposed/src/rgb-light/README.md)。
 - 内置的 Aerial APK（[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT）若在 `app/bundled/aerial.apk` 不存在，构建时会自动下载最新 Release，并按 GitHub 提供的 SHA-256 校验。
 - 使用自己的签名时替换 `KEYSTORE`。签名不同的应用无法覆盖安装。
 
