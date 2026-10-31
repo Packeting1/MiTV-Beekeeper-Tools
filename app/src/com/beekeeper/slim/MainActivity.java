@@ -675,7 +675,7 @@ public class MainActivity extends Activity {
                     String companion = state(g.pkgs[0]) == MISSING ? "实际：配套 APK 未安装，请重新安装模块"
                         : state(g.pkgs[0]) == DISABLED ? "实际：配套 APK 已停用" : ls.lsActual(g.pkgs[0]);
                     t += "\n" + companion;
-                    if (!companion.equals("实际：已在 LSPosed 启用，作用域齐全")) lv = ItemView.WARN;
+                    if (!companion.startsWith("实际：已在") || companion.contains("缺")) lv = ItemView.WARN;
                 }
             } else {
                 int dis = 0, en = 0, miss = 0;

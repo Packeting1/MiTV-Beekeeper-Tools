@@ -1,6 +1,0 @@
-<resources>
-    <string-array name="xposed_scope">
-        <item>com.xiaomi.mitv.settings</item>
-        <item>mitv.service</item>
-    </string-array>
-</resources>

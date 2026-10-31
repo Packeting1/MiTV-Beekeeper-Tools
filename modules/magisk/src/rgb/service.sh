@@ -37,7 +37,7 @@ if [ "$disk_inode" = "$mapped_inode" ]; then
     if [ -n "$net_pid" ] && [ -r "/proc/$net_pid/cmdline" ] && tr '\000' ' ' < "/proc/$net_pid/cmdline" | grep -q beekeeper-rgb-network; then
         exit 0
     fi
-    export CLASSPATH="$MODDIR/app/BeekeeperRGB.apk:/vendor/framework/com.mitv.mtvapiclientwrapper.jar:/system/framework/android.hidl.base-V1.0-java.jar:/system/framework/android.hidl.manager-V1.0-java.jar"
-    nohup /system/bin/app_process /system/bin --nice-name=beekeeper-rgb-network io.github.rin.beekeeper.rgb.NetworkDaemon "$MODDIR/bin/om2-pixel-writer" > /data/local/tmp/beekeeper-rgb-network.log 2>&1 &
+    export CLASSPATH="$MODDIR/app/RgbLight.apk:/vendor/framework/com.mitv.mtvapiclientwrapper.jar:/system/framework/android.hidl.base-V1.0-java.jar:/system/framework/android.hidl.manager-V1.0-java.jar"
+    nohup /system/bin/app_process /system/bin --nice-name=beekeeper-rgb-network com.beekeeper.rgblight.NetworkDaemon "$MODDIR/bin/om2-pixel-writer" > /data/local/tmp/beekeeper-rgb-network.log 2>&1 &
     echo $! > /data/local/tmp/beekeeper-rgb-network.pid
 fi

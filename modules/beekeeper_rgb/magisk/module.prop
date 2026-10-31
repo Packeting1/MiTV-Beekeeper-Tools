@@ -1,6 +1,0 @@
-id=beekeeper_rgb
-name=装饰灯自定义颜色
-version=1.4.1
-versionCode=11
-author=Rin010
-description=自定义颜色、E1.31/DDP 原厂单灯/自定义 24 灯珠接收与 MCU 刷写管理。严格限定 beekeeper OS3.0.109.0，需配套 LSPosed 模块。

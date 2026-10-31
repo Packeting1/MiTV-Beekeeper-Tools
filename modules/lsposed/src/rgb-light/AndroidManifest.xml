@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.beekeeper.rgblight"
+    android:versionCode="20261031"
+    android:versionName="2026.10.31">
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <application
+        android:label="RgbLight"
+        android:allowBackup="false" />
+</manifest>

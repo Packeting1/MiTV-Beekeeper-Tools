@@ -6,3 +6,4 @@ app/bundled/aerial.apk
 *.idsig
 *.p12
 *.pfx
+modules/magisk/src/_shared/rgb_native/build/

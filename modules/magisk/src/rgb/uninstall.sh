@@ -4,4 +4,4 @@ setprop sys.beekeeper_rgb.effects 0
 setprop sys.beekeeper_rgb.network 0
 settings put global beekeeper_net_enabled 0
 settings put global beekeeper_rgb_enabled 0
-pm uninstall --user 0 io.github.rin.beekeeper.rgb
+pm uninstall --user 0 com.beekeeper.rgblight

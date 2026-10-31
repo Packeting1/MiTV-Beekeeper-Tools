@@ -1,0 +1,41 @@
+# 网络灯控
+
+打开系统装饰灯设置中的“网络灯控”。页面根据受保护的固件安装记录显示灯珠数量：原厂 MCU 为 1，自定义 MCU 为 24。安装记录不是每次读取 MCU 闪存得到的识别结果。
+
+| 协议 | 端口 | 映射 |
+| --- | --- | --- |
+| DDP | UDP 4048 | RGB24，目标 ID 1；偏移 0 对应第一颗灯珠 |
+| E1.31 / sACN | UDP 5568 | 零起始码；所选 Universe 与起始通道中的连续 RGB 数据 |
+
+默认 Universe 1、起始通道 1。单灯模式占 3 通道，起始通道范围 1–510；24 灯珠模式占 72 通道，起始通道范围 1–441。
+
+## OpenRGB
+
+添加 DDP 设备，填写设置页显示的设备 IP，端口 4048。原厂 MCU 配置 1 LED，自定义 MCU 配置 24 LEDs；保活可设为 1000 ms。
+
+兼容 DDP RGB 数据类型 0、1、0x0B。对同一来源、相同非零序号、偏移 0、覆盖当前灯珠范围且对应 RGB 完全相同的 PUSH 包接受保活，避免静态颜色超时。变化的旧序号数据仍被过滤。
+
+原厂兼容模式也能接收 24 LED 的 DDP 数据，但只使用第一组 RGB 控制整条灯。
+
+## 接管与恢复
+
+收到有效数据后暂停原厂灯效定时器，关闭旧驱动发送，由 root 专用进程写入 I2C。原厂模式仅允许六字节 `81 01 R G B XOR`；自定义模式仅允许 75 字节 `81 0C RGB×24 XOR`。两种网络输出程序都不接受 MCU 升级命令。
+
+输出最多约 24 帧/秒，合并中间帧。DDP 按偏移拼接并在 PUSH 时提交；sACN 按 CID、序号和优先级筛选。约 3 秒无有效数据后恢复本地颜色和光效。手动修改颜色、光效、屏幕同色或灯光开关会退出网络接管。
+
+未完成的 MCU 刷写记录会暂停网络输出，需检查恢复记录后处理。
+
+## 测试发送工具
+
+`DEVICE_IP` 替换为设置页显示的实际地址。此工具会改变灯光，测试前请准备观察，完成后停止发送以验证本地光效恢复。
+
+```text
+python modules/magisk/src/_shared/rgb_native/send_frame.py DEVICE_IP --count 1 --protocol ddp --colors 66FFCC --seconds 10
+python modules/magisk/src/_shared/rgb_native/send_frame.py DEVICE_IP --count 24 --protocol sacn --universe 1 --channel 1 --colors FF00FF,00FFFF,FFFF00 --seconds 10
+```
+
+## 限制
+
+建议使用单播；虽然服务订阅 sACN 组播，跨设备组播在测试网络中未验证通过。未实现 sACN 多源 HTP、同步／发现、非零起始码、DDP 查询或 RGBW。未完成重启恢复及断电故障注入验证。
+
+UDP 接收没有身份认证。仅在可信局域网内使用，不要向公网转发端口。
