@@ -25,6 +25,7 @@ final class ItemView extends LinearLayout {
     private final TextView title, desc, warn, status, pending;
     private final Toggle toggle;
     private boolean checked, base, locked;
+    private String lockedMsg = "当前不可修改";
     private Listener listener;
 
     ItemView(Context c, boolean action) {
@@ -98,7 +99,7 @@ final class ItemView extends LinearLayout {
 
     private void flip() {
         if (locked) {
-            Toast.makeText(getContext(), "当前不可修改", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), lockedMsg, Toast.LENGTH_SHORT).show();
             return;
         }
         setChecked(!checked);
@@ -123,6 +124,12 @@ final class ItemView extends LinearLayout {
     }
 
     boolean changed() { return toggle != null && checked != base; }
+
+    /** 锁定时点击给出的提示；msg 为 null 用默认文字。 */
+    void setLocked(boolean on, String msg) {
+        lockedMsg = msg == null ? "当前不可修改" : msg;
+        setLocked(on);
+    }
 
     void setLocked(boolean on) {
         locked = on;

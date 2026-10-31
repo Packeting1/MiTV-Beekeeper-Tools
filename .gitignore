@@ -6,3 +6,4 @@ app/bundled/aerial.apk
 *.idsig
 *.p12
 *.pfx
+*.pyc

@@ -60,6 +60,7 @@ MODS = {  # asset suffix -> module zip glob
     'hdr10plus': 'Beekeeper_HDR10Plus_*.zip', 'imax': 'Beekeeper_IMAX_*.zip',
     'aisr': 'Beekeeper_AISR_Level_*.zip', 'volbalance': 'Beekeeper_VolumeBalance_*.zip',
     'dvedid': 'Beekeeper_LLDV_*.zip', 'dpaudio': 'Beekeeper_DPAudio_*.zip', 'freesynckeep': 'Beekeeper_FreeSyncKeep_*.zip',
+    'decorative_light': 'Beekeeper_DecorativeLight_v*.zip',
 }
 aerial = ROOT / 'bundled' / 'aerial.apk'
 AERIAL_REPO = 'pengchujin/aerial-tv'

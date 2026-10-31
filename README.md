@@ -18,7 +18,7 @@
 
 </div>
 
-> 修改系统存在风险，请在充分了解的前提下使用，后果自行承担。所有模块均可在应用内取消勾选并重启后还原。
+> 修改系统存在风险，请在充分了解的前提下使用，后果自行承担。取消勾选并重启可移除 Android 模块；已经刷入的 MCU 固件需单独刷回原版。
 
 <div align="center">
 <img src="docs/screenshots/apps.png" width="49%" alt="应用类"> <img src="docs/screenshots/opt.png" width="49%" alt="优化类">
@@ -97,6 +97,7 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | Support LLDV | 声明支持低延迟杜比视界（LLDV），使 Windows 能够识别杜比视界 |
 | Support DP Audio | 使 DP 输入声明与 HDMI 相同的音频格式，支持通过 DP 输出比特流 |
 | FreeSync Keep Mode | 开启 FreeSync，或杜比视界信号带有游戏标志时，不再自动切换到游戏模式 |
+| [Decorative Light](modules/lsposed/src/decorative-light/README.md) | 自定义装饰灯颜色，支持通过 DDP / sACN（如 OpenRGB）网络控制灯光；可选刷入自定义 MCU 固件，让 24 颗灯珠独立控制 |
 
 ### LSPosed 模块
 
@@ -148,7 +149,7 @@ python app\build.py
 ```
 
 - `XPOSED_API` 为 [libxposed API 101](https://github.com/libxposed/api)，可从 Maven Central 获取。
-- LSPosed 模块输出到 `modules/lsposed/dist/`。Magisk 模块为纯脚本（仅需 Python），从 `modules/magisk/src/` 打包为 `modules/magisk/dist/` 中的 zip，版本号见各模块的 `module.prop`。应用构建时从这两个 `dist` 目录取用，输出到 `dist/`。
+- LSPosed 模块输出到 `modules/lsposed/dist/`。Magisk 模块从 `modules/magisk/src/` 打包为 `modules/magisk/dist/` 中的 zip，版本号见各模块的 `module.prop`。应用构建时从这两个 `dist` 目录取用，输出到 `dist/`。
 - 内置的 Aerial APK（[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT）若在 `app/bundled/aerial.apk` 不存在，构建时会自动下载最新 Release，并按 GitHub 提供的 SHA-256 校验。
 - 使用自己的签名时替换 `KEYSTORE`。签名不同的应用无法覆盖安装。
 
@@ -160,4 +161,4 @@ python app\build.py
 
 - [Aerial](https://github.com/pengchujin/aerial-tv)（MIT）：随应用附带的桌面
 - [Magisk](https://github.com/topjohnwu/Magisk)、[LSPosed](https://github.com/LSPosed/LSPosed)、[Zygisk Next](https://github.com/Dr-TSNG/ZygiskNext)
-- 贡献者：[@Rin010](https://github.com/Rin010)（NoSignalAudioMode）、[@Filey-Aaron](https://github.com/Filey-Aaron)（MediaBadge）、酷安 @伏犬（ADB Keeper、4K UI Switch）
+- 贡献者：[@Rin010](https://github.com/Rin010)（NoSignalAudioMode、Decorative Light）、[@Filey-Aaron](https://github.com/Filey-Aaron)（MediaBadge）、酷安 @伏犬（ADB Keeper、4K UI Switch）

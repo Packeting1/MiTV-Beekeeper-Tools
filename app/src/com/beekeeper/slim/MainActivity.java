@@ -66,6 +66,35 @@ public class MainActivity extends Activity {
             .show();
     }
 
+    /** 有依赖的模块：被依赖项没勾选时锁定且不能勾选（已装的仍可取消）；它勾选期间，被依赖项也锁定。 */
+    void updateDependents() {
+        for (Group g : GROUPS) {
+            if (g.requires == null) continue;
+            for (Group r : GROUPS) {
+                if (!g.requires.equals(r.modId)) continue;
+                boolean unmet = !r.box.isChecked() && !modInstalled(g);
+                g.box.setLocked(modPresent == null || unmet, unmet ? g.requiresMsg : null);
+                if (unmet) g.box.setChecked(false);
+                r.box.setLocked(modPresent == null || g.box.isChecked(), g.box.isChecked() ? "需先取消依赖它的模块" : null);
+            }
+        }
+        updatePending();
+    }
+
+    void confirmEnable(final Group g) {
+        new Dlg.Builder(this)
+            .setTitle(g.title)
+            .setMessage(g.confirm + "\n\n确定开启吗？")
+            .setPositiveButton("开启", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface d, int w) {
+                    g.box.setChecked(true);
+                    updateDependents();
+                }
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+
     TextView log;
 
 
@@ -318,8 +347,13 @@ public class MainActivity extends Activity {
             ItemView item = new ItemView(this, false);
             item.setListener(new ItemView.Listener() {
                 public void onChange(boolean on) {
+                    if (on && g.confirm != null) {
+                        g.box.setChecked(false);
+                        confirmEnable(g);
+                        return;
+                    }
                     if (g.kind == KIND_DB) updateNoHomeBox();
-                    updatePending();
+                    updateDependents();
                 }
             });
             g.box = item;
@@ -531,6 +565,7 @@ public class MainActivity extends Activity {
                 + "for z in $(pidof zygote64); do grep -qE 'zygisk_(lsposed|vector)' /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; done\n"
                 // 只有本模块会往这个路径 bind mount 补丁库
                 + "grep -q libmtkapp.so /proc/mounts && echo \"F:beekeeper_freesync_keep\"\n"
+                + "[ \"$(getprop sys.beekeeper_rgb.native)\" = 1 ] && echo \"F:beekeeper_decorative_light\"\n"
                 + "wait\n"
                 + "S=$(cat \"$CD/lsp_status\" 2>/dev/null); rc=$(cat \"$CD/lsp_rc\" 2>/dev/null); rm -f \"$CD/lsp_status\" \"$CD/lsp_rc\"\n"
                 + "[ \"$rc\" = 0 ] && echo \"L:run\"\n"
@@ -669,6 +704,13 @@ public class MainActivity extends Activity {
                 }
                 g.box.setChecked(modInstalled(g));
                 g.box.setLocked(modPresent == null);
+                // 带配套 APK 的 Magisk 模块同时显示 LSPosed 启用及作用域状态。
+                if (modInstalled(g) && g.pkgs.length > 0) {
+                    String companion = state(g.pkgs[0]) == MISSING ? "实际：配套 APK 未安装，请重新安装模块"
+                        : state(g.pkgs[0]) == DISABLED ? "实际：配套 APK 已停用" : ls.lsActual(g.pkgs[0]);
+                    t += "\n" + companion;
+                    if (!companion.startsWith("实际：已在") || companion.contains("缺")) lv = ItemView.WARN;
+                }
             } else {
                 int dis = 0, en = 0, miss = 0;
                 for (String p : g.pkgs) {
@@ -685,6 +727,7 @@ public class MainActivity extends Activity {
             g.box.markBase();
         }
         updateNoHomeBox();
+        updateDependents();
         aerial.updateAerialUi();
     }
 

@@ -133,6 +133,12 @@ final class Catalog {
                 "根据播放的媒体内容，显示 HDR10 / HLG / HDR Vivid / Dolby Vision / Technicolor 角标，以及 Dolby / DTS 系列音频角标。",
                 null,
                 "com.beekeeper.mediabadge", "apk_mediabadge.apk"),
+            new Group(KIND_MOD, "Decorative Light（Magisk + LSPosed模块）",
+                "自定义装饰灯颜色，支持通过 DDP / sACN（如 OpenRGB）网络控制灯光；提供 MCU 固件刷写功能，让 24 颗灯珠独立控制。",
+                "安装此模块前需启用ADB常开。需在 LSPosed 启用配套模块；刷写 MCU 固件存在风险，卸载不会回滚固件。",
+                "com.beekeeper.decorativelight").mod("beekeeper_decorative_light", "mod_decorative_light.zip")
+                .requires("mitv_adb_keeper", "为降低风险，安装此模块前需启用ADB常开")
+                .confirm("该模块会为系统灯控库打补丁，并提供 MCU 固件刷写功能。\n仅安装模块不会刷写 MCU 固件，卸载模块不会回滚已刷入的 MCU 固件。\n\n注意：\nMCU 负责背光和装饰灯，刷写 MCU 固件可能背光异常（表现为黑屏）或灯光异常，主要救法是通过 ADB 操作界面，使用模块的「刷回原版」进行恢复。\n前提是 MCU 的引导程序正常，还能接收刷写命令。"),
             new Group(KIND_MOD, "FreeSync 保持图像模式（Magisk模块）",
                 "开启 FreeSync，或杜比视界信号带有游戏标志时，不再自动切换到游戏模式。",
                 "风险：在信号切换或重载时画面可能出现异常；仅适用于 OS 3.0.109，系统升级后自动失效").mod("beekeeper_freesync_keep", "mod_freesynckeep.zip"),
@@ -196,6 +202,7 @@ final class Catalog {
     static final java.util.Map<String, String[]> LS_SCOPES = new java.util.HashMap<String, String[]>();
 
     static {
+        LS_SCOPES.put("com.beekeeper.decorativelight", new String[] { "com.xiaomi.mitv.settings", "mitv.service" });
         LS_SCOPES.put("com.beekeeper.tvplayerkeep", new String[] {
             "com.xiaomi.mitv.tvplayer", "com.xiaomi.mitv.smartpanel", "com.xiaomi.mitv.settings" });
         LS_SCOPES.put("com.beekeeper.signalkeep", new String[] {
