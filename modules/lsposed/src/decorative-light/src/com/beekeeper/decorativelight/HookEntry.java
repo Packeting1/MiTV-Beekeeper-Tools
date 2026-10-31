@@ -29,11 +29,13 @@ import android.widget.Toast;
 import io.github.libxposed.api.XposedModule;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * 系统设置的装饰灯页（菜单键图像页与完整设置页）新增“自定义颜色”和“网络灯控”， 并让自定义颜色在灯效被改写时继续生效。颜色经配套 Magisk 模块的灯控扩展下发， 属性
@@ -104,13 +106,15 @@ public final class HookEntry extends XposedModule {
         "com.xiaomi.mitv.settings.monitor.MonitorLightsDetailView",
         "init",
         "mCategory",
-        "com.xiaomi.mitv.settings.widget.MonitorSettingItem");
+        "com.xiaomi.mitv.settings.widget.MonitorSettingItem",
+        "com.xiaomi.mitv.settings.widget.MonitorOnOffSwitcherItem");
     hookPage(
         cl,
         "com.xiaomi.mitv.settings.displaysound.detail.LightsDetailView",
         "initViews",
         "mExpertDisplayCategory",
-        "com.xiaomi.mitv.settings.widget.SettingItem");
+        "com.xiaomi.mitv.settings.widget.SettingItem",
+        "com.xiaomi.mitv.settings.widget.OnOffSwitcherItem");
   }
 
   private void hookManager(Class<?> cls) {
@@ -151,13 +155,18 @@ public final class HookEntry extends XposedModule {
   }
 
   private void hookPage(
-      ClassLoader cl, String cls, String method, String categoryField, String itemCls) {
+      ClassLoader cl,
+      String cls,
+      String method,
+      String categoryField,
+      String itemCls,
+      String switchCls) {
     try {
       hook(findMethod(cl.loadClass(cls), method))
           .intercept(chain -> {
             Object result = chain.proceed();
             try {
-              addRows((View) chain.getThisObject(), cl, categoryField, itemCls);
+              addRows((View) chain.getThisObject(), cl, categoryField, itemCls, switchCls);
               log(Log.INFO, TAG, "rows added: " + cls);
             } catch (Throwable e) {
               fail(e);
@@ -169,7 +178,8 @@ public final class HookEntry extends XposedModule {
     }
   }
 
-  private void addRows(View page, ClassLoader cl, String categoryField, String itemCls)
+  private void addRows(
+      View page, ClassLoader cl, String categoryField, String itemCls, String switchCls)
       throws Throwable {
     if (!ADDED.add(page)) return;
     Context ctx = page.getContext();
@@ -179,34 +189,64 @@ public final class HookEntry extends XposedModule {
     Class<?> itemClass = cl.loadClass(itemCls);
     Handler ui = new Handler(Looper.getMainLooper());
 
-    Object color = newRow(itemClass, ctx, category, "自定义颜色");
+    Object color = newRow(itemClass, ctx, category, "自定义颜色", true);
     Runnable refreshColor = () -> refresh(color, ctx);
     refreshColor.run();
     observe((View) color, ctx, refreshColor, HEX, ENABLED);
     ((View) color).setOnClickListener(v -> showDialog(ctx, manager, color));
     ui.post(() -> moveBeforeSameColor(page, (View) color));
 
-    Object network = newRow(itemClass, ctx, category, "网络灯控");
+    // 开关行控制网络接收，开启后才出现进入参数设置的行。
+    Object network = newRow(cl.loadClass(switchCls), ctx, category, "网络灯控", false);
+    Object settings = newRow(itemClass, ctx, category, "网络灯控设置", true);
     Runnable refreshNetwork =
         () -> {
+          boolean on = NetworkSettings.get(ctx, "enabled", 0) == 1;
           try {
-            call(network, "setValue", NetworkSettings.get(ctx, "enabled", 0) == 1 ? "已启用" : "已关闭");
+            call(network, "setChecked", on);
           } catch (Throwable e) {
             fail(e);
           }
+          ((View) settings).setVisibility(on ? View.VISIBLE : View.GONE);
         };
     refreshNetwork.run();
     observe((View) network, ctx, refreshNetwork, "beekeeper_net_enabled");
-    ((View) network).setOnClickListener(v -> NetworkSettings.show(ctx, refreshNetwork));
+    onChecked(network, on -> NetworkSettings.setEnabled(ctx, on));
+    ((View) settings).setOnClickListener(v -> NetworkSettings.show(ctx));
     ui.post(() -> moveBeforeSameColor(page, (View) network));
+    ui.post(() -> moveBeforeSameColor(page, (View) settings));
   }
 
-  private Object newRow(Class<?> itemClass, Context ctx, Object category, String title)
+  private Object newRow(
+      Class<?> itemClass, Context ctx, Object category, String title, boolean arrow)
       throws Throwable {
     Object item = call(itemClass, "createItem", ctx, category);
     call(item, "setTitle", title);
-    call(item, "setRightArrowVisibility", View.VISIBLE);
+    if (arrow) call(item, "setRightArrowVisibility", View.VISIBLE);
     return item;
+  }
+
+  // 开关项的监听接口是系统内部类型，用动态代理实现；返回 true 表示接受这次切换。
+  private void onChecked(Object item, Consumer<Boolean> action) throws Throwable {
+    for (Method m : item.getClass().getMethods()) {
+      if (!m.getName().equals("setOnCheckedListener") || m.getParameterTypes().length != 1)
+        continue;
+      Class<?> type = m.getParameterTypes()[0];
+      m.invoke(
+          item,
+          Proxy.newProxyInstance(
+              type.getClassLoader(),
+              new Class<?>[] {type},
+              (proxy, method, args) -> {
+                if (method.getName().equals("onCheckChanged")) {
+                  action.accept((Boolean) args[0]);
+                  return true;
+                }
+                return null;
+              }));
+      return;
+    }
+    throw new NoSuchMethodException("setOnCheckedListener");
   }
 
   private static void observe(View view, Context ctx, Runnable refresh, String... keys) {
@@ -307,7 +347,7 @@ public final class HookEntry extends XposedModule {
     String hex = Settings.Global.getString(ctx.getContentResolver(), HEX);
     boolean active = Settings.Global.getInt(ctx.getContentResolver(), ENABLED, 0) == 1;
     try {
-      call(item, "setValue", active && hex != null ? hex : "输入 #RRGGBB");
+      call(item, "setValue", active && hex != null ? hex : "");
     } catch (Throwable e) {
       fail(e);
     }
@@ -456,7 +496,7 @@ public final class HookEntry extends XposedModule {
             }
           });
     });
-    dialog.show();
+    Ui.show(ctx, dialog);
     dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
     input.requestFocus();
   }
@@ -513,7 +553,10 @@ public final class HookEntry extends XposedModule {
   private static boolean fits(Class<?>[] types, Object[] args) {
     if (types.length != args.length) return false;
     for (int i = 0; i < types.length; i++) {
-      Class<?> t = types[i] == int.class ? Integer.class : types[i];
+      Class<?> t =
+          types[i] == int.class
+              ? Integer.class
+              : types[i] == boolean.class ? Boolean.class : types[i];
       if (args[i] == null ? types[i].isPrimitive() : !t.isInstance(args[i])) return false;
     }
     return true;

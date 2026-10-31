@@ -209,13 +209,13 @@ public final class NetworkDaemon {
           double fps = (outputFrames - sampleFrames) * 1e9 / Math.max(1L, sampleNow - sampleAt);
           pendingStatus =
               state()
-                  + " · 收到 "
+                  + " · "
                   + accepted
-                  + " 帧 · 输出 "
+                  + " 帧 · "
                   + String.format(Locale.ROOT, "%.1f", fps)
                   + "/"
                   + FramePacer.FPS
-                  + "fps";
+                  + " fps";
           sampleAt = sampleNow;
           sampleFrames = outputFrames;
           statusAt = now + 2000;
@@ -245,10 +245,10 @@ public final class NetworkDaemon {
 
   private String state() {
     if (!config.enabled) return "已关闭";
-    if (mcu.recoveryRequired()) return "MCU 刷写记录待检查，网络输出已暂停";
-    if (!config.valid()) return "请设置灯珠数量和通道";
+    if (mcu.recoveryRequired()) return "MCU 待检查，已暂停";
+    if (!config.valid()) return "灯珠或通道设置无效";
     if (!error.isEmpty()) return "错误：" + error;
-    return ownsDriver ? "接收中 " + protocol + " · " + peer : "监听中 · 等待数据";
+    return ownsDriver ? "接收中 " + protocol + " · " + peer : "等待数据";
   }
 
   private void applyConfig(Config next) throws Exception {

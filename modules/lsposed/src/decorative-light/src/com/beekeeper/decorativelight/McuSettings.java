@@ -30,13 +30,15 @@ public final class McuSettings {
   }
 
   public static void show(Context ctx) {
-    new AlertDialog.Builder(ctx)
-        .setTitle("MCU 固件管理")
-        .setItems(
-            new String[] {"刷写 24 灯珠自定义固件", "刷回原版固件（单灯控制）"},
-            (d, index) -> confirm(ctx, index == 0 ? "install" : "restore"))
-        .setNegativeButton("关闭", null)
-        .show();
+    Ui.show(
+        ctx,
+        new AlertDialog.Builder(ctx)
+            .setTitle("MCU 固件管理")
+            .setItems(
+                new String[] {"刷写 24 灯珠自定义固件", "刷回原版固件（单灯控制）"},
+                (d, index) -> confirm(ctx, index == 0 ? "install" : "restore"))
+            .setNegativeButton("关闭", null)
+            .create());
   }
 
   private static void confirm(Context ctx, String action) {
@@ -131,7 +133,7 @@ public final class McuSettings {
       handler.removeCallbacks(update);
       if (!s.started && !s.token.isEmpty()) request(ctx, "cancel:" + s.token);
     });
-    dialog.show();
+    Ui.show(ctx, dialog);
   }
 
   private static String get(Context ctx, String key) {
