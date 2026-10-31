@@ -140,7 +140,8 @@ final class Catalog {
                   + "仅安装模块不会刷写 MCU 固件，卸载模块不会回滚已刷入的 MCU 固件。\n\n"
                   + "注意：\n"
                   + "MCU 负责背光和装饰灯，刷写 MCU 固件可能背光异常（表现为黑屏）或灯光异常，主要救法是通过 ADB 操作界面，使用模块的「刷回原版」进行恢复。\n"
-                  + "前提是 MCU 的引导程序正常，还能接收刷写命令。"),
+                  + "前提是 MCU 的引导程序正常，还能接收刷写命令。")
+          .fwOnly(),
       new Group(
               KIND_MOD,
               "FreeSync 保持图像模式（Magisk模块）",
@@ -155,7 +156,8 @@ final class Catalog {
               "4K 界面开关（Magisk模块）",
               "在系统设置中显示 4K 界面开关，位置：设置 > 通用设置 > UI 显示模式 > 极清模式。",
               null)
-          .mod("mitv_4kui_switch", "mod_4kui.zip"),
+          .mod("mitv_4kui_switch", "mod_4kui.zip")
+          .fwOnly(),
       new Group(KIND_MOD, "HGIG 修复（Magisk模块）", "修复 OS 3.0.109 中 HDR 色调映射的 HGIG 档位错位。", null)
           .mod("beekeeper_hgig_fix", "mod_hgig.zip")
           .fix()
