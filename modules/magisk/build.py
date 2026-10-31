@@ -4,7 +4,7 @@
 用法：python modules/magisk/build.py [模块目录名 ...]（不带参数＝全部）
 
 - 版本号在各模块 module.prop 的 version / versionCode，zip 文件名跟着它走，旧版本的同名前缀 zip 会被删掉。
-- 有 install.sh 的 legacy 模块会自动加上共用的 META-INF（modules/magisk/src/_shared/META-INF）。
+- 有 install.sh（legacy）或 customize.sh 的模块会自动加上共用的 META-INF（modules/magisk/src/_shared/META-INF）。
 - SHARED 表里的模块自动加上 src/_shared 下对应目录的文件（install.sh、uninstall.sh 放 zip 根，其余放 common/）：
   EDID 类（dv_edid、dp_audio）用 edid_mod 和 edid，配置开关类（hgig_fix 等五个）用 flag_mod。
 - 打出来的 zip 内容固定（排序、固定时间戳、固定为 Unix 属性），源码不变则 zip 不变。
@@ -36,7 +36,7 @@ PLAIN = {
     'imax': 'Beekeeper_IMAX_v',
     'aisr_level': 'Beekeeper_AISR_Level_v',
     'volume_balance': 'Beekeeper_VolumeBalance_v',
-    'rgb': 'Beekeeper_RGB_v',
+    'decorative_light': 'Beekeeper_DecorativeLight_v',
 }
 
 # 模块目录 -> 共用的 src/_shared 子目录
@@ -48,6 +48,11 @@ SHARED = {
     'imax': ('flag_mod',),
     'aisr_level': ('flag_mod',),
     'volume_balance': ('flag_mod',),
+}
+
+# 模块目录 -> {zip 内路径: modules/lsposed/dist 里的 APK}
+EXTRA_APK = {
+    'decorative_light': {'app/DecorativeLight.apk': ROOT.parent / 'lsposed' / 'dist' / 'DecorativeLight.apk'},
 }
 
 
@@ -63,7 +68,11 @@ def collect(directory):
         for path in sorted((SRC / '_shared' / shared).iterdir()):
             if path.is_file() and path.suffix != '.py':
                 files[('' if path.name in ('install.sh', 'uninstall.sh') else 'common/') + path.name] = path.read_bytes()
-    if 'install.sh' in files:
+    for name, apk in EXTRA_APK.get(directory.name, {}).items():
+        if not apk.is_file():
+            sys.exit('missing %s, build it first: python modules/lsposed/build.py' % apk)
+        files[name] = apk.read_bytes()
+    if 'install.sh' in files or 'customize.sh' in files:
         for path in sorted(META.rglob('*')):
             if path.is_file():
                 files['META-INF/' + path.relative_to(META).as_posix()] = path.read_bytes()

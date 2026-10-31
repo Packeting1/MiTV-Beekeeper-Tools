@@ -1,0 +1,6 @@
+id=beekeeper_decorative_light
+name=Decorative Light
+version=2026.10.31
+versionCode=20261031
+author=Rin010
+description=Custom colors, DDP / sACN network control and optional 24-LED MCU firmware for the decorative light. Requires the DecorativeLight LSPosed module (installed with this module).
