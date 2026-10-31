@@ -2,11 +2,12 @@
 
 om2-pixel-writer 接收 24 灯珠固件的 75 字节帧，om2-single-writer 只接收原版固件的 6 字节整条灯带帧。
 """
+
 from elf import DATA, I2C_DEVICE, assemble, elf, i2c_msg, i2c_rdwr
 
 # 数据段布局：+0 设备路径，+48 i2c_msg，+80 i2c_rdwr，+96 应答字节，+256 帧缓冲区。
 # 带参数 d 运行时不打开 I2C，只校验并应答（离线测试用）。
-PROGRAM = '''
+PROGRAM = """
  mov x20, #0x2000
  movk x20, #0x40, lsl #16
  mov x24, #0
@@ -101,18 +102,21 @@ ack_error:
 done:
  mov x8, #93
  svc #0
-'''
+"""
 
 
 def writer(program, size):
     data = bytearray(4096)
-    data[:len(I2C_DEVICE)] = I2C_DEVICE
-    data[48:48 + 16] = i2c_msg(size, DATA + 0x100)
-    data[80:80 + 12] = i2c_rdwr(DATA + 0x30)
+    data[: len(I2C_DEVICE)] = I2C_DEVICE
+    data[48 : 48 + 16] = i2c_msg(size, DATA + 0x100)
+    data[80 : 80 + 12] = i2c_rdwr(DATA + 0x30)
     return elf(assemble(program), data)
 
 
 def build():
-    single = (PROGRAM.replace('mov x23, #75', 'mov x23, #6').replace('cmp x23, #75', 'cmp x23, #6')
-              .replace('mov w1, #0xc81', 'mov w1, #0x181'))
-    return {'om2-pixel-writer': writer(PROGRAM, 75), 'om2-single-writer': writer(single, 6)}
+    single = (
+        PROGRAM.replace("mov x23, #75", "mov x23, #6")
+        .replace("cmp x23, #75", "cmp x23, #6")
+        .replace("mov w1, #0xc81", "mov w1, #0x181")
+    )
+    return {"om2-pixel-writer": writer(PROGRAM, 75), "om2-single-writer": writer(single, 6)}

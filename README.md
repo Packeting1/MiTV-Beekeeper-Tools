@@ -153,6 +153,10 @@ python app\build.py
 - 内置的 Aerial APK（[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT）若在 `app/bundled/aerial.apk` 不存在，构建时会自动下载最新 Release，并按 GitHub 提供的 SHA-256 校验。
 - 使用自己的签名时替换 `KEYSTORE`。签名不同的应用无法覆盖安装。
 
+## 贡献
+
+提交前请安装 [pre-commit](https://pre-commit.com)（需要 JDK 11+）：`pip install pre-commit && pre-commit install`。PR 会自动运行同样的检查。
+
 ## 许可
 
 [GNU GPL v3.0](LICENSE)。随应用附带的 Aerial 仍遵循其原有的 MIT 许可。

@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-commit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Fetch compile dependencies (android.jar API 28, libxposed API 101)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-28" > /dev/null
+          curl -fsSL -o "$RUNNER_TEMP/api-101.0.0.aar" https://repo1.maven.org/maven2/io/github/libxposed/api/101.0.0/api-101.0.0.aar
+          echo "ANDROID_JAR=$ANDROID_HOME/platforms/android-28/android.jar" >> "$GITHUB_ENV"
+          echo "XPOSED_API=$RUNNER_TEMP/api-101.0.0.aar" >> "$GITHUB_ENV"
+      - run: pip install pre-commit
+      - run: pre-commit run --all-files --show-diff-on-failure

@@ -1,0 +1,53 @@
+exclude: |
+  (?x)^(
+    LICENSE|
+    modules/magisk/src/4kui_switch/(original|system)/.*|
+    modules/magisk/src/ldm_fix/common/.*\.ini|
+    modules/magisk/src/.*\.(bin|patch|sha256)|
+    modules/(magisk|lsposed)/dist/.*
+  )$
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-xml
+      - id: check-yaml
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: [--maxkb=4096]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.3
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1-1
+    hooks:
+      - id: shellcheck
+        args: [--shell=sh, --severity=error]
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.6
+    hooks:
+      - id: forbid-crlf
+        files: \.(sh|prop)$|/(update-binary|updater-script)$
+  - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
+    rev: v1.7.12.25
+    hooks:
+      - id: actionlint
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.16.0
+    hooks:
+      - id: pretty-format-java
+        args: [--autofix, --google-java-formatter-version=2.0.0]
+  - repo: local
+    hooks:
+      - id: java-compile
+        name: java compile
+        entry: python tools/check_java.py
+        language: system
+        files: \.java$
+        pass_filenames: false
