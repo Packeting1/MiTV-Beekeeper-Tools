@@ -201,6 +201,10 @@ public final class HookEntry extends XposedModule {
     hook(onResume)
         .intercept(chain -> {
           Activity a = (Activity) chain.getThisObject();
+          if (kept.contains(a) && !hasSignal()) {
+            log(Log.INFO, TAG, "onResume: held signal was lost, full re-init");
+            teardown(a, origPause);
+          }
           if (kept.remove(a)) {
             log(Log.INFO, TAG, "onResume: playback kept, skip re-init");
             try {
@@ -398,6 +402,20 @@ public final class HookEntry extends XposedModule {
     }
   }
 
+  /**
+   * 播放器每次 onSourceSignalStable 都会写这个属性。保留期间桌面的视频壁纸 (Aerial 实时壁纸，4K) 会用硬件解码器抢占输入源的主视频通道， 系统随即上报
+   * WEAK_SIGNAL，被抢占的会话无法靠「跳过重初始化」恢复，必须拆掉重来。
+   */
+  private static boolean hasSignal() {
+    try {
+      Class<?> sp = Class.forName("android.os.SystemProperties");
+      return !"false"
+          .equals(sp.getMethod("get", String.class).invoke(null, "sys.inputsource.have_signal"));
+    } catch (Throwable t) {
+      return true;
+    }
+  }
+
   private void teardown(Activity a, XposedInterface.Invoker<?, Method> origPause) {
     if (!kept.remove(a)) {
       return;
@@ -446,6 +464,12 @@ public final class HookEntry extends XposedModule {
           public void run() {
             if (!kept.contains(a) || watchers.get(a) != token) {
               watchers.remove(a, token);
+              return;
+            }
+            if (!hasSignal()) {
+              log(Log.INFO, TAG, "watchdog: held signal was lost, release it");
+              watchers.remove(a, token);
+              teardown(a, origPause);
               return;
             }
             String top = topClass(a);
