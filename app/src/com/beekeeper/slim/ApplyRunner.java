@@ -299,12 +299,16 @@ final class ApplyRunner extends Part {
                 if (needReboot) script.append("echo 有改动需要重启电视后生效\n");
                 if (apkOn) script.append("echo LSPosed 模块在目标应用下次启动时加载，系统进程里的需重启电视\n");
                 final String out = (err == null ? "" : err) + runSu(script.toString());
-                final boolean ok = err == null && !noRoot(out);
+                final boolean ok =
+                    err == null
+                        && !noRoot(out)
+                        && !out.contains("Failure")
+                        && !out.contains("Error");
                 main.post(
                     new Runnable() {
                       public void run() {
                         if (progress.isShowing()) progress.dismiss();
-                        if (needReboot && ok) a.showResultReboot(out);
+                        if (needReboot && ok) a.showResultReboot();
                         else showResult(out);
                         refresh();
                       }

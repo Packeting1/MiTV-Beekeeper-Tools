@@ -31,7 +31,8 @@ final class NavItem extends LinearLayout {
     dot = Ui.dot(c);
     LayoutParams lp = new LayoutParams(Ui.dp(c, 8), Ui.dp(c, 8));
     lp.leftMargin = Ui.dp(c, 6);
-    lp.bottomMargin = Ui.dp(c, 8);
+    lp.gravity = Gravity.TOP;
+    lp.topMargin = Ui.dp(c, 2);
     addView(dot, lp);
     select(false);
   }

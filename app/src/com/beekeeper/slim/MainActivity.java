@@ -539,10 +539,38 @@ public class MainActivity extends Activity {
     btnWrap.setPadding(0, dp(6), dp(6), 0);
     btnWrap.setClipChildren(false);
     btnWrap.setClipToPadding(false);
-    btnWrap.addView(
-        self.btnDot, new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.TOP | Gravity.END));
+    FrameLayout.LayoutParams dotLp =
+        new FrameLayout.LayoutParams(dp(12), dp(12), Gravity.TOP | Gravity.END);
+    dotLp.topMargin = -dp(6);
+    dotLp.rightMargin = -dp(6);
+    btnWrap.addView(self.btnDot, dotLp);
     verCard.addView(btnWrap);
     addItem(pages[4], verCard);
+
+    final Diag diag = new Diag(this);
+    LinearLayout diagCard = card();
+    diagCard.setOrientation(LinearLayout.HORIZONTAL);
+    diagCard.setGravity(Gravity.CENTER_VERTICAL);
+    TextView diagText = new TextView(this);
+    diagText.setText("遇到问题时，一键上传诊断信息给开发者。");
+    diagText.setTextSize(13);
+    diagText.setTextColor(Ui.SUB);
+    diagCard.addView(
+        diagText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+    Button diagBtn = Ui.button(this, "上传诊断", false);
+    diagBtn.setId(View.generateViewId());
+    diagBtn.setOnClickListener(
+        new View.OnClickListener() {
+          public void onClick(View v) {
+            diag.start();
+          }
+        });
+    // 与“检查更新”按钮同样的外边距，两个按钮右边缘才对得齐
+    FrameLayout diagWrap = new FrameLayout(this);
+    diagWrap.setPadding(0, dp(6), dp(6), 0);
+    diagWrap.addView(diagBtn);
+    diagCard.addView(diagWrap);
+    addItem(pages[4], diagCard);
 
     for (int i = 0; i < pages.length; i++) {
       View first = firstFocusable(pages[i]);
@@ -997,12 +1025,12 @@ public class MainActivity extends Activity {
         .show();
   }
 
-  /** 应用成功后：显示结果，并询问是否重启电视让改动生效。 */
-  void showResultReboot(String text) {
+  /** 应用成功后询问是否重启电视让改动生效。 */
+  void showResultReboot() {
     if (isFinishing()) return;
     new Dlg.Builder(this)
-        .setTitle("应用完成，是否重启电视？")
-        .setView(scrollText(text + "\n需要重启电视，改动才会生效。"))
+        .setTitle("应用完成")
+        .setMessage("需要重启电视，改动才会生效。是否现在重启？")
         .setPositiveButton("重启", rebootClick)
         .setNegativeButton("稍后", null)
         .show();

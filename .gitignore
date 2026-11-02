@@ -7,3 +7,4 @@ app/bundled/aerial.apk
 *.p12
 *.pfx
 *.pyc
+.wrangler/

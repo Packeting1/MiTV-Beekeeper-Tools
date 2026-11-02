@@ -1,0 +1,18 @@
+name = "beekeeper-diag"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# 域名需已托管在 Cloudflare
+routes = [{ pattern = "diag.packeting.bid", custom_domain = true }]
+
+[[kv_namespaces]]
+binding = "DIAG"
+id = "fb94b2597a994dde9d69f0ec26045460"
+
+[[durable_objects.bindings]]
+name = "LIMITER"
+class_name = "Limiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Limiter"]

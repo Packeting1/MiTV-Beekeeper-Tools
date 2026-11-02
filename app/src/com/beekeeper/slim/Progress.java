@@ -38,6 +38,12 @@ final class Progress {
     text.setText(msg);
   }
 
+  void collecting(int pct) {
+    bar.setIndeterminate(false);
+    bar.setProgress(pct);
+    text.setText("正在收集……" + pct + "%");
+  }
+
   void downloaded(int pct, long got, long total) {
     bar.setIndeterminate(false);
     bar.setProgress(pct);
