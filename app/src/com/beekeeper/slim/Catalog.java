@@ -26,22 +26,22 @@ final class Catalog {
     return new Group[] {
       new Group(
           "语音助手 (占内存约 245MB)",
-          "语音控制和唤醒。禁用后语音键和小爱同学不可用。",
+          "语音控制和唤醒。",
           null,
           "com.xiaomi.voicecontrol",
           "com.xiaomi.wakeupservice"),
       new Group(
-          "小米互联 (占内存约 420MB)",
-          "手机互联、MiPlay、HyperConnect。禁用后手机投屏和多设备协同不可用。",
-          "风险：可能影响其它功能",
-          "com.xiaomi.mi_connect_service",
-          "com.xiaomi.miplay",
-          "com.xiaomi.hyper_connect.tv"),
+              "小米互联 (占内存约 420MB)",
+              "手机互联、MiPlay、HyperConnect。",
+              "风险：可能影响其它功能",
+              "com.xiaomi.mi_connect_service",
+              "com.xiaomi.miplay",
+              "com.xiaomi.hyper_connect.tv")
+          .confirm("禁用后手机投屏和多设备协同不可用。"),
       new Group("智能家居 (占内存约 90MB)", "小米智能家居 TV 版。", null, "com.xiaomi.smarthome.tv"),
-      new Group(
-          "消息推送 (占内存约 87MB)", "系统推送服务。禁用后将无法接收推送。", null, "com.xiaomi.mitv.tvpush.tvpushservice"),
-      new Group("应用商店 (占内存约 109MB)", "小米应用商店。禁用后无法安装和更新应用。", null, "com.xiaomi.mitv.appstore"),
-      new Group("电视管家 (占内存约 22MB)", "系统清理与加速功能。", "风险：可能影响其它功能", "com.xiaomi.mitv.tvmanager"),
+      new Group("消息推送 (占内存约 87MB)", "系统推送服务。", null, "com.xiaomi.mitv.tvpush.tvpushservice"),
+      new Group("应用商店 (占内存约 109MB)", "小米应用商店。", null, "com.xiaomi.mitv.appstore"),
+      new Group("电视管家 (占内存约 22MB)", "系统清理与加速功能。", null, "com.xiaomi.mitv.tvmanager"),
       new Group(
           "健康与诊断 (占内存约 9MB)",
           "健康服务和健康诊断。",
@@ -57,19 +57,22 @@ final class Catalog {
           "com.miui.misightservice",
           "com.xiaomi.tvqs"),
       new Group("云控中心", "拉取云端配置、上传诊断日志。", "风险：云端功能开关不再更新", "com.mitv.cloudcontrol"),
+      new Group("系统更新", "检查和推送系统固件更新。", null, "com.xiaomi.mitv.upgrade"),
       new Group("屏保 (占内存约 92MB)", "系统超级屏保。", null, "com.xiaomi.mitv.hyper.screensaver"),
-      new Group("AOD 息屏显示", "息屏显示图案和签名。", "风险：可能影响息屏相关功能", "com.xiaomi.mitv.aod.screensaver"),
+      new Group("AOD 息屏显示", "息屏显示图案和签名。", null, "com.xiaomi.mitv.aod.screensaver"),
       new Group("视频头条", "短视频信息流应用。", null, "com.duokan.videodaily"),
       new Group("相册 (占内存约 32MB)", "电视相册及其消息推送。", null, "com.mitv.gallery"),
       new Group("快应用 (占内存约 13MB)", "小米快应用平台。", null, "com.miui.hybrid.tv"),
       new Group("卡拉 OK", "卡拉 OK 服务。", null, "com.xiaomi.mitv.karaoke.service"),
       new Group("工厂检测工具箱", "小米电视的内部调试和工厂检测工具。", null, "com.mitv.toolhouse"),
-      new Group(
-          KIND_DB, "Aerial 桌面", "安装 Aerial 并设为默认桌面。取消勾选将恢复系统桌面，重启后 Aerial 被移除。", null, DB_PKG),
+      new Group(KIND_DB, "Aerial 桌面", "安装 Aerial 并设为默认桌面。取消勾选将恢复系统桌面，重启后 Aerial 被移除。", null, DB_PKG)
+          .confirm(
+              "建议始终通过本工具更新 Aerial 桌面。\n"
+                  + "在 Aerial 内部升级只是普通应用安装，不会成为系统应用，而系统不允许非系统应用作为默认桌面，升级后可能无法继续使用。"),
       new Group(
           KIND_NOHOME,
           "系统桌面 (占内存约 390MB)",
-          "禁用小米系统桌面。需先安装“Aerial 桌面”和 HomeRef，并将 Aerial 设为默认桌面。",
+          "禁用小米系统桌面。需先开启“Aerial 桌面”和 HomeRef，并将 Aerial 设为默认桌面。",
           null,
           STOCK_HOME_PKG),
       Group.apk(
@@ -127,6 +130,12 @@ final class Catalog {
           null,
           "com.beekeeper.mediabadge",
           "apk_mediabadge.apk"),
+      Group.apk(
+          "VoiceKeyMap（LSPosed模块）",
+          "自定义遥控器语音键的单击、双击、长按动作。安装后在下方「语音键自定义」中设置。",
+          "需先禁用「语音助手」；安装和启用模块后需重启电视",
+          "com.beekeeper.voicekeymap",
+          "apk_voicekeymap.apk"),
       new Group(
               KIND_MOD,
               "Decorative Light（Magisk + LSPosed模块）",
@@ -166,12 +175,9 @@ final class Catalog {
           .mod("beekeeper_ldm_fix", "mod_ldm.zip")
           .fix()
           .fwOnly(),
-      new Group(
-              KIND_MOD,
-              "Zygote64 修复（Magisk模块）",
-              "修复 LSPosed 模块在开机后未能稳定生效的问题。",
-              "风险：关闭后 LSPosed 的模块可能不生效")
+      new Group(KIND_MOD, "Zygote64 修复（Magisk模块）", "修复 LSPosed 模块在开机后未能稳定生效的问题。", null)
           .mod("zygote64_fix", "mod_zygote.zip")
+          .confirmOff("关闭后 LSPosed 的模块可能不生效。")
           .fix(),
       new Group(KIND_MOD, "HDR10+支持（Magisk模块）", "上报 HDR10+ 能力，实际效果未验证。", null)
           .mod("beekeeper_hdr10plus", "mod_hdr10plus.zip"),
@@ -241,6 +247,7 @@ final class Catalog {
     LS_SCOPES.put(
         "com.beekeeper.mediabadge",
         new String[] {"mitv.service", "com.mitv.tvhome", "com.xiaomi.mitv.tvplayer"});
+    LS_SCOPES.put("com.beekeeper.voicekeymap", new String[] {"system"});
   }
 
   /** 只改 mitv.config.xml 一个开关的模块：模块 id -> 开关 key。 */

@@ -7,7 +7,7 @@ final class Group {
   final String title, desc, warn;
   final String[] pkgs;
   final int kind;
-  String modId, asset, confirm, requires, requiresMsg;
+  String modId, asset, confirm, confirmOff, requires, requiresMsg;
 
   /** 放在“修复类”页的 Magisk 模块。 */
   boolean fix;
@@ -41,6 +41,12 @@ final class Group {
   /** 勾选前先弹窗确认，取消则保持未勾选。 */
   Group confirm(String text) {
     this.confirm = text;
+    return this;
+  }
+
+  /** 取消勾选前先弹窗确认，取消则保持勾选。 */
+  Group confirmOff(String text) {
+    this.confirmOff = text;
     return this;
   }
 

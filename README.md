@@ -40,7 +40,7 @@
 
 ## 功能
 
-- **禁用后台应用**：语音助手、统计诊断、云控中心、屏保等。勾选即禁用，取消勾选即恢复；条目标题中标注了实测的内存占用。
+- **禁用后台应用**：语音助手、统计诊断、云控中心、系统更新、屏保等。勾选即禁用，取消勾选即恢复；条目标题中标注了实测的内存占用。
 - **Aerial 桌面**：安装为系统应用并设为默认桌面（[Aerial](https://github.com/pengchujin/aerial-tv)，无广告、无推荐流）。可选禁用系统桌面，启动时检测 Aerial 的新版本。
 - **模块管理**：勾选即安装 Magisk / LSPosed 模块，取消勾选即移除。各条目下方的「实际：…」由 root 脚本读取，反映真实状态：已生效、未生效（需重启）、未在 LSPosed 中启用、作用域缺失项等。
 - **隐藏页面入口**：调试信息、色彩校准、开机视频、环绕声测试、MTK 工厂菜单等系统内置的隐藏页面。
@@ -112,6 +112,7 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | MoreDisplaySettings | 在菜单键悬浮窗的图像页新增「更多图像设置」入口 |
 | DolbyVisionTitle | 菜单键设置界面的标题在所有杜比视界图像模式下均显示 Dolby Vision |
 | MediaBadge | 根据播放内容显示 HDR10 / HLG / HDR Vivid / Dolby Vision / Technicolor 角标，以及 Dolby / DTS 系列音频角标 |
+| VoiceKeyMap | 自定义遥控器语音键的单击、双击、长按动作：息屏（音响模式）、切换信号源、启动应用 |
 
 ## 常见问题
 

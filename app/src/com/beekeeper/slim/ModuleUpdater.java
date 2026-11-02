@@ -135,7 +135,7 @@ final class ModuleUpdater extends Part {
   }
 
   void runUpdate(final List<Group> list) {
-    final Dlg progress = new Dlg.Builder(a).setTitle("正在更新").setMessage("请在弹窗里允许 root……").show();
+    final Dlg progress = new Dlg.Builder(a).setTitle("正在更新").setMessage("正在进行中……").show();
     new Thread(
             new Runnable() {
               public void run() {

@@ -41,6 +41,8 @@ public class MainActivity extends Activity {
   final ModuleUpdater modUp = new ModuleUpdater(this);
   final LsStatus ls = new LsStatus(this);
   final ApplyRunner applier = new ApplyRunner(this);
+  LocalDimming ldm;
+  VoiceKey voiceKey;
   final Group[] GROUPS = Catalog.groups();
   final Hidden[] HIDDEN = Catalog.hidden();
 
@@ -117,6 +119,22 @@ public class MainActivity extends Activity {
             new DialogInterface.OnClickListener() {
               public void onClick(DialogInterface d, int w) {
                 g.box.setChecked(true);
+                updateDependents();
+              }
+            })
+        .setNegativeButton("取消", null)
+        .show();
+  }
+
+  void confirmDisable(final Group g) {
+    new Dlg.Builder(this)
+        .setTitle(g.title)
+        .setMessage(g.confirmOff + "\n\n确定关闭吗？")
+        .setPositiveButton(
+            "关闭",
+            new DialogInterface.OnClickListener() {
+              public void onClick(DialogInterface d, int w) {
+                g.box.setChecked(false);
                 updateDependents();
               }
             })
@@ -237,13 +255,18 @@ public class MainActivity extends Activity {
     if (v.isFocusable()) v.setNextFocusLeftId(navId);
   }
 
+  /** select 正在跑；removeAllViews 移除带焦点的页面时焦点会迁到导航项，经 onFocusChange 重进 select，那次重入直接丢弃。 */
+  private boolean selecting;
+
   void select(int i) {
-    if (i == cur) return;
+    if (selecting || i == cur) return;
+    selecting = true;
     cur = i;
     for (int j = 0; j < navs.length; j++) navs[j].select(j == i);
     scroll.removeAllViews();
     scroll.addView(pages[i]);
     scroll.scrollTo(0, 0);
+    selecting = false;
   }
 
   void updatePending() {
@@ -378,7 +401,7 @@ public class MainActivity extends Activity {
     pages =
         new LinearLayout[] {
           newPage("应用类", "禁用后随时可以恢复。"),
-          newPage("优化类", "LSPosed 模块安装后需在 LSPosed 中启用。改动重启后生效。"),
+          newPage("优化类", "LSPosed 模块安装时会自动在 LSPosed 中启用并勾选作用域。改动重启后生效。"),
           newPage("修复类", "改动重启后生效。"),
           newPage("隐藏项", "以下是系统自带的页面，页面中的操作需注意。"),
           newPage("关于", null),
@@ -411,6 +434,11 @@ public class MainActivity extends Activity {
                 confirmEnable(g);
                 return;
               }
+              if (!on && g.confirmOff != null) {
+                g.box.setChecked(true);
+                confirmDisable(g);
+                return;
+              }
               if (g.kind == KIND_DB) updateNoHomeBox();
               updateDependents();
             }
@@ -418,6 +446,12 @@ public class MainActivity extends Activity {
       g.box = item;
       addItem(pages[g.kind == KIND_PKGS || g.kind == KIND_NOHOME ? 0 : g.fix ? 2 : 1], item);
     }
+    ldm = new LocalDimming(this);
+    addItem(pages[1], ldm.sw);
+    addItem(pages[1], ldm.item);
+    voiceKey = new VoiceKey(this);
+    addItem(pages[1], voiceKey.sw);
+    addItem(pages[1], voiceKey.item);
 
     LinearLayout about = card();
     TextView aboutText = new TextView(this);
@@ -602,6 +636,8 @@ public class MainActivity extends Activity {
 
   void refresh() {
     render();
+    ldm.load();
+    voiceKey.load();
     // 查询线程共用缓存目录里的几个临时文件，同一时间只跑一个。
     if (refreshing) {
       refreshAgain = true;
@@ -851,7 +887,7 @@ public class MainActivity extends Activity {
         if (ups.containsKey(g)) t += "\n⬆ 有新版本：" + ups.get(g)[0] + " → " + ups.get(g)[1];
         if (inst) {
           String act = ls.lsActual(g.pkgs[0]);
-          t += "\n" + act;
+          t += "\n" + act + (ls.needsFix(g.pkgs[0]) ? "（点“应用”自动启用）" : "");
           lv = act.startsWith("实际：已在") && !act.contains("缺") ? ItemView.GOOD : ItemView.WARN;
         }
         g.box.setChecked(inst);
