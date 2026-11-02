@@ -79,8 +79,7 @@ abstract class Part {
     final Runnable doCancel =
         new Runnable() {
           public void run() {
-            if (tok.cancel())
-              android.widget.Toast.makeText(a, cancelMsg, android.widget.Toast.LENGTH_SHORT).show();
+            if (tok.cancel()) Ui.toast(a, cancelMsg, false);
           }
         };
     return new Dlg.Builder(a)

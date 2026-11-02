@@ -4,10 +4,8 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
 /**
- * 在 root 下由 app_process 运行（CLASSPATH 指向本应用 APK）：在 LSPosed 配置库里启用模块并写入作用域。
- *
- * <p>用法：LsDb 模块包名 [作用域应用…]。只处理旧 LSPosed 的库结构（modules_state + scope 带包名）；先写库再 pm install -r，
- * 守护进程在包更新时重新读取，模块不用重启就能在新启动的目标进程里加载。
+ * 在 root 下由 app_process 运行：在 LSPosed 配置库里启用模块并写入作用域。用法：LsDb 模块包名 [作用域应用…]。 只处理旧 LSPosed 的库结构；要先于 pm
+ * install -r 执行，守护进程在包更新时才会重新读库。
  */
 public final class LsDb {
 

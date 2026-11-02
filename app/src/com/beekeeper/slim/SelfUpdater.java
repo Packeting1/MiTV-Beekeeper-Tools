@@ -65,25 +65,16 @@ final class SelfUpdater extends Part {
                           selfMsg = manual ? "检查更新失败" : "";
                           if (manual) {
                             if (fNetFail) showNetFail("检查更新", fFail);
-                            else
-                              android.widget.Toast.makeText(
-                                      a, "检查更新失败：" + fFail, android.widget.Toast.LENGTH_LONG)
-                                  .show();
+                            else Ui.toast(a, "检查更新失败：" + fFail, true);
                           }
                         } else if (fRel.url != null && cmpVersion(fRel.tag, ownVersion()) > 0) {
                           rel = fRel;
                           selfMsg = "";
-                          if (manual)
-                            android.widget.Toast.makeText(
-                                    a, "发现新版本 " + fRel.tag, android.widget.Toast.LENGTH_SHORT)
-                                .show();
+                          if (manual) Ui.toast(a, "发现新版本 " + fRel.tag, false);
                         } else {
                           rel = null;
                           selfMsg = "已是最新版本";
-                          if (manual)
-                            android.widget.Toast.makeText(
-                                    a, selfMsg, android.widget.Toast.LENGTH_SHORT)
-                                .show();
+                          if (manual) Ui.toast(a, selfMsg, false);
                         }
                         refreshAboutUi();
                       }

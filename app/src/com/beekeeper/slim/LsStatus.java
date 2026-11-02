@@ -12,14 +12,17 @@ final class LsStatus extends Part {
     super(a);
   }
 
-  /** LSPosed 状态；lsKnown=false 表示还没读到。lsEnabled/lsScope 为 null = 读不到配置库。 */
+  /** lsKnown=false 表示还没读到状态；lsEnabled/lsScope 为 null = 读不到配置库。 */
   boolean lsKnown, lsRunning, lsServer;
+
+  /** 是否装了 LSPosed / Vector（Magisk 模块目录存在）；没读到状态前按已安装处理。 */
+  boolean lsInstalled = true;
 
   java.util.Map<String, Boolean> lsEnabled;
 
   java.util.Map<String, Set<String>> lsScope;
 
-  /** 读 su 复制到本应用缓存目录的 LSPosed 配置库副本；读完就删。 */
+  /** 读 su 复制到缓存目录的配置库副本。 */
   boolean readLsDb(java.util.Map<String, Boolean> en, java.util.Map<String, Set<String>> sc) {
     java.io.File db = new java.io.File(getCacheDir(), "lsp_modules_config.db");
     android.database.sqlite.SQLiteDatabase d = null;
@@ -79,6 +82,7 @@ final class LsStatus extends Part {
   }
 
   String lsActual(String pkg) {
+    if (!lsInstalled) return "实际：未检测到 LSPosed / Vector";
     if (!lsKnown) return "实际：未能读取 LSPosed 的状态";
     if (!lsRunning) return "实际：LSPosed 没有运行，模块不会生效";
     if (lsEnabled == null) return "实际：未能读取 LSPosed 的配置";

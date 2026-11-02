@@ -6,11 +6,7 @@ import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-/**
- * 局部调光强度：开关打开后才出现调节卡片；开启时由 service.d 守护脚本在开机和被系统复位时写回，关闭则交还系统。
- *
- * <p>强度写 sysfs ldm_set_ld_level（0~0xFF，默认 0xFF，读回在 ldm_basic_info_get 的 “Local dimming strength”）。
- */
+/** 局部调光强度：写 sysfs ldm_set_ld_level（0~0xFF，默认 0xFF），开启时由 service.d 守护脚本负责写回。 */
 final class LocalDimming extends Part {
 
   private static final String D = "/sys/devices/virtual/localdimming/localdimming";
@@ -19,7 +15,7 @@ final class LocalDimming extends Part {
   private static final String KILL = "pkill -f beekeeper_ldm_level.sh\n";
   private static final String START = "nohup sh " + SCRIPT + " >/dev/null 2>&1 &\n";
 
-  /** 系统在切信号、开机时会把强度复位，所以脚本常驻轮询，发现不同就写回；配置文件被删就退出。 */
+  /** 系统在切信号、开机时会复位强度，所以常驻轮询，不同就写回；配置文件被删就退出。 */
   private static final String DAEMON =
       "#!/system/bin/sh\n"
           + "D="
@@ -35,7 +31,6 @@ final class LocalDimming extends Part {
           + "  sleep 5\n"
           + "done\n";
 
-  /** 总开关和调节卡片（开关打开才显示）。 */
   final ItemView sw, item;
 
   /** 当前读到的强度，-1 = 本机没有该节点。 */
@@ -70,7 +65,6 @@ final class LocalDimming extends Part {
     return "0x" + Integer.toHexString(v).toUpperCase();
   }
 
-  /** 读当前强度和开关状态，更新卡片。 */
   void load() {
     new Thread(
             new Runnable() {
@@ -115,18 +109,13 @@ final class LocalDimming extends Part {
     sw.setVisibility(cur < 0 ? View.GONE : View.VISIBLE);
     item.setVisibility(cur < 0 || !on ? View.GONE : View.VISIBLE);
     if (cur < 0) return;
-    sw.setInfo(
-        "局部调光强度调节（Magisk脚本）",
-        "开启后可手动调节局部调光强度，开机和被系统复位时自动写回。关闭后由系统的调光档位接管。",
-        null,
-        null,
-        ItemView.NEUTRAL);
+    sw.setInfo("局部调光强度调节（Magisk脚本）", "开启后可手动调节局部调光强度，调节将会实时生效。", null, null, ItemView.NEUTRAL);
     sw.setChecked(on);
     sw.markBase();
     item.setInfo("局部调光强度", "调节局部调光的强度（0~255，默认 255）。", null, "当前：" + cur, ItemView.GOOD);
   }
 
-  /** 预览：只保留最新值，后台线程串行写入；先停守护脚本，否则它会在 5 秒内把值写回。again 为真时写完重新拉起守护脚本。 */
+  /** 预览：只保留最新值，后台串行写入；先停守护脚本，否则它会把值写回。again 为真时写完重新拉起。 */
   private synchronized void preview(int v, boolean again) {
     want = v;
     resume |= again;
@@ -231,7 +220,6 @@ final class LocalDimming extends Part {
     bar.requestFocus();
   }
 
-  /** 开启或保存：写守护脚本和目标值，并立即拉起。 */
   private void apply(final int v) {
     cur = v;
     on = true;
@@ -261,7 +249,6 @@ final class LocalDimming extends Part {
         .start();
   }
 
-  /** 关闭：删脚本和配置，把强度写回系统默认 0xFF。 */
   private void release() {
     cur = 255;
     on = false;

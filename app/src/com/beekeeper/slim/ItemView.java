@@ -9,9 +9,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
-/** 一张可聚焦的卡片：标题、说明、风险、状态，右侧是开关；action 模式右侧是箭头，点击由调用方处理。 确认键 / 点击切换开关；被锁定时仍可聚焦（能读到说明），只是不能切换。 */
+/** 可聚焦的卡片：标题、说明、风险、状态，右侧是开关（action 模式是箭头，点击由调用方处理）；锁定时仍可聚焦，不能切换。 */
 final class ItemView extends LinearLayout {
 
   interface Listener {
@@ -102,7 +101,7 @@ final class ItemView extends LinearLayout {
 
   private void flip() {
     if (locked) {
-      Toast.makeText(getContext(), lockedMsg, Toast.LENGTH_SHORT).show();
+      Ui.toast(getContext(), lockedMsg, false);
       return;
     }
     setChecked(!checked);
@@ -117,7 +116,6 @@ final class ItemView extends LinearLayout {
     return checked;
   }
 
-  /** 只改显示，不触发监听。 */
   void setChecked(boolean on) {
     checked = on;
     toggle.set(on);

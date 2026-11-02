@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
   final ApplyRunner applier = new ApplyRunner(this);
   LocalDimming ldm;
   VoiceKey voiceKey;
+  Group voiceKeyGroup;
   final Group[] GROUPS = Catalog.groups();
   final Hidden[] HIDDEN = Catalog.hidden();
 
@@ -96,17 +97,27 @@ public class MainActivity extends Activity {
             modPresent == null || g.box.isChecked(), g.box.isChecked() ? "需先取消依赖它的模块" : null);
       }
     }
+    Group vk = voiceKeyGroup;
     for (Group g : GROUPS) {
-      // 语音键自定义开着时，语音助手必须保持禁用，否则语音键拦不住
-      if (voiceKey != null && g.kind == KIND_PKGS && g.pkgs[0].equals(VoiceKey.ASSISTANT[0])) {
-        boolean keep = voiceKey.on && g.box.isChecked();
-        g.box.setLocked(keep, keep ? "已开启“语音键自定义”，需先关闭它才能启用语音助手" : null);
+      if (g.kind == KIND_APK) {
+        g.box.setLocked(!ls.lsInstalled, ls.lsInstalled ? null : "未检测到 LSPosed / Vector，请先安装");
+        if (!ls.lsInstalled) continue;
+      }
+      // 语音助手没禁用时语音键拦不住：未安装的语音键自定义不能勾选；勾选着它时，语音助手要保持禁用
+      if (g == vk) {
+        boolean unmet = VoiceKey.assistantEnabled(this) && state(VoiceKey.MODULE) == MISSING;
+        g.box.setLocked(unmet, unmet ? "请先在「应用类」禁用「语音助手」并点“应用”" : null);
+        if (unmet) g.box.setChecked(false);
+      } else if (g.kind == KIND_PKGS && g.pkgs[0].equals(VoiceKey.ASSISTANT[0])) {
+        boolean keep = vk.box.isChecked() && g.box.isChecked();
+        g.box.setLocked(keep, keep ? "已勾选“语音键自定义”，需先取消它才能启用语音助手" : null);
       }
       if (fwMismatch(g) && !modInstalled(g)) {
         g.box.setChecked(false);
         g.box.setLocked(true, "仅适用于 " + FIRMWARE + "，当前固件为 " + Build.VERSION.INCREMENTAL);
       }
     }
+    if (voiceKey != null) voiceKey.syncVisible();
     updatePending();
   }
 
@@ -179,8 +190,8 @@ public class MainActivity extends Activity {
   /** 刷新是否正在跑；跑的时候又来请求就记下来，跑完再来一次。 */
   boolean refreshing, refreshAgain;
 
-  /** 一页内容：大标题 + 一行说明，条目由调用方继续往里加。 */
-  LinearLayout newPage(String title, String hintText) {
+  /** 一页内容：大标题 + 一行说明，条目由调用方继续往里加。emphasis 是说明开头用醒目颜色显示的部分。 */
+  LinearLayout newPage(String title, String emphasis, String hintText) {
     LinearLayout page = new LinearLayout(this);
     page.setOrientation(LinearLayout.VERTICAL);
     page.setPadding(0, 0, 0, dp(16));
@@ -192,7 +203,16 @@ public class MainActivity extends Activity {
     page.addView(t);
     if (hintText != null) {
       TextView h = new TextView(this);
-      h.setText(hintText);
+      android.text.SpannableString s =
+          new android.text.SpannableString(emphasis == null ? hintText : emphasis + hintText);
+      if (emphasis != null) {
+        s.setSpan(
+            new android.text.style.ForegroundColorSpan(Ui.WARN),
+            0,
+            emphasis.length(),
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+      }
+      h.setText(s);
       h.setTextSize(12);
       h.setTextColor(Ui.SUB);
       h.setPadding(0, dp(4), 0, dp(4));
@@ -277,7 +297,8 @@ public class MainActivity extends Activity {
   void updatePending() {
     int n = 0;
     for (Group g : GROUPS) if (g.box.changed()) n++;
-    applyBtn.setText(n > 0 ? "应用（" + n + "）" : "应用");
+    applyBtn.setText("应用（" + n + "）");
+    applyBtn.setVisibility(n > 0 ? View.VISIBLE : View.GONE);
   }
 
   @Override
@@ -346,6 +367,7 @@ public class MainActivity extends Activity {
     self.aboutDot = navs[4].dot;
     side.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
     applyBtn = Ui.button(this, "应用", true);
+    applyBtn.setVisibility(View.GONE);
     applyBtn.setOnClickListener(
         new View.OnClickListener() {
           public void onClick(View v) {
@@ -405,11 +427,11 @@ public class MainActivity extends Activity {
 
     pages =
         new LinearLayout[] {
-          newPage("应用类", "禁用后随时可以恢复。"),
-          newPage("优化类", "LSPosed 模块安装时会自动在 LSPosed 中启用并勾选作用域。改动重启后生效。"),
-          newPage("修复类", "改动重启后生效。"),
-          newPage("隐藏项", "以下是系统自带的页面，页面中的操作需注意。"),
-          newPage("关于", null),
+          newPage("应用类", null, "禁用后随时可以恢复。"),
+          newPage("优化类", "LSPosed 模块安装时会自动在 LSPosed 中启用并勾选作用域。", "改动重启后生效。"),
+          newPage("修复类", null, "改动重启后生效。"),
+          newPage("隐藏项", null, "以下是系统自带的页面，页面中的操作需注意。"),
+          newPage("关于", null, null),
         };
 
     for (final Hidden h : HIDDEN) {
@@ -449,13 +471,18 @@ public class MainActivity extends Activity {
             }
           });
       g.box = item;
+      // 语音键自定义的开关放在它的动作卡片上方，不跟其它模块排在一起
+      if (g.pkgs.length > 0 && VoiceKey.MODULE.equals(g.pkgs[0])) {
+        voiceKeyGroup = g;
+        continue;
+      }
       addItem(pages[g.kind == KIND_PKGS || g.kind == KIND_NOHOME ? 0 : g.fix ? 2 : 1], item);
     }
     ldm = new LocalDimming(this);
     addItem(pages[1], ldm.sw);
     addItem(pages[1], ldm.item);
+    addItem(pages[1], voiceKeyGroup.box);
     voiceKey = new VoiceKey(this);
-    addItem(pages[1], voiceKey.sw);
     addItem(pages[1], voiceKey.item);
 
     LinearLayout about = card();
@@ -742,6 +769,8 @@ public class MainActivity extends Activity {
                             + "wait\n"
                             + "S=$(cat \"$CD/lsp_status\" 2>/dev/null); rc=$(cat \"$CD/lsp_rc\""
                             + " 2>/dev/null); rm -f \"$CD/lsp_status\" \"$CD/lsp_rc\"\n"
+                            + "[ -d /data/adb/modules/zygisk_lsposed ] || [ -d"
+                            + " /data/adb/modules/zygisk_vector ] && echo \"L:installed\"\n"
                             + "[ \"$rc\" = 0 ] && echo \"L:run\"\n"
                             + "echo \"$S\" | grep -qE 'cannot connect|Socket file not found' &&"
                             + " echo \"L:dead\"\n"
@@ -762,7 +791,7 @@ public class MainActivity extends Activity {
                     pending = new HashSet<String>(),
                     disabled = new HashSet<String>(),
                     active = new HashSet<String>();
-                boolean lsR = false, lsDead = false, lsS = false;
+                boolean lsR = false, lsDead = false, lsS = false, lsI = false;
                 boolean ok = out != null && out.contains("__Q_OK__");
                 final java.util.Map<String, String[]>
                     vInst = new java.util.HashMap<String, String[]>(),
@@ -783,12 +812,14 @@ public class MainActivity extends Activity {
                       pending.add(line.substring(2));
                     } else if (line.startsWith("D:")) disabled.add(line.substring(2));
                     else if (line.startsWith("F:")) active.add(line.substring(2));
+                    else if (line.equals("L:installed")) lsI = true;
                     else if (line.equals("L:run")) lsR = true;
                     else if (line.equals("L:dead")) lsDead = true;
                     else if (line.equals("L:server")) lsS = true;
                   }
                 }
                 final boolean lsRun = lsR, lsSrv = lsS, lsKnown = ok && (lsR || lsDead);
+                final boolean lsInst = !ok || lsI;
                 final java.util.Map<String, Boolean> lsEn =
                     new java.util.HashMap<String, Boolean>();
                 final java.util.Map<String, Set<String>> lsSc =
@@ -814,6 +845,7 @@ public class MainActivity extends Activity {
                         modPending = ok ? pending : null;
                         modDisabled = disabled;
                         modActive = active;
+                        ls.lsInstalled = lsInst;
                         ls.lsKnown = lsKnown;
                         ls.lsRunning = lsRun;
                         ls.lsServer = lsSrv;
@@ -954,30 +986,42 @@ public class MainActivity extends Activity {
     new Dlg.Builder(this)
         .setTitle("重启电视")
         .setMessage("确定要现在重启电视吗？")
-        .setPositiveButton(
-            "重启",
-            new DialogInterface.OnClickListener() {
-              public void onClick(DialogInterface d, int w) {
-                new Thread(
-                        new Runnable() {
-                          public void run() {
-                            final String out = suOut("reboot\n");
-                            if (out == null)
-                              main.post(
-                                  new Runnable() {
-                                    public void run() {
-                                      showResult("无法使用 root，没有重启。");
-                                    }
-                                  });
-                          }
-                        },
-                        "slim-reboot")
-                    .start();
-              }
-            })
+        .setPositiveButton("重启", rebootClick)
         .setNegativeButton("取消", null)
         .show();
   }
+
+  /** 应用成功后：显示结果，并询问是否重启电视让改动生效。 */
+  void showResultReboot(String text) {
+    if (isFinishing()) return;
+    new Dlg.Builder(this)
+        .setTitle("应用完成，是否重启电视？")
+        .setView(scrollText(text + "\n需要重启电视，改动才会生效。"))
+        .setPositiveButton("重启", rebootClick)
+        .setNegativeButton("稍后", null)
+        .show();
+  }
+
+  private final DialogInterface.OnClickListener rebootClick =
+      new DialogInterface.OnClickListener() {
+        public void onClick(DialogInterface d, int w) {
+          new Thread(
+                  new Runnable() {
+                    public void run() {
+                      final String out = suOut("reboot\n");
+                      if (out == null)
+                        main.post(
+                            new Runnable() {
+                              public void run() {
+                                showResult("无法使用 root，没有重启。");
+                              }
+                            });
+                    }
+                  },
+                  "slim-reboot")
+              .start();
+        }
+      };
 
   void showResult(String text) {
     showResult("执行结果", text);

@@ -18,21 +18,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 遥控器语音键自定义（配合 VoiceKeyMap 模块）：开关打开后出现一张设置卡片，点进去在弹窗里分别选单击 / 双击 / 长按的动作。
- *
- * <p>配置写在 Settings.Global voicekeymap，如 click=sleep,long=source,double=app:com.pkg，模块在
- * system_server 里读取。 语音助手没有禁用时，小爱由蓝牙服务直接拉起，模块拦不住语音键，所以此时开关锁定。
- */
+/** 语音键动作设置（配合 VoiceKeyMap 模块）：配置写在 Settings.Global voicekeymap，如 click=sleep,long=source。 */
 final class VoiceKey extends Part {
 
-  private static final String KEY = "voicekeymap";
-  private static final String MODULE = "com.beekeeper.voicekeymap";
+  static final String MODULE = "com.beekeeper.voicekeymap";
   static final String[] ASSISTANT = {"com.xiaomi.voicecontrol", "com.xiaomi.wakeupservice"};
+  private static final String KEY = "voicekeymap";
   private static final String[] KEYS = {"click", "double", "long"};
   private static final String[] NAMES = {"单击", "双击", "长按"};
 
-  /** 可直接切换的信号源：播放器 input 序号 -> 名称。 */
   private static final String[] SRC_IDS = {"23", "24", "29"};
 
   private static final String[] SRC_NAMES = {"HDMI 1", "HDMI 2", "DP"};
@@ -41,30 +35,15 @@ final class VoiceKey extends Part {
     void on(int index);
   }
 
-  /** 总开关和动作设置卡片（开关打开才显示）。 */
-  final ItemView sw, item;
+  final ItemView item;
 
   /** 各手势当前的动作，空串 = 无动作。 */
   private final String[] act = {"", "", ""};
-
-  /** 开关状态单独记：三个动作都选“无动作”时开关和卡片也要留着，否则焦点所在的卡片消失，界面会跳回第一页。 */
-  boolean on;
 
   private final Back back = new Back();
 
   VoiceKey(MainActivity a) {
     super(a);
-    sw = new ItemView(a, false);
-    sw.setListener(
-        new ItemView.Listener() {
-          public void onChange(boolean checked) {
-            on = checked;
-            for (int i = 0; i < 3; i++) act[i] = "";
-            if (checked) act[0] = "sleep";
-            save();
-            update();
-          }
-        });
     item = new ItemView(a, true);
     item.setOnClickListener(
         new View.OnClickListener() {
@@ -74,7 +53,10 @@ final class VoiceKey extends Part {
         });
   }
 
-  /** 读当前配置并刷新界面。 */
+  static boolean assistantEnabled(MainActivity a) {
+    return a.state(ASSISTANT[0]) == ENABLED || a.state(ASSISTANT[1]) == ENABLED;
+  }
+
   void load() {
     String v = Settings.Global.getString(a.getContentResolver(), KEY);
     for (int i = 0; i < 3; i++) act[i] = "";
@@ -86,31 +68,25 @@ final class VoiceKey extends Part {
         }
       }
     }
-    for (String s : act) on |= s.length() > 0;
     update();
   }
 
+  void syncVisible() {
+    item.setVisibility(a.voiceKeyGroup.box.isChecked() ? View.VISIBLE : View.GONE);
+  }
+
   private void update() {
-    String lock = null;
-    if (state(MODULE) == MISSING) lock = "请先安装 VoiceKeyMap 模块";
-    else if (state(ASSISTANT[0]) == ENABLED || state(ASSISTANT[1]) == ENABLED)
-      lock = "请先在「应用类」禁用「语音助手」";
-    sw.setInfo(
-        "语音键自定义（LSPosed模块）",
-        "自定义遥控器语音键的单击、双击、长按动作。需先禁用“语音助手”。",
-        null,
-        lock == null ? null : "当前不可用：" + lock,
-        lock == null ? ItemView.NEUTRAL : ItemView.WARN);
-    sw.setLocked(lock != null && !on, lock);
-    sw.setChecked(on);
-    sw.markBase();
-    item.setVisibility(on ? View.VISIBLE : View.GONE);
-    a.updateDependents();
+    syncVisible();
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < 3; i++) {
       sb.append(i > 0 ? "\n" : "").append(NAMES[i]).append("：").append(label(act[i]));
     }
-    item.setInfo("语音键动作", "设置单击、双击、长按各自执行的动作。", null, sb.toString(), ItemView.NEUTRAL);
+    item.setInfo(
+        "语音键动作",
+        "设置单击、双击、长按各自执行的动作，改动将实时生效。",
+        assistantEnabled(a) ? "语音助手没有禁用，语音键仍会唤醒小爱，自定义不会生效" : null,
+        sb.toString(),
+        ItemView.NEUTRAL);
   }
 
   private String label(String v) {
@@ -161,7 +137,6 @@ final class VoiceKey extends Part {
     showMain();
   }
 
-  /** 三个手势各一行，点哪个就选哪个的动作；选完回到这里。 */
   private void showMain() {
     String[] labels = new String[3];
     for (int i = 0; i < 3; i++) labels[i] = NAMES[i] + "：" + label(act[i]);
@@ -229,7 +204,6 @@ final class VoiceKey extends Part {
         true);
   }
 
-  /** 可启动的应用（桌面或电视桌面有入口），按名称排序。 */
   private final class Apps {
     final List<String> pkgs = new ArrayList<String>();
     final String[] labels;
@@ -261,7 +235,7 @@ final class VoiceKey extends Part {
     }
   }
 
-  /** 单选列表弹窗：选中即关闭并回调。sub 为真是子弹窗（有“取消”），否则是主弹窗（只有“完成”）。 */
+  /** 单选弹窗：sub 为真带“取消”（子弹窗），否则只有“完成”（主弹窗）。 */
   private void choose(String title, String[] labels, final Pick pick, boolean sub) {
     LinearLayout list = new LinearLayout(a);
     list.setOrientation(LinearLayout.VERTICAL);

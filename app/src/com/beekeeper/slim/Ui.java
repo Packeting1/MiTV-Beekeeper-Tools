@@ -4,8 +4,11 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
 
 /** 界面配色和控件样式；所有可聚焦控件在获得焦点时统一加亮色描边，遥控器上一眼能看到当前位置。 */
 final class Ui {
@@ -51,6 +54,20 @@ final class Ui {
   /** 去掉系统在已处理焦点态的控件上额外叠加的高亮。 */
   static void noDefaultHighlight(View v) {
     if (android.os.Build.VERSION.SDK_INT >= 26) v.setDefaultFocusHighlightEnabled(false);
+  }
+
+  static void toast(Context c, String msg, boolean longer) {
+    TextView t = new TextView(c);
+    t.setText(msg);
+    t.setTextSize(15);
+    t.setTextColor(0xFF111418);
+    t.setPadding(dp(c, 22), dp(c, 10), dp(c, 22), dp(c, 10));
+    t.setBackground(shape(c, 0xFFFFFFFF, CLEAR, 0, 40));
+    Toast x = new Toast(c);
+    x.setView(t);
+    x.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, 0, dp(c, 48));
+    x.setDuration(longer ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT);
+    x.show();
   }
 
   static Button button(Context c, String text, boolean primary) {

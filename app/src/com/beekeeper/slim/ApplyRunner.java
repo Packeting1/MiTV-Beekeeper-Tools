@@ -88,6 +88,19 @@ final class ApplyRunner extends Part {
         .show();
   }
 
+  /** LSPosed 模块的作用域含常驻系统进程：这些进程只有重启电视才会重新加载。 */
+  private static boolean inSystemProcess(Group g) {
+    String[] scopes = g.kind == KIND_APK ? LS_SCOPES.get(g.pkgs[0]) : null;
+    if (scopes != null) {
+      for (String s : scopes) {
+        if (s.equals("system") || s.equals("mitv.service") || s.equals("com.mediatek.tv.service")) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   void runApply(
       final List<String> toDisable,
       final List<String> toEnable,
@@ -113,8 +126,7 @@ final class ApplyRunner extends Part {
                 if (dbOn) {
                   try {
                     String apk = copyAsset("aerial.apk");
-                    // 系统补丁 (PreferredActivityHelper) 拒绝把非系统应用设为默认桌面，所以要让Aerial成为系统应用：
-                    // 写一个 Magisk 模块把它放进 /system/app，重启后生效；模块的 service.sh 每次开机再设默认桌面。
+                    // 系统拒绝把非系统应用设为默认桌面：用 Magisk 模块把 Aerial 放进 /system/app，重启后生效
                     script.append("rm -rf /data/adb/modules/").append(OLD_DB_MODULE).append("\n");
                     script.append("PKG=").append(DB_PKG).append("\n");
                     script.append("MD=/data/adb/modules/").append(DB_MODULE).append("\n");
@@ -259,6 +271,10 @@ final class ApplyRunner extends Part {
                   if (g.kind == KIND_APK) {
                     script.append("echo \"== 卸载 ").append(g.title).append("\"\n");
                     script.append("pm uninstall ").append(g.pkgs[0]).append(" 2>&1\n");
+                    // 钩子重启前仍在运行，清掉配置才能立即恢复语音键
+                    if (VoiceKey.MODULE.equals(g.pkgs[0])) {
+                      script.append("settings delete global voicekeymap\n");
+                    }
                     continue;
                   }
                   script.append("echo \"== 卸载 ").append(g.modId).append("\"\n");
@@ -276,15 +292,20 @@ final class ApplyRunner extends Part {
                   else apkOn = true;
                 }
                 for (Group g : modOff) if (g.kind == KIND_MOD) modReboot = true;
-                final boolean needReboot = dbOn || dbOff || modReboot;
+                boolean sysApk = false;
+                for (Group g : modOn) sysApk |= inSystemProcess(g);
+                for (Group g : modOff) sysApk |= inSystemProcess(g);
+                final boolean needReboot = dbOn || dbOff || modReboot || sysApk;
                 if (needReboot) script.append("echo 有改动需要重启电视后生效\n");
                 if (apkOn) script.append("echo LSPosed 模块在目标应用下次启动时加载，系统进程里的需重启电视\n");
                 final String out = (err == null ? "" : err) + runSu(script.toString());
+                final boolean ok = err == null && !noRoot(out);
                 main.post(
                     new Runnable() {
                       public void run() {
                         if (progress.isShowing()) progress.dismiss();
-                        showResult(out);
+                        if (needReboot && ok) a.showResultReboot(out);
+                        else showResult(out);
                         refresh();
                       }
                     });

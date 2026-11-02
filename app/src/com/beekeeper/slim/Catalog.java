@@ -131,9 +131,9 @@ final class Catalog {
           "com.beekeeper.mediabadge",
           "apk_mediabadge.apk"),
       Group.apk(
-          "VoiceKeyMap（LSPosed模块）",
-          "自定义遥控器语音键的单击、双击、长按动作。安装后在下方「语音键自定义」中设置。",
-          "需先禁用「语音助手」；安装和启用模块后需重启电视",
+          "语音键自定义（LSPosed模块）",
+          "自定义遥控器语音键的单击、双击、长按动作。需先禁用“语音助手”。安装后在下方「语音键动作」中设置。",
+          null,
           "com.beekeeper.voicekeymap",
           "apk_voicekeymap.apk"),
       new Group(
