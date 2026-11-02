@@ -222,11 +222,16 @@ public class MainActivity extends Activity {
   }
 
   void addItem(LinearLayout page, View item) {
+    addItem(page, item, -1);
+  }
+
+  /** index 为 -1 时加到末尾。 */
+  void addItem(LinearLayout page, View item, int index) {
     LinearLayout.LayoutParams lp =
         new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
     lp.topMargin = dp(6);
-    page.addView(item, lp);
+    page.addView(item, index, lp);
   }
 
   LinearLayout card() {
@@ -481,9 +486,10 @@ public class MainActivity extends Activity {
     ldm = new LocalDimming(this);
     addItem(pages[1], ldm.sw);
     addItem(pages[1], ldm.item);
-    addItem(pages[1], voiceKeyGroup.box);
     voiceKey = new VoiceKey(this);
-    addItem(pages[1], voiceKey.item);
+    // 语音键自定义排在优化类第一项（标题和说明之后）
+    addItem(pages[1], voiceKeyGroup.box, 2);
+    addItem(pages[1], voiceKey.item, 3);
 
     LinearLayout about = card();
     TextView aboutText = new TextView(this);
