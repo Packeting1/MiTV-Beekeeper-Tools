@@ -38,7 +38,7 @@ final class ApplyRunner extends Part {
     for (Group g : a.GROUPS) {
       if (g.kind == KIND_APK) {
         boolean inst = state(g.pkgs[0]) != MISSING;
-        if (g.box.isChecked() && !inst) modOn.add(g);
+        if (g.box.isChecked() && (!inst || a.ls.needsFix(g.pkgs[0]))) modOn.add(g);
         if (!g.box.isChecked() && inst) modOff.add(g);
         continue;
       }
@@ -65,8 +65,12 @@ final class ApplyRunner extends Part {
     if (dbOff) msg.append("将恢复系统桌面，并移除 Aerial 桌面（重启后 Aerial 消失）\n");
     if (nhOn) msg.append("将禁用系统桌面（有风险）\n");
     if (nhOff) msg.append("将重新启用系统桌面\n");
-    for (Group g : modOn)
-      msg.append(g.kind == KIND_APK ? "将安装：" : "将启用：").append(g.title).append("\n");
+    for (Group g : modOn) {
+      boolean fixOnly = g.kind == KIND_APK && state(g.pkgs[0]) != MISSING;
+      msg.append(g.kind != KIND_APK ? "将启用：" : fixOnly ? "将在 LSPosed 启用：" : "将安装并在 LSPosed 启用：")
+          .append(g.title)
+          .append("\n");
+    }
     for (Group g : modOff)
       msg.append(g.kind == KIND_APK ? "将卸载：" : "将关闭：").append(g.title).append("\n");
     msg.append("\n确定继续吗？");
@@ -93,7 +97,7 @@ final class ApplyRunner extends Part {
       final boolean nhOff,
       final List<Group> modOn,
       final List<Group> modOff) {
-    final Dlg progress = new Dlg.Builder(a).setTitle("正在执行").setMessage("请在弹窗里允许 root……").show();
+    final Dlg progress = new Dlg.Builder(a).setTitle("正在执行").setMessage("正在进行中……").show();
     new Thread(
             new Runnable() {
               public void run() {
@@ -212,7 +216,20 @@ final class ApplyRunner extends Part {
                   if (g.kind == KIND_APK) {
                     try {
                       String apk = copyAsset(g.asset);
-                      script.append("echo \"== 安装 ").append(g.title).append("\"\n");
+                      script
+                          .append("echo \"== ")
+                          .append(state(g.pkgs[0]) == MISSING ? "安装 " : "启用 ")
+                          .append(g.title)
+                          .append("\"\n");
+                      // 先写库再安装：守护进程在包更新时重新读取，不用重启就能加载
+                      script
+                          .append("CLASSPATH=")
+                          .append(a.getPackageCodePath())
+                          .append(" app_process /system/bin com.beekeeper.slim.LsDb ")
+                          .append(g.pkgs[0]);
+                      String[] scopes = LS_SCOPES.get(g.pkgs[0]);
+                      if (scopes != null) for (String s : scopes) script.append(' ').append(s);
+                      script.append(" 2>&1\n");
                       script.append("pm install -r ").append(apk).append(" 2>&1\n");
                       script.append("rm -f ").append(apk).append("\n");
                     } catch (Exception e) {
@@ -253,11 +270,15 @@ final class ApplyRunner extends Part {
                       .append(g.modId)
                       .append("; echo 已移除; fi\n");
                 }
-                boolean modReboot = false;
-                for (Group g : modOn) if (g.kind == KIND_MOD) modReboot = true;
+                boolean modReboot = false, apkOn = false;
+                for (Group g : modOn) {
+                  if (g.kind == KIND_MOD) modReboot = true;
+                  else apkOn = true;
+                }
                 for (Group g : modOff) if (g.kind == KIND_MOD) modReboot = true;
                 final boolean needReboot = dbOn || dbOff || modReboot;
                 if (needReboot) script.append("echo 有改动需要重启电视后生效\n");
+                if (apkOn) script.append("echo LSPosed 模块在目标应用下次启动时加载，系统进程里的需重启电视\n");
                 final String out = (err == null ? "" : err) + runSu(script.toString());
                 main.post(
                     new Runnable() {

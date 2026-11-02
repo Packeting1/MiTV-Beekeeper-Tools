@@ -86,8 +86,15 @@ final class LsStatus extends Part {
     if (e == null) return "实际：LSPosed 未登记此模块";
     if (!e) return "实际：模块未在 LSPosed 中启用";
     if (!lsServer) return "实际：LSPosed 已运行，但未注入系统，请重启后重试";
+    if (LS_SCOPES.get(pkg) == null) return "实际：已在 LSPosed 启用";
+    String miss = missingScope(pkg);
+    if (miss.length() > 0) return "实际：已在 LSPosed 启用，但作用域缺 " + miss;
+    return "实际：已在 LSPosed 启用，作用域齐全";
+  }
+
+  private String missingScope(String pkg) {
     String[] need = LS_SCOPES.get(pkg);
-    if (need == null) return "实际：已在 LSPosed 启用";
+    if (need == null) return "";
     Set<String> have = lsScope == null ? null : lsScope.get(pkg);
     StringBuilder miss = new StringBuilder();
     for (String a : need) {
@@ -96,7 +103,12 @@ final class LsStatus extends Part {
         miss.append(a.startsWith("com.xiaomi.mitv.") ? a.substring(16) : a);
       }
     }
-    if (miss.length() > 0) return "实际：已在 LSPosed 启用，但作用域缺 " + miss;
-    return "实际：已在 LSPosed 启用，作用域齐全";
+    return miss.toString();
+  }
+
+  /** 已读到配置库，且模块没启用或作用域不全：点“应用”时由 LsDb 补上。 */
+  boolean needsFix(String pkg) {
+    if (!lsKnown || !lsRunning || lsEnabled == null) return false;
+    return !Boolean.TRUE.equals(lsEnabled.get(pkg)) || missingScope(pkg).length() > 0;
   }
 }
