@@ -28,7 +28,7 @@ final class VoiceKey extends Part {
 
   private static final String KEY = "voicekeymap";
   private static final String MODULE = "com.beekeeper.voicekeymap";
-  private static final String[] ASSISTANT = {"com.xiaomi.voicecontrol", "com.xiaomi.wakeupservice"};
+  static final String[] ASSISTANT = {"com.xiaomi.voicecontrol", "com.xiaomi.wakeupservice"};
   private static final String[] KEYS = {"click", "double", "long"};
   private static final String[] NAMES = {"单击", "双击", "长按"};
 
@@ -48,7 +48,7 @@ final class VoiceKey extends Part {
   private final String[] act = {"", "", ""};
 
   /** 开关状态单独记：三个动作都选“无动作”时开关和卡片也要留着，否则焦点所在的卡片消失，界面会跳回第一页。 */
-  private boolean on;
+  boolean on;
 
   private final Back back = new Back();
 
@@ -97,7 +97,7 @@ final class VoiceKey extends Part {
       lock = "请先在「应用类」禁用「语音助手」";
     sw.setInfo(
         "语音键自定义（LSPosed模块）",
-        "自定义遥控器语音键的单击、双击、长按动作。",
+        "自定义遥控器语音键的单击、双击、长按动作。需先禁用“语音助手”。",
         null,
         lock == null ? null : "当前不可用：" + lock,
         lock == null ? ItemView.NEUTRAL : ItemView.WARN);
@@ -105,6 +105,7 @@ final class VoiceKey extends Part {
     sw.setChecked(on);
     sw.markBase();
     item.setVisibility(on ? View.VISIBLE : View.GONE);
+    a.updateDependents();
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < 3; i++) {
       sb.append(i > 0 ? "\n" : "").append(NAMES[i]).append("：").append(label(act[i]));

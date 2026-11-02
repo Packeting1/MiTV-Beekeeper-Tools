@@ -97,6 +97,11 @@ public class MainActivity extends Activity {
       }
     }
     for (Group g : GROUPS) {
+      // 语音键自定义开着时，语音助手必须保持禁用，否则语音键拦不住
+      if (voiceKey != null && g.kind == KIND_PKGS && g.pkgs[0].equals(VoiceKey.ASSISTANT[0])) {
+        boolean keep = voiceKey.on && g.box.isChecked();
+        g.box.setLocked(keep, keep ? "已开启“语音键自定义”，需先关闭它才能启用语音助手" : null);
+      }
       if (fwMismatch(g) && !modInstalled(g)) {
         g.box.setChecked(false);
         g.box.setLocked(true, "仅适用于 " + FIRMWARE + "，当前固件为 " + Build.VERSION.INCREMENTAL);
