@@ -18,7 +18,7 @@ final class Ui {
     return Math.round(value * ctx.getResources().getDisplayMetrics().density);
   }
 
-  /** 菜单键悬浮窗的 Context 不是 Activity（没有窗口令牌），弹窗必须改用与悬浮窗相同的系统窗口类型，否则 BadTokenException 会让设置进程崩溃。 */
+  /** 快捷设置的 Context 不是 Activity（没有窗口令牌），弹窗必须改用与快捷设置相同的系统窗口类型，否则 BadTokenException 会让设置进程崩溃。 */
   static void show(Context ctx, Dialog dialog) {
     while (ctx instanceof ContextWrapper && !(ctx instanceof Activity)) {
       ctx = ((ContextWrapper) ctx).getBaseContext();

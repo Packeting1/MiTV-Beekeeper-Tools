@@ -939,7 +939,7 @@ public class MainActivity extends Activity {
         t = off ? "当前：已禁用" : "当前：启用中";
         lv = off ? ItemView.GOOD : ItemView.NEUTRAL;
         if (!noHomeReady() && !off) {
-          t += "（需要先安装 Aerial 桌面并设为默认桌面，且安装 HomeRef）";
+          t += "（需先启用「默认桌面引用」和「Aerial 桌面」并设为默认桌面）";
           lv = ItemView.WARN;
         }
         g.box.setChecked(off);

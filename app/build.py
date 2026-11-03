@@ -196,6 +196,7 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DE
         ("installunlock", "InstallUnlock"),
         ("nosignalaudiomode", "NoSignalAudioMode"),
         ("moredisplaysettings", "MoreDisplaySettings"),
+        ("gamemenu", "GameMenu"),
         ("dolbyvisiontitle", "DolbyVisionTitle"),
         ("mediabadge", "MediaBadge"),
         ("voicekeymap", "VoiceKeyMap"),

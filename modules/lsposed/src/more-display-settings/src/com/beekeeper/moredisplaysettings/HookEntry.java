@@ -20,8 +20,8 @@ import java.util.Set;
  *
  * - settings：在“恢复默认图像设置”下面加这一项，点击走 MitvSettingsPopup.showPopup(0)（图像参数页）。
  *   showPopup 不会取消图像页自己的 10 秒关闭计时器，到点它发的关闭广播会把新页面一起关掉，所以点击后手动 release。
- *   图像页一出现还会给播放器发广播，让底部游戏条消失。
- * - tvplayer：游戏条（MonitorGameFrag）平时只有按“更多”、返回键、12 秒无按键才会消失，且 Activity 已保存状态时
+ *   图像页一出现还会给播放器发广播，让游戏设置条消失。
+ * - tvplayer：游戏设置条（MonitorGameFrag）平时只有按“更多”、返回键、12 秒无按键才会消失，且 Activity 已保存状态时
  *   原版 keyPadBack 会跳过移除。这里收到广播就直接移除它的 Fragment。
  */
 public final class HookEntry extends XposedModule {
@@ -38,13 +38,13 @@ public final class HookEntry extends XposedModule {
   private static final String TITLE = "更多图像设置";
   private static final int TYPE_DISPLAY_PARAMETER = 0;
 
-  /** settings → tvplayer：关掉底部游戏条。 */
+  /** settings → tvplayer：关掉游戏设置条。 */
   private static final String ACTION_DISMISS_GAME_BAR =
       "com.beekeeper.moredisplaysettings.DISMISS_GAME_BAR";
 
   private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
 
-  /** tvplayer：当前显示着的游戏条 Fragment。 */
+  /** tvplayer：当前显示着的游戏设置条 Fragment。 */
   private static volatile Object gameFrag;
 
   private static boolean receiverRegistered;

@@ -1,0 +1,113 @@
+package com.beekeeper.gamemenu;
+
+import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.util.Log;
+import io.github.libxposed.api.XposedModule;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
+/*
+ * 取消菜单键弹出的游戏设置条，把里面的功能挪进快捷设置（图像页）左侧新增的“游戏”标签。
+ * 作用域：settings + tvplayer。
+ *
+ * - tvplayer：菜单键原本在游戏图像模式下弹游戏设置条，只在处理菜单键期间让 isGameModePic() 返回 false，
+ *   走原版“非游戏模式”分支（打开快捷设置）。isGameModePic 还被准星恢复等逻辑使用，所以不能全局改。
+ *   准星是播放器进程里的叠加视图，设置进程写完 Settings.Global 后发广播，由这里调 onChanged(int) 即时显示/隐藏。
+ * - settings：见 GameTab。
+ */
+public final class HookEntry extends XposedModule {
+
+  static final String TAG = "GameMenu";
+  static final String SETTINGS = "com.xiaomi.mitv.settings";
+  static final String PLAYER = "com.xiaomi.mitv.tvplayer";
+  static final String ACTION_FRONT_SIGHT = "com.beekeeper.gamemenu.FRONT_SIGHT";
+
+  private static final String ACTIVITY = "com.xiaomi.mitv.tvplayer.ExternalSourceActivity";
+  private static final int KEYCODE_MENU = 82;
+
+  private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
+  private static final ThreadLocal<Boolean> IN_MENU_KEY = new ThreadLocal<>();
+
+  private static volatile WeakReference<Activity> activity = new WeakReference<>(null);
+  private static boolean receiverRegistered;
+
+  @Override
+  public void onModuleLoaded(ModuleLoadedParam param) {
+    log(Log.INFO, TAG, "module loaded in " + param.getProcessName());
+  }
+
+  @Override
+  public void onPackageLoaded(PackageLoadedParam param) {
+    String pkg = param.getPackageName();
+    if ((!SETTINGS.equals(pkg) && !PLAYER.equals(pkg)) || !HOOKED.add(pkg)) {
+      return;
+    }
+    try {
+      if (SETTINGS.equals(pkg)) {
+        new GameTab(this, param.getDefaultClassLoader()).install();
+      } else {
+        hookPlayer(param.getDefaultClassLoader());
+      }
+    } catch (Throwable t) {
+      log(Log.ERROR, TAG, "cannot hook " + pkg, t);
+    }
+  }
+
+  private void hookPlayer(ClassLoader cl) throws Exception {
+    Class<?> esa = cl.loadClass(ACTIVITY);
+    Method onChanged = esa.getMethod("onChanged", int.class);
+
+    hook(esa.getDeclaredMethod("isGameModePic"))
+        .intercept(
+            chain -> Boolean.TRUE.equals(IN_MENU_KEY.get()) ? Boolean.FALSE : chain.proceed());
+
+    hook(esa.getDeclaredMethod("onKeyDown", int.class, android.view.KeyEvent.class))
+        .intercept(chain -> {
+          if ((Integer) chain.getArg(0) != KEYCODE_MENU) {
+            return chain.proceed();
+          }
+          IN_MENU_KEY.set(Boolean.TRUE);
+          try {
+            return chain.proceed();
+          } finally {
+            IN_MENU_KEY.remove();
+          }
+        });
+
+    BroadcastReceiver receiver =
+        new BroadcastReceiver() {
+          @Override
+          public void onReceive(Context context, Intent intent) {
+            Activity a = activity.get();
+            if (a == null) {
+              return;
+            }
+            try {
+              onChanged.invoke(a, intent.getIntExtra("index", 0));
+            } catch (Throwable t) {
+              log(Log.ERROR, TAG, "update front sight failed", t);
+            }
+          }
+        };
+    hook(esa.getDeclaredMethod("onResume"))
+        .intercept(chain -> {
+          Object self = chain.getThisObject();
+          activity = new WeakReference<>((Activity) self);
+          if (!receiverRegistered) {
+            receiverRegistered = true;
+            ((Activity) self)
+                .getApplicationContext()
+                .registerReceiver(receiver, new IntentFilter(ACTION_FRONT_SIGHT));
+          }
+          return chain.proceed();
+        });
+    log(Log.INFO, TAG, "player hooks installed");
+  }
+}

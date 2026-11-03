@@ -71,76 +71,101 @@ final class Catalog {
                   + "在 Aerial 内部升级只是普通应用安装，不会成为系统应用，而系统不允许非系统应用作为默认桌面，升级后可能无法继续使用。"),
       new Group(
           KIND_NOHOME,
-          "系统桌面 (占内存约 390MB)",
-          "禁用小米系统桌面。需先开启“Aerial 桌面”和 HomeRef，并将 Aerial 设为默认桌面。",
+          "小米桌面 (占内存约 390MB)",
+          "禁用小米桌面。需先启用「默认桌面引用」和「Aerial 桌面」并设为默认桌面。",
           null,
           STOCK_HOME_PKG),
       Group.apk(
-          "TvPlayerKeep（LSPosed模块）",
+          "语音键自定义（LSPosed模块）",
+          "自定义遥控器语音键的单击、双击、长按动作。需先禁用「语音助手」。",
+          null,
+          "com.beekeeper.voicekeymap",
+          "apk_voicekeymap.apk"),
+      Group.apk(
+          "默认桌面引用（LSPosed模块）",
+          "将系统对小米桌面的引用替换为当前的默认桌面。",
+          null,
+          "com.beekeeper.homeref",
+          "apk_homeref.apk"),
+      Group.apk(
+          "信号源设置不黑屏（LSPosed模块）",
           "从信号源进入系统设置时不黑屏。",
           null,
           "com.beekeeper.tvplayerkeep",
           "apk_tvplayerkeep.apk"),
       Group.apk(
-          "SignalKeep（LSPosed模块）",
+          "信号源快速切换（LSPosed模块）",
           "减少信号源和电视系统之间切换的黑屏时长。",
           "代价：内存约占用165MB",
           "com.beekeeper.signalkeep",
           "apk_signalkeep.apk"),
       Group.apk(
-          "CastPip（LSPosed模块）",
-          "投屏内容以小窗叠加在信号源画面上，并支持混音。",
-          null,
-          "com.beekeeper.castpip",
-          "apk_castpip.apk"),
-      Group.apk(
-          "HomeRef（LSPosed模块）",
-          "将系统对系统桌面的引用替换为当前的默认桌面。",
-          null,
-          "com.beekeeper.homeref",
-          "apk_homeref.apk"),
-      Group.apk(
-          "InstallUnlock（LSPosed模块）",
-          "解除小米包安装器对部分应用的安装拦截。",
-          null,
-          "com.beekeeper.installunlock",
-          "apk_installunlock.apk"),
-      Group.apk(
-          "NoSignalAudioMode（LSPosed模块）",
-          "信号源在无信号倒计时结束后进入音响模式，倒计时页新增“息屏”按钮；信号恢复时自动亮屏。",
+          "无信号音响模式（LSPosed模块）",
+          "信号源在无信号倒计时结束后进入音响模式，信号恢复时自动亮屏。",
           null,
           "com.beekeeper.nosignalaudiomode",
           "apk_nosignalaudiomode.apk"),
       Group.apk(
-          "MoreDisplaySettings（LSPosed模块）",
-          "菜单键悬浮窗的图像页新增“更多图像设置”，可直接进入图像参数。",
+          "投屏小窗（LSPosed模块）",
+          "允许投屏内容以小窗叠加在信号源画面之上，并支持混音。",
+          null,
+          "com.beekeeper.castpip",
+          "apk_castpip.apk"),
+      Group.apk(
+          "更多图像设置（LSPosed模块）",
+          "快捷设置的图像页新增「更多图像设置」，可直接进入图像参数。",
           null,
           "com.beekeeper.moredisplaysettings",
           "apk_moredisplaysettings.apk"),
       Group.apk(
-          "DolbyVisionTitle（LSPosed模块）",
-          "菜单键设置界面的标题在所有杜比视界图像模式下都显示 Dolby Vision。",
+          "游戏设置合并（LSPosed模块）",
+          "游戏设置条的功能项合并至快捷设置中的「游戏」标签",
+          null,
+          "com.beekeeper.gamemenu",
+          "apk_gamemenu.apk"),
+      Group.apk(
+          "杜比视界标题（LSPosed模块）",
+          "快捷设置的标题在杜比视界模式下都显示 Dolby Vision。",
           null,
           "com.beekeeper.dolbyvisiontitle",
           "apk_dolbyvisiontitle.apk"),
       Group.apk(
-          "MediaBadge（LSPosed模块）",
+          "媒体角标（LSPosed模块）",
           "根据播放的媒体内容，显示 HDR10 / HLG / HDR Vivid / Dolby Vision / Technicolor 角标，以及 Dolby / DTS"
               + " 系列音频角标。",
           null,
           "com.beekeeper.mediabadge",
           "apk_mediabadge.apk"),
-      Group.apk(
-          "语音键自定义（LSPosed模块）",
-          "自定义遥控器语音键的单击、双击、长按动作。需先禁用“语音助手”。安装后在下方「语音键动作」中设置。",
-          null,
-          "com.beekeeper.voicekeymap",
-          "apk_voicekeymap.apk"),
       new Group(
               KIND_MOD,
-              "Decorative Light（Magisk + LSPosed模块）",
-              "自定义装饰灯颜色，支持通过 DDP / sACN（如 OpenRGB）网络控制灯光；提供 MCU 固件刷写功能，让 24 颗灯珠独立控制。",
-              "安装此模块前需启用ADB常开。需在 LSPosed 启用配套模块；刷写 MCU 固件存在风险，卸载不会回滚固件。",
+              "FreeSync 保持图像模式（Magisk模块）",
+              "开启 FreeSync，或杜比视界信号带有游戏标志时，不再自动切换到游戏图像模式。",
+              "风险：在信号切换或重载时画面可能出现异常；仅适用于 OS 3.0.109。")
+          .mod("beekeeper_freesync_keep", "mod_freesynckeep.zip")
+          .fwOnly(),
+      new Group(KIND_MOD, "IMAX支持（Magisk模块）", "在图像模式中显示 IMAX。", null)
+          .mod("beekeeper_imax", "mod_imax.zip"),
+      new Group(KIND_MOD, "HDR10+支持（Magisk模块）", "上报 HDR10+ 能力，实际效果未验证。", null)
+          .mod("beekeeper_hdr10plus", "mod_hdr10plus.zip"),
+      new Group(KIND_MOD, "AISR 强度调节（Magisk模块）", "在“图像参数 > 清晰度”中显示超分辨率强度调节。", null)
+          .mod("beekeeper_aisr_level", "mod_aisr.zip"),
+      new Group(KIND_MOD, "音量均衡（Magisk模块）", "在声音设置中显示“音量均衡”。", null)
+          .mod("beekeeper_volume_balance", "mod_volbalance.zip"),
+      new Group(KIND_MOD, "LLDV支持（Magisk模块）", "声明支持低延迟杜比视界（LLDV），使 Windows 能够识别杜比视界。", null)
+          .mod("beekeeper_dv_edid", "mod_dvedid.zip"),
+      new Group(KIND_MOD, "DP 音频格式支持（Magisk模块）", "使 DP 输入声明与 HDMI 相同的音频格式，支持通过 DP 输出比特流。", null)
+          .mod("beekeeper_dp_audio", "mod_dpaudio.zip"),
+      Group.apk(
+          "安装拦截解除（LSPosed模块）",
+          "解除小米包安装器对部分应用的安装拦截。",
+          null,
+          "com.beekeeper.installunlock",
+          "apk_installunlock.apk"),
+      new Group(
+              KIND_MOD,
+              "装饰灯（Magisk + LSPosed模块）",
+              "自定义装饰灯颜色，支持通过 DDP / sACN 网络控制灯光并提供 MCU 固件刷写功能。需先启用「ADB常开」。",
+              "刷写 MCU 固件存在风险，卸载不会回滚 MCU 固件。",
               "com.beekeeper.decorativelight")
           .mod("beekeeper_decorative_light", "mod_decorative_light.zip")
           .requires("mitv_adb_keeper", "为降低风险，安装此模块前需启用ADB常开")
@@ -148,17 +173,10 @@ final class Catalog {
               "该模块会为系统灯控库打补丁，并提供 MCU 固件刷写功能。\n"
                   + "仅安装模块不会刷写 MCU 固件，卸载模块不会回滚已刷入的 MCU 固件。\n\n"
                   + "注意：\n"
-                  + "MCU 负责背光和装饰灯，刷写 MCU 固件可能背光异常（表现为黑屏）或灯光异常，主要救法是通过 ADB 操作界面，使用模块的「刷回原版」进行恢复。\n"
-                  + "前提是 MCU 的引导程序正常，还能接收刷写命令。")
+                  + "MCU 负责背光和装饰灯，刷写 MCU 固件可能背光异常（表现为黑屏）或灯光异常，主要救法是通过 ADB 操作界面，刷回原版进行恢复。前提是 MCU"
+                  + " 的引导程序正常，还能接收刷写命令。")
           .fwOnly(),
-      new Group(
-              KIND_MOD,
-              "FreeSync 保持图像模式（Magisk模块）",
-              "开启 FreeSync，或杜比视界信号带有游戏标志时，不再自动切换到游戏模式。",
-              "风险：在信号切换或重载时画面可能出现异常；仅适用于 OS 3.0.109，系统升级后自动失效")
-          .mod("beekeeper_freesync_keep", "mod_freesynckeep.zip")
-          .fwOnly(),
-      new Group(KIND_MOD, "ADB 常开（Magisk模块）", "开机后保持 ADB 开关与 5555 端口开启。", null)
+      new Group(KIND_MOD, "ADB 常开（Magisk模块）", "保持 ADB 开关的开启状态。", null)
           .mod("mitv_adb_keeper", "mod_adbkeeper.zip"),
       new Group(
               KIND_MOD,
@@ -179,18 +197,6 @@ final class Catalog {
           .mod("zygote64_fix", "mod_zygote.zip")
           .confirmOff("关闭后 LSPosed 的模块可能不生效。")
           .fix(),
-      new Group(KIND_MOD, "HDR10+支持（Magisk模块）", "上报 HDR10+ 能力，实际效果未验证。", null)
-          .mod("beekeeper_hdr10plus", "mod_hdr10plus.zip"),
-      new Group(KIND_MOD, "IMAX支持（Magisk模块）", "在图像模式中显示 IMAX。", null)
-          .mod("beekeeper_imax", "mod_imax.zip"),
-      new Group(KIND_MOD, "AISR 强度调节（Magisk模块）", "在“图像参数 > 清晰度”中显示超分辨率强度调节。", null)
-          .mod("beekeeper_aisr_level", "mod_aisr.zip"),
-      new Group(KIND_MOD, "音量均衡（Magisk模块）", "在声音设置中显示“音量均衡”。", null)
-          .mod("beekeeper_volume_balance", "mod_volbalance.zip"),
-      new Group(KIND_MOD, "LLDV支持（Magisk模块）", "声明支持低延迟杜比视界（LLDV），使 Windows 能够识别杜比视界。", null)
-          .mod("beekeeper_dv_edid", "mod_dvedid.zip"),
-      new Group(KIND_MOD, "DP 音频格式支持（Magisk模块）", "使 DP 输入声明与 HDMI 相同的音频格式，支持通过 DP 输出比特流。", null)
-          .mod("beekeeper_dp_audio", "mod_dpaudio.zip"),
     };
   }
 
@@ -242,6 +248,9 @@ final class Catalog {
     LS_SCOPES.put("com.beekeeper.nosignalaudiomode", new String[] {"com.xiaomi.mitv.tvplayer"});
     LS_SCOPES.put(
         "com.beekeeper.moredisplaysettings",
+        new String[] {"com.xiaomi.mitv.settings", "com.xiaomi.mitv.tvplayer"});
+    LS_SCOPES.put(
+        "com.beekeeper.gamemenu",
         new String[] {"com.xiaomi.mitv.settings", "com.xiaomi.mitv.tvplayer"});
     LS_SCOPES.put("com.beekeeper.dolbyvisiontitle", new String[] {"com.xiaomi.mitv.settings"});
     LS_SCOPES.put(
