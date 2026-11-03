@@ -1026,11 +1026,11 @@ public class MainActivity extends Activity {
   }
 
   /** 应用成功后询问是否重启电视让改动生效。 */
-  void showResultReboot() {
+  void showResultReboot(String summary) {
     if (isFinishing()) return;
     new Dlg.Builder(this)
         .setTitle("应用完成")
-        .setMessage("需要重启电视，改动才会生效。是否现在重启？")
+        .setMessage(summary + "\n\n需要重启电视，改动才会生效。是否现在重启？")
         .setPositiveButton("重启", rebootClick)
         .setNegativeButton("稍后", null)
         .show();

@@ -88,17 +88,54 @@ final class ApplyRunner extends Part {
         .show();
   }
 
-  /** LSPosed 模块的作用域含常驻系统进程：这些进程只有重启电视才会重新加载。 */
+  /** LSPosed 模块的作用域含常驻进程（系统进程、保持后台的播放器）：这些进程只有重启电视才会重新加载。 */
   private static boolean inSystemProcess(Group g) {
     String[] scopes = g.kind == KIND_APK ? LS_SCOPES.get(g.pkgs[0]) : null;
     if (scopes != null) {
       for (String s : scopes) {
-        if (s.equals("system") || s.equals("mitv.service") || s.equals("com.mediatek.tv.service")) {
+        if (s.equals("system")
+            || s.equals("mitv.service")
+            || s.equals("com.mediatek.tv.service")
+            || s.equals("com.mediatek.tvinput")
+            || s.equals("com.xiaomi.mitv.smartshare")
+            || s.equals("com.xiaomi.mitv.tvplayer")) {
           return true;
         }
       }
     }
     return false;
+  }
+
+  /** 每个步骤在 root 脚本里的包装：先报“正在…”，结束后只输出一行成功或失败，原始输出不外泄。 */
+  private static final String STEP =
+      "step() {\n"
+          + "  echo \"@@RUN|$1 $2\"\n"
+          + "  o=$(\"$4\" 2>&1)\n"
+          + "  case \"$o\" in\n"
+          + "    *Failure*|*Error*|*Exception*|*\"Installation failed\"*)\n"
+          + "      echo \"@@FAIL|$1|$(printf '%s' \"$o\" | grep -v '^$' | tail -n 2 | tr '\\n' '"
+          + " ')\";;\n"
+          + "    *)\n"
+          + "      m=$(printf '%s\\n' \"$o\" | sed -n 's/^@@MSG //p' | tail -n 1)\n"
+          + "      echo \"@@OK|$1|${m:-$3}\";;\n"
+          + "  esac\n"
+          + "}\n";
+
+  private int steps;
+
+  private void step(StringBuilder script, String label, String run, String done, String body) {
+    steps++;
+    script.append("s").append(steps).append("() {\n").append(body).append("}\n");
+    script
+        .append("step '")
+        .append(label)
+        .append("' '")
+        .append(run)
+        .append("' '")
+        .append(done)
+        .append("' s")
+        .append(steps)
+        .append("\n");
   }
 
   void runApply(
@@ -110,51 +147,53 @@ final class ApplyRunner extends Part {
       final boolean nhOff,
       final List<Group> modOn,
       final List<Group> modOff) {
-    final Dlg progress = new Dlg.Builder(a).setTitle("正在执行").setMessage("正在进行中……").show();
+    final Progress pg = new Progress(a);
+    pg.waiting("正在执行……");
+    final Dlg progress = new Dlg.Builder(a).setTitle("正在执行").setView(pg.box).show();
     new Thread(
             new Runnable() {
               public void run() {
-                final StringBuilder script = new StringBuilder();
+                steps = 0;
+                final StringBuilder script = new StringBuilder(STEP);
                 String err = null;
-                for (String p : toDisable) {
-                  script.append("pm disable-user --user 0 ").append(p).append(" 2>&1\n");
-                  script.append("am force-stop ").append(p).append(" 2>&1\n");
+                if (!toDisable.isEmpty()) {
+                  StringBuilder b = new StringBuilder();
+                  for (String p : toDisable) {
+                    b.append("pm disable-user --user 0 ").append(p).append("\n");
+                    b.append("am force-stop ").append(p).append("\n");
+                  }
+                  step(script, "已选应用", "正在禁用", "已禁用 " + toDisable.size() + " 个", b.toString());
                 }
-                for (String p : toEnable) {
-                  script.append("pm enable ").append(p).append(" 2>&1\n");
+                if (!toEnable.isEmpty()) {
+                  StringBuilder b = new StringBuilder();
+                  for (String p : toEnable) b.append("pm enable ").append(p).append("\n");
+                  step(script, "已选应用", "正在恢复", "已恢复 " + toEnable.size() + " 个", b.toString());
                 }
                 if (dbOn) {
                   try {
                     String apk = copyAsset("aerial.apk");
+                    StringBuilder b = new StringBuilder();
                     // 系统拒绝把非系统应用设为默认桌面：用 Magisk 模块把 Aerial 放进 /system/app，重启后生效
-                    script.append("rm -rf /data/adb/modules/").append(OLD_DB_MODULE).append("\n");
-                    script.append("PKG=").append(DB_PKG).append("\n");
-                    script.append("MD=/data/adb/modules/").append(DB_MODULE).append("\n");
-                    script.append(
+                    b.append("rm -rf /data/adb/modules/").append(OLD_DB_MODULE).append("\n");
+                    b.append("PKG=").append(DB_PKG).append("\n");
+                    b.append("MD=/data/adb/modules/").append(DB_MODULE).append("\n");
+                    b.append(
                         "if [ -d $MD ] && pm list packages -s | grep -q \"package:$PKG\\$\";"
                             + " then\n");
-                    script
-                        .append("  cmd package set-home-activity --user 0 ")
+                    b.append("  cmd package set-home-activity --user 0 ")
                         .append(DB_COMP)
-                        .append(" 2>&1\n");
-                    script.append("  echo 已设为默认桌面\n");
-                    script.append("else\n");
-                    script.append("  rm -rf $MD /data/local/tmp/dbx\n");
-                    script.append(
-                        "  mkdir -p $MD/system/app/Aerial/lib/arm64 /data/local/tmp/dbx\n");
-                    script
-                        .append("  cp ")
-                        .append(apk)
-                        .append(" $MD/system/app/Aerial/Aerial.apk\n");
-                    script
-                        .append("  unzip -o ")
-                        .append(apk)
-                        .append(" -d /data/local/tmp/dbx >/dev/null 2>&1\n");
-                    script.append(
+                        .append("\n");
+                    b.append("  echo '@@MSG 已设为默认桌面'\n");
+                    b.append("else\n");
+                    b.append("  rm -rf $MD /data/local/tmp/dbx\n");
+                    b.append("  mkdir -p $MD/system/app/Aerial/lib/arm64 /data/local/tmp/dbx\n");
+                    b.append("  cp ").append(apk).append(" $MD/system/app/Aerial/Aerial.apk\n");
+                    b.append("  unzip -o ").append(apk).append(" -d /data/local/tmp/dbx\n");
+                    b.append(
                         "  cp /data/local/tmp/dbx/lib/arm64-v8a/*.so"
                             + " $MD/system/app/Aerial/lib/arm64/\n");
-                    script.append("  rm -rf /data/local/tmp/dbx\n");
-                    script.append(
+                    b.append("  rm -rf /data/local/tmp/dbx\n");
+                    b.append(
                         "  printf 'id=beekeeper_aerial\\n"
                             + "name=Aerial Launcher\\n"
                             + "version=2026.10.28\\n"
@@ -163,87 +202,88 @@ final class ApplyRunner extends Part {
                             + "description=Installs Aerial as a system app and sets it as the"
                             + " default home.\\n"
                             + "' > $MD/module.prop\n");
-                    script.append("  cat > $MD/service.sh <<'SVCEOF'\n");
-                    script.append("#!/system/bin/sh\n");
-                    script.append(
-                        "until [ \"$(getprop sys.boot_completed)\" = 1 ]; do sleep 3; done\n");
-                    script.append("sleep 10\n");
-                    script.append("P=").append(DB_PKG).append("\n");
-                    script.append(
+                    b.append("  cat > $MD/service.sh <<'SVCEOF'\n");
+                    b.append("#!/system/bin/sh\n");
+                    b.append("until [ \"$(getprop sys.boot_completed)\" = 1 ]; do sleep 3; done\n");
+                    b.append("sleep 10\n");
+                    b.append("P=").append(DB_PKG).append("\n");
+                    b.append(
                         "for p in WRITE_SECURE_SETTINGS ACCESS_FINE_LOCATION; do pm grant $P"
                             + " android.permission.$p; done\n");
-                    script
-                        .append("cmd package set-home-activity --user 0 ")
+                    b.append("cmd package set-home-activity --user 0 ")
                         .append(DB_COMP)
                         .append("\n");
-                    script.append("SVCEOF\n");
-                    script.append("  chmod -R a+rX $MD; chmod 755 $MD/service.sh\n");
-                    script.append("  pm uninstall $PKG 2>&1\n");
-                    script.append("  echo 请重启电视；重启后自动设为默认桌面\n");
-                    script.append("fi\n");
-                    script.append("rm -f ").append(apk).append("\n");
+                    b.append("SVCEOF\n");
+                    b.append("  chmod -R a+rX $MD; chmod 755 $MD/service.sh\n");
+                    b.append("  pm uninstall $PKG >/dev/null 2>&1\n");
+                    b.append("  echo '@@MSG 已安装，重启后设为默认桌面'\n");
+                    b.append("fi\n");
+                    b.append("rm -f ").append(apk).append("\n");
+                    step(script, "Aerial 桌面", "正在安装", "已安装", b.toString());
                   } catch (Exception e) {
                     err = "无法读取内置的 Aerial 安装包：" + e + "\n";
                   }
                 }
                 if (nhOn && err == null) {
                   // 先确认Aerial是系统应用；禁用后再确认默认桌面确实落到Aerial，否则立刻恢复系统桌面。
-                  script
-                      .append("if pm list packages -s | grep -q \"package:")
+                  StringBuilder b = new StringBuilder();
+                  b.append("if pm list packages -s | grep -q \"package:")
                       .append(DB_PKG)
                       .append("\\$\"; then\n");
-                  script
-                      .append("  pm disable-user --user 0 ")
-                      .append(STOCK_HOME_PKG)
-                      .append(" 2>&1\n");
-                  script.append(
+                  b.append("  pm disable-user --user 0 ").append(STOCK_HOME_PKG).append("\n");
+                  b.append(
                       "  H=$(cmd package resolve-activity --brief -a android.intent.action.MAIN"
                           + " -c android.intent.category.HOME | tail -1)\n");
-                  script.append("  case \"$H\" in\n");
-                  script
-                      .append("    ")
+                  b.append("  case \"$H\" in\n");
+                  b.append("    ")
                       .append(DB_PKG)
                       .append("/*) am force-stop ")
                       .append(STOCK_HOME_PKG)
-                      .append("; echo 已禁用系统桌面;;\n");
-                  script
-                      .append("    *) pm enable ")
+                      .append("; echo '@@MSG 已禁用';;\n");
+                  b.append("    *) pm enable ")
                       .append(STOCK_HOME_PKG)
-                      .append("; echo \"默认桌面不是 Aerial（$H），已自动恢复系统桌面\";;\n");
-                  script.append("  esac\n");
-                  script.append("else echo Aerial 桌面还不是系统应用，已跳过禁用系统桌面; fi\n");
+                      .append("; echo '@@MSG 默认桌面不是 Aerial，已自动恢复系统桌面';;\n");
+                  b.append("  esac\n");
+                  b.append("else echo '@@MSG Aerial 桌面还不是系统应用，已跳过'; fi\n");
+                  step(script, "系统桌面", "正在禁用", "已禁用", b.toString());
                 }
                 if (nhOff || dbOff) {
-                  script.append("pm enable ").append(STOCK_HOME_PKG).append(" 2>&1\n");
+                  step(script, "系统桌面", "正在恢复", "已恢复", "pm enable " + STOCK_HOME_PKG + "\n");
                 }
                 if (dbOff) {
-                  script
-                      .append("cmd package set-home-activity ")
-                      .append(STOCK_HOME_COMP)
-                      .append(" 2>&1\n");
-                  script.append("rm -rf /data/adb/modules/").append(DB_MODULE).append("\n");
-                  script.append("echo 已恢复系统桌面，重启后 Aerial 消失\n");
+                  step(
+                      script,
+                      "Aerial 桌面",
+                      "正在移除",
+                      "已移除，重启后消失",
+                      "cmd package set-home-activity "
+                          + STOCK_HOME_COMP
+                          + "\nrm -rf /data/adb/modules/"
+                          + DB_MODULE
+                          + "\n");
                 }
                 for (Group g : modOn) {
                   if (g.kind == KIND_APK) {
                     try {
                       String apk = copyAsset(g.asset);
-                      script
-                          .append("echo \"== ")
-                          .append(state(g.pkgs[0]) == MISSING ? "安装 " : "启用 ")
-                          .append(g.title)
-                          .append("\"\n");
+                      boolean fresh = state(g.pkgs[0]) == MISSING;
+                      StringBuilder b = new StringBuilder();
                       // 先写库再安装：守护进程在包更新时重新读取，不用重启就能加载
-                      script
-                          .append("CLASSPATH=")
+                      b.append("CLASSPATH=")
                           .append(a.getPackageCodePath())
                           .append(" app_process /system/bin com.beekeeper.slim.LsDb ")
                           .append(g.pkgs[0]);
                       String[] scopes = LS_SCOPES.get(g.pkgs[0]);
-                      if (scopes != null) for (String s : scopes) script.append(' ').append(s);
-                      script.append(" 2>&1\n");
-                      script.append("pm install -r ").append(apk).append(" 2>&1\n");
-                      script.append("rm -f ").append(apk).append("\n");
+                      if (scopes != null) for (String s : scopes) b.append(' ').append(s);
+                      b.append("\n");
+                      b.append("pm install -r ").append(apk).append("\n");
+                      b.append("rm -f ").append(apk).append("\n");
+                      step(
+                          script,
+                          g.title,
+                          fresh ? "正在安装" : "正在启用",
+                          fresh ? "已安装" : "已启用",
+                          b.toString());
                     } catch (Exception e) {
                       err = (err == null ? "" : err) + "无法读取内置安装包 " + g.asset + "：" + e + "\n";
                     }
@@ -251,40 +291,35 @@ final class ApplyRunner extends Part {
                   }
                   try {
                     String zip = copyAsset(g.asset);
-                    script.append("echo \"== 安装 ").append(g.modId).append("\"\n");
-                    script
-                        .append("if [ -d /data/adb/modules/")
-                        .append(g.modId)
-                        .append(" ]; then\n");
-                    script.append("  rm -f /data/adb/modules/").append(g.modId).append("/remove\n");
-                    script.append("  echo 已恢复启用\n");
-                    script
-                        .append("else magisk --install-module ")
-                        .append(zip)
-                        .append(" 2>&1; fi\n");
-                    script.append("rm -f ").append(zip).append("\n");
+                    StringBuilder b = new StringBuilder();
+                    b.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
+                    b.append("  rm -f /data/adb/modules/").append(g.modId).append("/remove\n");
+                    b.append("  echo '@@MSG 已启用，重启后生效'\n");
+                    b.append("else magisk --install-module ").append(zip).append("; fi\n");
+                    b.append("rm -f ").append(zip).append("\n");
+                    step(script, g.title, "正在安装", "已安装，重启后生效", b.toString());
                   } catch (Exception e) {
                     err = (err == null ? "" : err) + "无法读取内置模块 " + g.asset + "：" + e + "\n";
                   }
                 }
                 for (Group g : modOff) {
+                  StringBuilder b = new StringBuilder();
                   if (g.kind == KIND_APK) {
-                    script.append("echo \"== 卸载 ").append(g.title).append("\"\n");
-                    script.append("pm uninstall ").append(g.pkgs[0]).append(" 2>&1\n");
+                    b.append("pm uninstall ").append(g.pkgs[0]).append("\n");
                     // 钩子重启前仍在运行，清掉配置才能立即恢复语音键
                     if (VoiceKey.MODULE.equals(g.pkgs[0])) {
-                      script.append("settings delete global voicekeymap\n");
+                      b.append("settings delete global voicekeymap\n");
                     }
+                    step(script, g.title, "正在卸载", "已卸载", b.toString());
                     continue;
                   }
-                  script.append("echo \"== 卸载 ").append(g.modId).append("\"\n");
-                  script.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
-                  script.append("  touch /data/adb/modules/").append(g.modId).append("/remove\n");
-                  script.append("  echo 已关闭，重启后生效\n");
-                  script
-                      .append("else rm -rf /data/adb/modules_update/")
+                  b.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
+                  b.append("  touch /data/adb/modules/").append(g.modId).append("/remove\n");
+                  b.append("  echo '@@MSG 已关闭，重启后生效'\n");
+                  b.append("else rm -rf /data/adb/modules_update/")
                       .append(g.modId)
-                      .append("; echo 已移除; fi\n");
+                      .append("; echo '@@MSG 已移除'; fi\n");
+                  step(script, g.title, "正在关闭", "已关闭", b.toString());
                 }
                 boolean modReboot = false, apkOn = false;
                 for (Group g : modOn) {
@@ -296,20 +331,52 @@ final class ApplyRunner extends Part {
                 for (Group g : modOn) sysApk |= inSystemProcess(g);
                 for (Group g : modOff) sysApk |= inSystemProcess(g);
                 final boolean needReboot = dbOn || dbOff || modReboot || sysApk;
-                if (needReboot) script.append("echo 有改动需要重启电视后生效\n");
-                if (apkOn) script.append("echo LSPosed 模块在目标应用下次启动时加载，系统进程里的需重启电视\n");
-                final String out = (err == null ? "" : err) + runSu(script.toString());
-                final boolean ok =
-                    err == null
-                        && !noRoot(out)
-                        && !out.contains("Failure")
-                        && !out.contains("Error");
+                final boolean lateLoad = apkOn && !needReboot;
+                final String out =
+                    suOut(
+                        script.toString(),
+                        new Shell.Lines() {
+                          public void line(String l) {
+                            if (!l.startsWith("@@RUN|")) return;
+                            final String t = l.substring(6) + "……";
+                            main.post(
+                                new Runnable() {
+                                  public void run() {
+                                    pg.waiting(t);
+                                  }
+                                });
+                          }
+                        });
+                final StringBuilder sum = new StringBuilder(err == null ? "" : err);
+                boolean good = err == null;
+                if (out == null) {
+                  sum.append("无法使用 root，可能没有授予 root。\n");
+                  good = false;
+                } else {
+                  for (String l : out.split("\n")) {
+                    boolean fail = l.startsWith("@@FAIL|");
+                    if (!fail && !l.startsWith("@@OK|")) continue;
+                    String[] f = l.substring(fail ? 7 : 5).split("\\|", 2);
+                    String detail = f.length > 1 ? f[1].trim() : "";
+                    sum.append(f[0]).append("：");
+                    if (fail) {
+                      good = false;
+                      sum.append("失败").append(detail.isEmpty() ? "" : "（" + detail + "）");
+                    } else {
+                      sum.append(detail.isEmpty() ? "完成" : detail);
+                    }
+                    sum.append("\n");
+                  }
+                }
+                if (lateLoad && good) sum.append("\nLSPosed 模块将在目标应用下次启动时生效。");
+                final String text = sum.toString().trim();
+                final boolean ok = good;
                 main.post(
                     new Runnable() {
                       public void run() {
                         if (progress.isShowing()) progress.dismiss();
-                        if (needReboot && ok) a.showResultReboot();
-                        else showResult(out);
+                        if (needReboot && ok) a.showResultReboot(text);
+                        else showResult(text);
                         refresh();
                       }
                     });
