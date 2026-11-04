@@ -17,6 +17,7 @@ import android.media.AudioPlaybackConfiguration;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -24,6 +25,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -41,6 +43,8 @@ public final class HookEntry extends XposedModule {
 
   private static final String TAG = "MediaBadge";
   private static final String SERVICE = "mitv.service";
+  private static final String SETTINGS = "com.xiaomi.mitv.settings";
+  private static final String KEY_ENABLED = "mediabadge_enabled";
   private static final String HOME = "com.mitv.tvhome";
   private static final String PLAYER = "com.xiaomi.mitv.tvplayer";
   private static final String[] NATIVE_CONTROLLERS = {
@@ -56,6 +60,12 @@ public final class HookEntry extends XposedModule {
   private static final int HDR_VIVID = 6;
   private static final String ACTION_BADGE = "com.beekeeper.mediabadge.BADGE";
   private static final String CALLBACK = "com.mediatek.twoworlds.tv.TVCallback";
+  private static final String ACTION_INFO_PENDING = "com.beekeeper.mediabadge.INFO_PENDING";
+  private static final String ACTION_INFO_SHOWN = "com.beekeeper.mediabadge.INFO_SHOWN";
+  private static final String ACTION_INFO_ARM = "com.beekeeper.mediabadge.INFO_ARM";
+  private static final long INFO_WAIT_MS = 3000;
+  private static final long ARM_WAIT_MS = 4000;
+  private static final long AFTER_INFO_MS = 300;
   private static final long SETTLE_MS = 400;
   private static final long SHOW_MS = 5000;
 
@@ -73,6 +83,10 @@ public final class HookEntry extends XposedModule {
   private int audioRetry;
   private boolean fading;
   private final Runnable audioTask = this::checkAudio;
+  private final Runnable releaseTask = this::release;
+  private long infoUntil;
+  private String heldVideo;
+  private String heldAudio;
   private Object avMode;
   private Method getInfo;
 
@@ -84,12 +98,21 @@ public final class HookEntry extends XposedModule {
   @Override
   public void onPackageLoaded(PackageLoadedParam param) {
     String pkg = param.getPackageName();
+    if (SETTINGS.equals(pkg) && HOOKED.add(SETTINGS)) {
+      try {
+        SettingsSwitch.install(this, param.getDefaultClassLoader(), TAG, "媒体角标", KEY_ENABLED);
+      } catch (Throwable e) {
+        log(Log.ERROR, TAG, "cannot add settings switch", e);
+      }
+      return;
+    }
     if (HOME.equals(pkg) && HOOKED.add(HOME)) {
       muteNativeDolbyLogo(param.getDefaultClassLoader());
       return;
     }
     if (PLAYER.equals(pkg) && HOOKED.add(PLAYER)) {
       mutePlayerDolbyIcon(param.getDefaultClassLoader());
+      gateBehindSourceInfo(param.getDefaultClassLoader());
       return;
     }
     if (!SERVICE.equals(pkg) || !HOOKED.add(SERVICE)) {
@@ -118,6 +141,7 @@ public final class HookEntry extends XposedModule {
           });
       ui = new Handler(Looper.getMainLooper());
       ui.post(this::listenBadge);
+      ui.post(this::listenSourceInfo);
       ui.post(this::watchAudio);
       HandlerThread t = new HandlerThread(TAG);
       t.start();
@@ -203,7 +227,7 @@ public final class HookEntry extends XposedModule {
               new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context c, Intent i) {
-                  present(
+                  request(
                       c,
                       i.getBooleanExtra("vision", false) ? label(DOLBY) : null,
                       i.getStringExtra("audio"));
@@ -237,7 +261,9 @@ public final class HookEntry extends XposedModule {
             .intercept(chain -> {
               // 这里的异常不能传到桌面进程里，出错就按原样显示系统角标
               try {
-                if (isPlainDolby(chain.getThisObject()) && notifyBadge(app(), true, null)) {
+                if (isPlainDolby(chain.getThisObject())
+                    && (!SettingsSwitch.enabled(app(), KEY_ENABLED)
+                        || notifyBadge(app(), true, null))) {
                   return null;
                 }
               } catch (Throwable ignored) {
@@ -260,6 +286,9 @@ public final class HookEntry extends XposedModule {
       hook(c.getDeclaredMethod("showDolbyIcon", int.class, int.class))
           .intercept(chain -> {
             Context ctx = (Context) chain.getThisObject();
+            if (!SettingsSwitch.enabled(ctx, KEY_ENABLED)) {
+              return chain.proceed(new Object[] {0, 0});
+            }
             int audioRes = (Integer) chain.getArgs().get(0);
             int visionRes = (Integer) chain.getArgs().get(1);
             String audio = audioLabel(ctx, audioRes);
@@ -271,6 +300,139 @@ public final class HookEntry extends XposedModule {
       log(Log.INFO, TAG, "player dolby icons muted");
     } catch (Throwable e) {
       log(Log.ERROR, TAG, "cannot mute player icon", e);
+    }
+  }
+
+  // 切换信号源时播放器在信号稳定 2 秒后才显示左上角的信号源面板，角标要排在它后面：
+  // 播放器预告“面板将显示”和“面板已显示”，服务进程据此暂存角标
+  private void gateBehindSourceInfo(ClassLoader cl) {
+    try {
+      Class<?> c = cl.loadClass("com.xiaomi.mitv.tvplayer.ExternalSourceActivity");
+      Field support = field(c, "mSupportHdmiInfo");
+      Field target = field(c, "mTargetSource");
+      Method isHdmi = c.getDeclaredMethod("isHDMISource", int.class);
+      isHdmi.setAccessible(true);
+      hook(c.getDeclaredMethod("showHdmiInfoView"))
+          .intercept(chain -> {
+            Object r = chain.proceed();
+            try {
+              Object a = chain.getThisObject();
+              boolean expected =
+                  support.getBoolean(a) && (Boolean) isHdmi.invoke(a, target.getInt(a));
+              ((Context) a)
+                  .sendBroadcast(
+                      new Intent(expected ? ACTION_INFO_PENDING : ACTION_INFO_SHOWN)
+                          .setPackage(SERVICE));
+            } catch (Throwable e) {
+              log(Log.WARN, TAG, "cannot announce source info", e);
+            }
+            return r;
+          });
+      // HDR 类型和播放器自带角标的事件常早于 showHdmiInfoView，所以进入播放器/收到新意图时就先预告
+      for (Method m :
+          new Method[] {
+            c.getDeclaredMethod("onResume"), c.getDeclaredMethod("onNewIntent", Intent.class)
+          }) {
+        hook(m)
+            .intercept(chain -> {
+              try {
+                ((Context) chain.getThisObject())
+                    .sendBroadcast(new Intent(ACTION_INFO_ARM).setPackage(SERVICE));
+              } catch (Throwable ignored) {
+              }
+              return chain.proceed();
+            });
+      }
+      // 要比 SignalInfoBadge 的 infoShow 钩子先执行，它关闭时会直接跳过原方法
+      hook(c.getDeclaredMethod("infoShow"))
+          .setPriority(XposedInterface.PRIORITY_HIGHEST)
+          .intercept(chain -> {
+            Object r = chain.proceed();
+            try {
+              ((Context) chain.getThisObject())
+                  .sendBroadcast(new Intent(ACTION_INFO_SHOWN).setPackage(SERVICE));
+            } catch (Throwable ignored) {
+            }
+            return r;
+          });
+    } catch (Throwable e) {
+      log(Log.WARN, TAG, "cannot gate behind source info", e);
+    }
+  }
+
+  private static Field field(Class<?> c, String name) throws NoSuchFieldException {
+    for (Class<?> k = c; k != null; k = k.getSuperclass()) {
+      try {
+        Field f = k.getDeclaredField(name);
+        f.setAccessible(true);
+        return f;
+      } catch (NoSuchFieldException ignored) {
+      }
+    }
+    throw new NoSuchFieldException(name);
+  }
+
+  private void listenSourceInfo() {
+    try {
+      IntentFilter f = new IntentFilter(ACTION_INFO_PENDING);
+      f.addAction(ACTION_INFO_SHOWN);
+      f.addAction(ACTION_INFO_ARM);
+      app()
+          .registerReceiver(
+              new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context c, Intent i) {
+                  String action = i.getAction();
+                  if (!ACTION_INFO_SHOWN.equals(action)) {
+                    long wait = ACTION_INFO_ARM.equals(action) ? ARM_WAIT_MS : INFO_WAIT_MS;
+                    infoUntil = SystemClock.uptimeMillis() + wait;
+                    ui.removeCallbacks(releaseTask);
+                    ui.postDelayed(releaseTask, wait);
+                    log(
+                        Log.INFO,
+                        TAG,
+                        "source info " + action.substring(action.lastIndexOf('.') + 1));
+                  } else {
+                    infoUntil = 0;
+                    ui.removeCallbacks(releaseTask);
+                    ui.postDelayed(releaseTask, AFTER_INFO_MS);
+                    log(Log.INFO, TAG, "source info shown");
+                  }
+                }
+              },
+              f);
+    } catch (Throwable e) {
+      log(Log.ERROR, TAG, "cannot listen source info", e);
+    }
+  }
+
+  // 信号源面板还没出现时先记下角标内容，等面板出现（或等待超时）再弹
+  private void request(Context ctx, String video, String audio) {
+    if (SystemClock.uptimeMillis() < infoUntil && PLAYER.equals(topPackage(ctx))) {
+      if (video != null) {
+        heldVideo = video;
+      }
+      if (audio != null) {
+        heldAudio = audio;
+      }
+      return;
+    }
+    present(ctx, video, audio);
+  }
+
+  private void release() {
+    infoUntil = 0;
+    String v = heldVideo;
+    String a = heldAudio;
+    heldVideo = null;
+    heldAudio = null;
+    try {
+      Context ctx = app();
+      if (ctx != null) {
+        present(ctx, v, a);
+      }
+    } catch (Throwable e) {
+      log(Log.WARN, TAG, "cannot release held badge", e);
     }
   }
 
@@ -345,7 +507,7 @@ public final class HookEntry extends XposedModule {
       log(Log.INFO, TAG, "hdr type " + lastType + " -> " + type + ", top=" + top);
       lastType = type;
       if (top != null && !isHome(ctx, top)) {
-        ui.post(() -> present(ctx, label, null));
+        ui.post(() -> request(ctx, label, null));
       }
     } catch (Throwable e) {
       log(Log.WARN, TAG, "check failed", e);
@@ -421,7 +583,7 @@ public final class HookEntry extends XposedModule {
   // 最多两个药丸纵向排列（视频在上，音频在下）；已在显示时原地更新并重新计时，内容没变就不打扰
   private void present(Context ctx, String video, String audio) {
     try {
-      if (video == null && audio == null) {
+      if ((video == null && audio == null) || !SettingsSwitch.enabled(ctx, KEY_ENABLED)) {
         return;
       }
       boolean showing = box != null && !fading;
@@ -460,7 +622,7 @@ public final class HookEntry extends XposedModule {
                     | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.END;
-        lp.y = Math.round(42 * dp);
+        lp.y = Math.round(30 * dp);
         lp.x = Math.round(30 * dp);
         fill(ctx, dp);
         wm.addView(box, lp);

@@ -75,15 +75,15 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | HGIG Fix | 补全缺失的 HGIG 支持标志，修复 HDR 色调映射菜单错位 |
 | LDM Fix | 将局部调光参数恢复为 OS2 的数值，减轻 HDR / 杜比视界过曝 |
 | Zygote64 Fix | 修复 Zygisk Next 遗漏注入 zygote64 的问题，使 LSPosed 钩子在开机后生效 |
-| ADB Keeper | 开机和系统重置后保持 ADB 与 TCP 端口开启 |
-| 4K UI Switch | 在系统设置中显示 4K UI 分辨率开关 |
+| ADB Keeper | 保持 ADB 开关的开启状态 |
+| 4K UI Switch | 在「系统设置 > 通用设置」中显示「UI 显示模式」选项 |
 | Support HDR10+ | 上报 HDR10+ 能力（实际效果未验证） |
-| Support IMAX | 在图像模式中显示 IMAX |
+| Support IMAX | 在图像模式中显示「IMAX 模式」 |
 | Support AISR Level | 在「图像参数 > 清晰度」中显示超分辨率强度调节 |
-| Support Volume Balance | 在声音设置中显示音量均衡 |
-| Support LLDV | 声明支持低延迟杜比视界（LLDV），使 Windows 能够识别杜比视界 |
+| Support Volume Balance | 在声音设置中显示「音量均衡」 |
+| Support LLDV | 声明支持低延迟杜比视界，使 Windows 能够识别杜比视界 |
 | Support DP Audio | 使 DP 输入声明与 HDMI 相同的音频格式，支持通过 DP 输出比特流 |
-| FreeSync Keep Mode | 开启 FreeSync，或杜比视界信号带有游戏标志时，不再自动切换到游戏图像模式 |
+| FreeSync Keep Mode | 开启 FreeSync 或杜比视界信号带有游戏标志时，不再自动切换到游戏图像模式 |
 | [Decorative Light](modules/lsposed/src/decorative-light/README.md) | 自定义装饰灯颜色，支持通过 DDP / sACN（如 OpenRGB）网络控制灯光；可选刷入自定义 MCU 固件，让 24 颗灯珠独立控制 |
 
 ### LSPosed 模块
@@ -97,10 +97,12 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | InstallUnlock | 解除小米包安装器依据云端黑名单对部分应用的安装拦截 |
 | NoSignalAudioMode | 信号源在无信号倒计时结束后进入音响模式，信号恢复时自动亮屏 |
 | MoreDisplaySettings | 快捷设置的图像页新增「更多图像设置」入口 |
-| GameMenu | 游戏设置条的功能合并到快捷设置中的「游戏」标签 |
-| DolbyVisionTitle | 快捷设置的标题在杜比视界模式下都显示 Dolby Vision |
-| MediaBadge | 根据播放内容显示 HDR10 / HLG / HDR Vivid / Dolby Vision / Technicolor 角标，以及 Dolby / DTS 系列音频角标 |
+| GameMenu | 游戏设置条的功能项合并到快捷设置中的「游戏」页，并新增FPS 计数器、计时器、秒表 |
+| DolbyVisionTitle | 在杜比视界模式时，快捷设置的标题显示 Dolby Vision |
+| MediaBadge | 根据播放内容显示 HDR10 / HLG / Dolby / DTS 等角标，可在快捷设置的「专业功能」页开关显示 |
+| SignalInfoBadge | 简化信号源信息角标，可在快捷设置的「专业功能」页开关显示 |
 | VoiceKeyMap | 自定义遥控器语音键的单击、双击、长按动作：息屏（音响模式）、切换信号源、启动应用 |
+| VolumeBalanceSwitch | 在快捷设置的声音页新增「音量均衡」开关 |
 
 ## 常见问题
 

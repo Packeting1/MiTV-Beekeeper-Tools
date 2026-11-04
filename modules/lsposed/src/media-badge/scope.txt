@@ -1,3 +1,4 @@
 mitv.service
 com.mitv.tvhome
 com.xiaomi.mitv.tvplayer
+com.xiaomi.mitv.settings

@@ -30,10 +30,12 @@ public final class HookEntry extends XposedModule {
   static final String ACTION_FRONT_SIGHT = "com.beekeeper.gamemenu.FRONT_SIGHT";
 
   private static final String ACTIVITY = "com.xiaomi.mitv.tvplayer.ExternalSourceActivity";
+  private static final String MONITOR_UTILS = "com.xiaomi.mitv.tvplayer.monitor.MonitorUtils";
   private static final int KEYCODE_MENU = 82;
 
   private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
   private static final ThreadLocal<Boolean> IN_MENU_KEY = new ThreadLocal<>();
+  private static final ThreadLocal<Boolean> FORCE_PM2 = new ThreadLocal<>();
 
   private static volatile WeakReference<Activity> activity = new WeakReference<>(null);
   private static boolean receiverRegistered;
@@ -80,6 +82,27 @@ public final class HookEntry extends XposedModule {
             IN_MENU_KEY.remove();
           }
         });
+
+    // 帧率/计时/秒表悬浮层的显示与移除被 isSupportPm2Monitor 拦住，只在这几个方法执行期间放行
+    Method pm2 = cl.loadClass(MONITOR_UTILS).getDeclaredMethod("isSupportPm2Monitor");
+    hook(pm2)
+        .intercept(chain -> Boolean.TRUE.equals(FORCE_PM2.get()) ? Boolean.TRUE : chain.proceed());
+    for (String name : new String[] {"updateFragment", "createFragment", "removeFpsFragment"}) {
+      hook(esa.getDeclaredMethod(name))
+          .intercept(chain -> {
+            Boolean previous = FORCE_PM2.get();
+            FORCE_PM2.set(Boolean.TRUE);
+            try {
+              return chain.proceed();
+            } finally {
+              if (previous == null) {
+                FORCE_PM2.remove();
+              } else {
+                FORCE_PM2.set(previous);
+              }
+            }
+          });
+    }
 
     BroadcastReceiver receiver =
         new BroadcastReceiver() {

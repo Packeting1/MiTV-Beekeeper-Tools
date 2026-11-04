@@ -1,3 +1,4 @@
 com.xiaomi.mitv.tvplayer
 com.xiaomi.mitv.smartshare
 mitv.service
+system

@@ -88,8 +88,24 @@ final class ApplyRunner extends Part {
         .show();
   }
 
+  /** 先写 LSPosed 库再安装：守护进程在包更新时重新读取，不用重启就能加载。 */
+  String installApkScript(String pkg, String asset) throws Exception {
+    String apk = copyAsset(asset);
+    StringBuilder b = new StringBuilder();
+    b.append("CLASSPATH=")
+        .append(a.getPackageCodePath())
+        .append(" app_process /system/bin com.beekeeper.slim.LsDb ")
+        .append(pkg);
+    String[] scopes = LS_SCOPES.get(pkg);
+    if (scopes != null) for (String s : scopes) b.append(' ').append(s);
+    b.append("\n");
+    b.append("pm install -r ").append(apk).append("\n");
+    b.append("rm -f ").append(apk).append("\n");
+    return b.toString();
+  }
+
   /** LSPosed 模块的作用域含常驻进程（系统进程、保持后台的播放器）：这些进程只有重启电视才会重新加载。 */
-  private static boolean inSystemProcess(Group g) {
+  static boolean inSystemProcess(Group g) {
     String[] scopes = g.kind == KIND_APK ? LS_SCOPES.get(g.pkgs[0]) : null;
     if (scopes != null) {
       for (String s : scopes) {
@@ -123,7 +139,12 @@ final class ApplyRunner extends Part {
 
   private int steps;
 
-  private void step(StringBuilder script, String label, String run, String done, String body) {
+  StringBuilder newScript() {
+    steps = 0;
+    return new StringBuilder(STEP);
+  }
+
+  void step(StringBuilder script, String label, String run, String done, String body) {
     steps++;
     script.append("s").append(steps).append("() {\n").append(body).append("}\n");
     script
@@ -153,8 +174,7 @@ final class ApplyRunner extends Part {
     new Thread(
             new Runnable() {
               public void run() {
-                steps = 0;
-                final StringBuilder script = new StringBuilder(STEP);
+                final StringBuilder script = newScript();
                 String err = null;
                 if (!toDisable.isEmpty()) {
                   StringBuilder b = new StringBuilder();
@@ -265,29 +285,29 @@ final class ApplyRunner extends Part {
                 for (Group g : modOn) {
                   if (g.kind == KIND_APK) {
                     try {
-                      String apk = copyAsset(g.asset);
                       boolean fresh = state(g.pkgs[0]) == MISSING;
-                      StringBuilder b = new StringBuilder();
-                      // 先写库再安装：守护进程在包更新时重新读取，不用重启就能加载
-                      b.append("CLASSPATH=")
-                          .append(a.getPackageCodePath())
-                          .append(" app_process /system/bin com.beekeeper.slim.LsDb ")
-                          .append(g.pkgs[0]);
-                      String[] scopes = LS_SCOPES.get(g.pkgs[0]);
-                      if (scopes != null) for (String s : scopes) b.append(' ').append(s);
-                      b.append("\n");
-                      b.append("pm install -r ").append(apk).append("\n");
-                      b.append("rm -f ").append(apk).append("\n");
                       step(
                           script,
                           g.title,
                           fresh ? "正在安装" : "正在启用",
                           fresh ? "已安装" : "已启用",
-                          b.toString());
+                          installApkScript(g.pkgs[0], g.asset));
                     } catch (Exception e) {
                       err = (err == null ? "" : err) + "无法读取内置安装包 " + g.asset + "：" + e + "\n";
                     }
                     continue;
+                  }
+                  if (g.companion != null) {
+                    try {
+                      step(
+                          script,
+                          g.title + " 配套 APK",
+                          "正在安装",
+                          "已安装",
+                          installApkScript(g.pkgs[0], g.companion));
+                    } catch (Exception e) {
+                      err = (err == null ? "" : err) + "无法读取内置安装包 " + g.companion + "：" + e + "\n";
+                    }
                   }
                   try {
                     String zip = copyAsset(g.asset);
@@ -313,6 +333,14 @@ final class ApplyRunner extends Part {
                     step(script, g.title, "正在卸载", "已卸载", b.toString());
                     continue;
                   }
+                  if (g.companion != null) {
+                    step(
+                        script,
+                        g.title + " 配套 APK",
+                        "正在卸载",
+                        "已卸载",
+                        "pm uninstall " + g.pkgs[0] + "\n");
+                  }
                   b.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
                   b.append("  touch /data/adb/modules/").append(g.modId).append("/remove\n");
                   b.append("  echo '@@MSG 已关闭，重启后生效'\n");
@@ -331,58 +359,68 @@ final class ApplyRunner extends Part {
                 for (Group g : modOn) sysApk |= inSystemProcess(g);
                 for (Group g : modOff) sysApk |= inSystemProcess(g);
                 final boolean needReboot = dbOn || dbOff || modReboot || sysApk;
-                final boolean lateLoad = apkOn && !needReboot;
-                final String out =
-                    suOut(
-                        script.toString(),
-                        new Shell.Lines() {
-                          public void line(String l) {
-                            if (!l.startsWith("@@RUN|")) return;
-                            final String t = l.substring(6) + "……";
-                            main.post(
-                                new Runnable() {
-                                  public void run() {
-                                    pg.waiting(t);
-                                  }
-                                });
-                          }
-                        });
-                final StringBuilder sum = new StringBuilder(err == null ? "" : err);
-                boolean good = err == null;
-                if (out == null) {
-                  sum.append("无法使用 root，可能没有授予 root。\n");
-                  good = false;
-                } else {
-                  for (String l : out.split("\n")) {
-                    boolean fail = l.startsWith("@@FAIL|");
-                    if (!fail && !l.startsWith("@@OK|")) continue;
-                    String[] f = l.substring(fail ? 7 : 5).split("\\|", 2);
-                    String detail = f.length > 1 ? f[1].trim() : "";
-                    sum.append(f[0]).append("：");
-                    if (fail) {
-                      good = false;
-                      sum.append("失败").append(detail.isEmpty() ? "" : "（" + detail + "）");
-                    } else {
-                      sum.append(detail.isEmpty() ? "完成" : detail);
-                    }
-                    sum.append("\n");
-                  }
-                }
-                if (lateLoad && good) sum.append("\nLSPosed 模块将在目标应用下次启动时生效。");
-                final String text = sum.toString().trim();
-                final boolean ok = good;
-                main.post(
-                    new Runnable() {
-                      public void run() {
-                        if (progress.isShowing()) progress.dismiss();
-                        if (needReboot && ok) a.showResultReboot(text);
-                        else showResult(text);
-                        refresh();
-                      }
-                    });
+                runSteps(script, err, pg, progress, needReboot, apkOn && !needReboot);
               }
             },
             "slim-apply")
         .start();
+  }
+
+  /** 在工作线程里执行步骤脚本，实时刷新进度，结束后弹出每项一行的结果（需要重启时带重启按钮）。 */
+  void runSteps(
+      StringBuilder script,
+      String err,
+      final Progress pg,
+      final Dlg progress,
+      final boolean needReboot,
+      boolean lateLoad) {
+    final String out =
+        suOut(
+            script.toString(),
+            new Shell.Lines() {
+              public void line(String l) {
+                if (!l.startsWith("@@RUN|")) return;
+                final String t = l.substring(6) + "……";
+                main.post(
+                    new Runnable() {
+                      public void run() {
+                        pg.waiting(t);
+                      }
+                    });
+              }
+            });
+    final StringBuilder sum = new StringBuilder(err == null ? "" : err);
+    boolean good = err == null;
+    if (out == null) {
+      sum.append("无法使用 root，可能没有授予 root。\n");
+      good = false;
+    } else {
+      for (String l : out.split("\n")) {
+        boolean fail = l.startsWith("@@FAIL|");
+        if (!fail && !l.startsWith("@@OK|")) continue;
+        String[] f = l.substring(fail ? 7 : 5).split("\\|", 2);
+        String detail = f.length > 1 ? f[1].trim() : "";
+        sum.append(f[0]).append("：");
+        if (fail) {
+          good = false;
+          sum.append("失败").append(detail.isEmpty() ? "" : "（" + detail + "）");
+        } else {
+          sum.append(detail.isEmpty() ? "完成" : detail);
+        }
+        sum.append("\n");
+      }
+    }
+    if (lateLoad && good) sum.append("\nLSPosed 模块将在目标应用下次启动时生效。");
+    final String text = sum.toString().trim();
+    final boolean ok = good;
+    main.post(
+        new Runnable() {
+          public void run() {
+            if (progress.isShowing()) progress.dismiss();
+            if (needReboot && ok) a.showResultReboot(text);
+            else showResult(text);
+            refresh();
+          }
+        });
   }
 }

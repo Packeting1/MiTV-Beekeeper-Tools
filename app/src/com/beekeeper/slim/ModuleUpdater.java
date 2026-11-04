@@ -60,6 +60,16 @@ final class ModuleUpdater extends Part {
     }
   }
 
+  private boolean companionOutdated(Group g) {
+    String[] nb = g.companion == null ? null : a.bundledApk.get(g.pkgs[0]);
+    if (nb == null) return false;
+    try {
+      return getPackageManager().getPackageInfo(g.pkgs[0], 0).versionCode < toInt(nb[0]);
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
   /** 有新版本的项目：Group -> {当前版本, 新版本}。Aerial 桌面不参与。 */
   java.util.LinkedHashMap<Group, String[]> pendingUpdates() {
     java.util.LinkedHashMap<Group, String[]> res = new java.util.LinkedHashMap<Group, String[]>();
@@ -72,7 +82,9 @@ final class ModuleUpdater extends Part {
             a.modUpVer.containsKey(g.modId) ? a.modUpVer.get(g.modId) : a.modVer.get(g.modId);
         if (nb == null || cur == null) continue;
         int c = toInt(cur[0]), n = toInt(nb[0]);
-        if (c >= 0 && n >= 0 && c < n) res.put(g, new String[] {cur[1], nb[1]});
+        if (c >= 0 && n >= 0 && c < n || companionOutdated(g)) {
+          res.put(g, new String[] {cur[1], nb[1]});
+        }
       } else if (g.kind == KIND_APK) {
         String[] nb = a.bundledApk.get(g.pkgs[0]);
         if (nb == null) continue;
@@ -117,9 +129,9 @@ final class ModuleUpdater extends Part {
           .append(" → ")
           .append(e.getValue()[1])
           .append("\n");
-      if (e.getKey().kind == KIND_MOD) hasMod = true;
+      hasMod |= e.getKey().kind == KIND_MOD || ApplyRunner.inSystemProcess(e.getKey());
     }
-    if (hasMod) msg.append("\n模块更新后需要重启电视才生效。");
+    if (hasMod) msg.append("\n更新后需要重启电视才生效。");
     new Dlg.Builder(a)
         .setTitle("发现更新")
         .setMessage(msg.toString())
@@ -135,41 +147,45 @@ final class ModuleUpdater extends Part {
   }
 
   void runUpdate(final List<Group> list) {
-    final Dlg progress = new Dlg.Builder(a).setTitle("正在更新").setMessage("正在进行中……").show();
+    final Progress pg = new Progress(a);
+    pg.waiting("正在执行……");
+    final Dlg progress = new Dlg.Builder(a).setTitle("正在执行").setView(pg.box).show();
     new Thread(
             new Runnable() {
               public void run() {
-                StringBuilder script = new StringBuilder();
+                ApplyRunner ap = a.applier;
+                StringBuilder script = ap.newScript();
                 String err = null;
-                boolean mod = false;
+                boolean reboot = false, apkOn = false;
                 for (Group g : list) {
                   try {
-                    String f = copyAsset(g.asset);
-                    script
-                        .append("echo \"== 更新 ")
-                        .append(g.kind == KIND_APK ? g.title : g.modId)
-                        .append("\"\n");
                     if (g.kind == KIND_APK) {
-                      script.append("pm install -r ").append(f).append(" 2>&1\n");
+                      apkOn = true;
+                      ap.step(
+                          script, g.title, "正在更新", "已更新", ap.installApkScript(g.pkgs[0], g.asset));
                     } else {
-                      mod = true;
-                      script.append("magisk --install-module ").append(f).append(" 2>&1\n");
+                      String f = copyAsset(g.asset);
+                      ap.step(
+                          script,
+                          g.title,
+                          "正在更新",
+                          "已更新，重启后生效",
+                          "magisk --install-module " + f + "\nrm -f " + f + "\n");
                     }
-                    script.append("rm -f ").append(f).append("\n");
+                    if (g.companion != null) {
+                      ap.step(
+                          script,
+                          g.title + " 配套 APK",
+                          "正在更新",
+                          "已更新",
+                          ap.installApkScript(g.pkgs[0], g.companion));
+                    }
+                    reboot |= g.kind == KIND_MOD || ApplyRunner.inSystemProcess(g);
                   } catch (Exception e) {
                     err = (err == null ? "" : err) + "无法读取内置文件 " + g.asset + "：" + e + "\n";
                   }
                 }
-                if (mod) script.append("echo 模块更新需要重启电视后生效\n");
-                final String out = (err == null ? "" : err) + runSu(script.toString());
-                main.post(
-                    new Runnable() {
-                      public void run() {
-                        if (progress.isShowing()) progress.dismiss();
-                        showResult(out);
-                        refresh();
-                      }
-                    });
+                ap.runSteps(script, err, pg, progress, reboot, apkOn && !reboot);
               }
             },
             "slim-update")

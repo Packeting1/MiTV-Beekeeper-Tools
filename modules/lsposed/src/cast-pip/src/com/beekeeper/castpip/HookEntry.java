@@ -3,17 +3,26 @@ package com.beekeeper.castpip;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Instrumentation;
+import android.app.PictureInPictureParams;
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.ActivityInfo;
 import android.media.tv.TvView;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
+import android.util.Rational;
+import android.view.SurfaceView;
+import android.view.View;
+import android.view.ViewGroup;
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
@@ -30,6 +39,7 @@ import java.util.WeakHashMap;
  *   投屏页把 SurfaceView 销毁过 (onStop) 的话，回来时走原版拆除再重建。
  * - smartshare：打标记、小窗时不静音投屏、投屏页恢复后自动进小窗。
  * - mitv.service：前台包是播放器时把被它拆掉的投屏音频通道补回来。
+ * - system：安卓手机投屏页 (WfdPlayerActivity) 清单没声明小窗支持，在 system_server 里放行。
  *
  * 黑屏修复 (系统设置) 是独立模块 TvPlayerKeep，两个模块各用各的标记和状态，可以单独启用。
  */
@@ -39,16 +49,17 @@ public final class HookEntry extends XposedModule {
   private static final String PLAYER = "com.xiaomi.mitv.tvplayer";
   private static final String SMARTSHARE = "com.xiaomi.mitv.smartshare";
   private static final String TVSERVICE = "mitv.service";
+  private static final String WFD = SMARTSHARE + ".wfd.WfdPlayerActivity";
   private static final String BASE_PIP_CAST = SMARTSHARE + ".dlna.dmr.ui.BasePipCastActivity";
   private static final String[] CAST_PLAYER_ACTIVITIES = {
     SMARTSHARE + ".mairplay.AirPlayerActivity",
     SMARTSHARE + ".dlna.dmr.ui.MultiPlayerActivity",
     SMARTSHARE + ".dlna.dmr.ui.DMRImageActivity",
     SMARTSHARE + ".dlna.dmr.ui.DMRMusicPlayerActivity",
-    SMARTSHARE + ".wfd.WfdPlayerActivity"
+    WFD
   };
   private static final String[] AUTO_PIP_ACTIVITIES = {
-    SMARTSHARE + ".mairplay.AirPlayerActivity", SMARTSHARE + ".dlna.dmr.ui.MultiPlayerActivity"
+    SMARTSHARE + ".mairplay.AirPlayerActivity", SMARTSHARE + ".dlna.dmr.ui.MultiPlayerActivity", WFD
   };
   private static final String PENDING = "castpip_launch_pending";
   private static final long PENDING_WINDOW_MS = 3000;
@@ -69,6 +80,27 @@ public final class HookEntry extends XposedModule {
   @Override
   public void onModuleLoaded(ModuleLoadedParam param) {
     log(Log.INFO, TAG, "module loaded in " + param.getProcessName());
+  }
+
+  /** 安卓手机投屏页清单没声明小窗支持，只能在 system_server 里放行。 */
+  @Override
+  public void onSystemServerStarting(SystemServerStartingParam param) {
+    try {
+      hook(ActivityInfo.class.getMethod("supportsPictureInPicture"))
+          .intercept(chain -> isWfd(chain.getThisObject()) || (boolean) chain.proceed());
+      // ActivityRecord 的这个小方法可能把上面那个内联掉，所以两处都 hook
+      Class<?> rec = param.getClassLoader().loadClass("com.android.server.wm.ActivityRecord");
+      final Field infoF = rec.getField("info");
+      hook(rec.getMethod("supportsPictureInPicture"))
+          .intercept(chain -> isWfd(infoF.get(chain.getThisObject())) || (boolean) chain.proceed());
+      log(Log.INFO, TAG, "system_server: wfd pip allowed");
+    } catch (Throwable t) {
+      log(Log.ERROR, TAG, "system_server hook failed", t);
+    }
+  }
+
+  private static boolean isWfd(Object info) {
+    return info instanceof ActivityInfo && WFD.equals(((ActivityInfo) info).name);
   }
 
   @Override
@@ -180,9 +212,8 @@ public final class HookEntry extends XposedModule {
     final Class<?> base = cl.loadClass(BASE_PIP_CAST);
     final Method pipEntry = base.getDeclaredMethod("m", float.class);
     pipEntry.setAccessible(true);
-    final Method onResume = base.getDeclaredMethod("onResume");
-    hook(onResume)
-        .intercept(chain -> {
+    XposedInterface.Hooker autoPip =
+        chain -> {
           Object r = chain.proceed();
           try {
             Activity a = (Activity) chain.getThisObject();
@@ -197,13 +228,82 @@ public final class HookEntry extends XposedModule {
             log(Log.ERROR, TAG, "auto pip schedule failed", t);
           }
           return r;
-        });
+        };
+    hook(base.getDeclaredMethod("onResume")).intercept(autoPip);
+    hook(cl.loadClass(WFD).getDeclaredMethod("onResume")).intercept(autoPip);
     log(Log.INFO, TAG, "cast hooks installed: launch=" + n + " autoPip=" + pipEntry.getName());
+  }
+
+  private static SurfaceView findSurface(View v) {
+    if (v instanceof SurfaceView) {
+      return (SurfaceView) v;
+    }
+    if (v instanceof ViewGroup) {
+      ViewGroup g = (ViewGroup) v;
+      for (int i = 0; i < g.getChildCount(); i++) {
+        SurfaceView s = findSurface(g.getChildAt(i));
+        if (s != null) {
+          return s;
+        }
+      }
+    }
+    return null;
+  }
+
+  /** 和 AirPlay 一样让小窗比例等于画面比例 (范围 1:2.39 ~ 2.39:1)；取不到画面尺寸时按 16:9。 */
+  private Rational pipRatio(Activity a) {
+    SurfaceView sv = findSurface(a.getWindow().getDecorView());
+    float r = sv != null && sv.getHeight() > 0 ? (float) sv.getWidth() / sv.getHeight() : 16f / 9;
+    r = Math.max(0.4185f, Math.min(2.39f, r));
+    log(
+        Log.INFO,
+        TAG,
+        "auto pip ratio "
+            + r
+            + " surface="
+            + (sv == null ? null : sv.getWidth() + "x" + sv.getHeight()));
+    return new Rational((int) (r * 10000), 10000);
+  }
+
+  /** WfdPlayerActivity 没有 m(float)，自己按画面比例进小窗。 */
+  private void enterWfdPip(Activity a) {
+    a.enterPictureInPictureMode(
+        new PictureInPictureParams.Builder().setAspectRatio(pipRatio(a)).build());
+  }
+
+  /** WfdPlayerActivity 的 PipHelper 是空实现，没人响应双击菜单键：小窗里回全屏，全屏时进小窗。 */
+  private void bindMenuToggle(Activity a) {
+    final WeakReference<Activity> ref = new WeakReference<>(a);
+    a.getApplicationContext()
+        .registerReceiver(
+            new BroadcastReceiver() {
+              @Override
+              public void onReceive(Context c, Intent i) {
+                Activity act = ref.get();
+                try {
+                  if (act == null || act.isFinishing() || act.isDestroyed()) {
+                    c.unregisterReceiver(this);
+                  } else if (act.isInPictureInPictureMode()) {
+                    act.startActivity(
+                        new Intent(act, act.getClass())
+                            .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT));
+                  } else {
+                    enterWfdPip(act);
+                  }
+                } catch (Throwable t) {
+                  log(Log.ERROR, TAG, "menu toggle failed", t);
+                }
+              }
+            },
+            new IntentFilter("com.xiaomi.mitv.double.click.menu"));
   }
 
   private void scheduleAutoPip(final Activity a, final Method pipEntry) {
     if (!autoPipDone.add(a)) {
       return;
+    }
+    if (!pipEntry.getDeclaringClass().isInstance(a)) {
+      bindMenuToggle(a);
     }
     final Handler h = new Handler(Looper.getMainLooper());
     h.postDelayed(
@@ -225,7 +325,11 @@ public final class HookEntry extends XposedModule {
                     Log.INFO,
                     TAG,
                     "auto pip: entering for " + a.getClass().getSimpleName() + " try=" + tries);
-                pipEntry.invoke(a, -1f);
+                if (pipEntry.getDeclaringClass().isInstance(a)) {
+                  pipEntry.invoke(a, -1f);
+                } else {
+                  enterWfdPip(a);
+                }
                 return;
               }
             } catch (Throwable t) {

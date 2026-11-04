@@ -13,11 +13,14 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
+import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
@@ -28,8 +31,8 @@ import java.util.function.Supplier;
  * 快捷设置（MonitorMainView，菜单键弹出）左侧新增“游戏”标签。
  *
  * 右侧页面直接用“更多设置”页的类 MonitorProfessionalSettingView 另建一个实例：保留它自带的
- * 320Hz 竞技模式和 FreeSync 开关（EDID 切换逻辑复杂，原样复用），去掉其它项，再加上预置场景、准星、
- * 暗区增强、灰阶响应时间。原“更多设置”页里的这两项随之移除。
+ * 320Hz 竞技模式、FreeSync 开关（EDID 切换逻辑复杂，原样复用），去掉其它项，再加上预置场景、
+ * 准星、暗区增强、灰阶响应时间。原“更多设置”页里的这几项随之移除。
  * 多档项点击后在右侧展开选项列表（原版第三页）。
  */
 final class GameTab {
@@ -40,13 +43,16 @@ final class GameTab {
   private static final String FRONT_SIGHT_KEY = "front_sight_index";
   private static final int INDEX = 6;
   private static final int THIRD_ITEM_WIDTH = 0x7f0702e8;
+  private static final int VALUE_ID = 0x7f0a034f;
   private static final String[] PRESET_NAMES = {"个人设定", "FPS", "RPG", "RTS", "MOBA", "SPT"};
   private static final int[][] PRESET_VALUES = {
     {4, 24, 25, 26, 27, 28},
     {15, 29, 30, 31, 32, 33}
   };
 
+  private static final String UTILS = "com.xiaomi.mitv.settings.util.Utils";
   private static final ThreadLocal<Boolean> BUILDING = new ThreadLocal<>();
+  private static final ThreadLocal<Boolean> PM2_OVERRIDE = new ThreadLocal<>();
 
   private final XposedModule module;
   private final ClassLoader cl;
@@ -61,8 +67,7 @@ final class GameTab {
   private Field fMap;
   private Field fDisplay;
   private Field fCategory;
-  private Field f320;
-  private Field fFreeSync;
+  private Field[] fMoved;
   private Method getHolder;
   private Method createCategory;
   private Field fThirdView;
@@ -98,8 +103,14 @@ final class GameTab {
     fMap = field(mainClass, "mIndexToButtonMap");
     fDisplay = field(mainClass, "mDisplayButton");
     fCategory = field(pageClass, "mCategory");
-    f320 = field(pageClass, "m320HzItem");
-    fFreeSync = field(pageClass, "mFreeSyncItem");
+    fMoved =
+        new Field[] {
+          field(pageClass, "m320HzItem"),
+          field(pageClass, "mFreeSyncItem"),
+          field(pageClass, "mFPSCounterItem"),
+          field(pageClass, "mTimerItem"),
+          field(pageClass, "mStopwatchItem")
+        };
     getHolder = fCategory.getType().getMethod("getContentHolder");
     createCategory = fCategory.getType().getMethod("createNewCategory", ViewGroup.class);
     fThirdView = field(pageClass, "mThirdPageView");
@@ -154,26 +165,49 @@ final class GameTab {
 
     module
         .hook(pageClass.getDeclaredMethod("init"))
+        .setPriority(XposedInterface.PRIORITY_HIGHEST)
         .intercept(chain -> {
           Object result = chain.proceed();
           try {
-            prune(chain.getThisObject());
+            Object p = chain.getThisObject();
+            if (Boolean.TRUE.equals(BUILDING.get())) {
+              addHiddenItems(p);
+            }
+            prune(p);
           } catch (Throwable t) {
             log(Log.ERROR, "prune page failed", t);
           }
           return result;
         });
 
+    Method pm2 = cl.loadClass(UTILS).getDeclaredMethod("isSupportPm2Monitor");
+    module
+        .hook(pm2)
+        .intercept(chain -> {
+          Boolean forced = PM2_OVERRIDE.get();
+          return forced != null ? forced : chain.proceed();
+        });
+
     module
         .hook(pageClass.getDeclaredMethod("backToRight"))
         .intercept(chain -> {
+          fillValueViews(chain.getThisObject());
           Object result = chain.proceed();
-          if (chain.getThisObject() == page && lastItem != null) {
+          if (chain.getThisObject() == page) {
             try {
-              itemClass.getMethod("restoreUnSelected").invoke(lastItem);
-              ((View) lastItem).requestFocus();
+              // restoreUnSelected 不会清除 transform() 设的选中态，要用 restore()
+              ViewGroup holder = holder(page);
+              for (int i = 0; i < holder.getChildCount(); i++) {
+                View c = holder.getChildAt(i);
+                if (c.getClass() == itemClass) {
+                  itemClass.getMethod("restore").invoke(c);
+                }
+              }
+              if (lastItem != null) {
+                ((View) lastItem).requestFocus();
+              }
             } catch (Throwable t) {
-              log(Log.WARN, "cannot restore parent item", t);
+              log(Log.WARN, "cannot restore menu items", t);
             }
             lastItem = null;
           }
@@ -194,6 +228,26 @@ final class GameTab {
     log(Log.INFO, "settings hooks installed", null);
   }
 
+  /** 原版 restore() 会读每个项的 mValue，没调过 setValue* 的项为空会 NPE。 */
+  private void fillValueViews(Object p) {
+    try {
+      Field value = field(itemClass, "mValue");
+      for (Field f : pageClass.getDeclaredFields()) {
+        if (f.getType() != itemClass) {
+          continue;
+        }
+        f.setAccessible(true);
+        View item = (View) f.get(p);
+        if (item != null && value.get(item) == null) {
+          value.set(item, item.findViewById(VALUE_ID));
+          log(Log.INFO, "filled mValue of " + f.getName(), null);
+        }
+      }
+    } catch (Throwable t) {
+      log(Log.WARN, "cannot fill value views", t);
+    }
+  }
+
   private static Field field(Class<?> c, String name) throws NoSuchFieldException {
     Field f = c.getDeclaredField(name);
     f.setAccessible(true);
@@ -204,20 +258,56 @@ final class GameTab {
     return (ViewGroup) getHolder.invoke(fCategory.get(page));
   }
 
+  private List<View> moved(Object p) throws Exception {
+    List<View> list = new ArrayList<>();
+    for (Field f : fMoved) {
+      View v = (View) f.get(p);
+      if (v != null) {
+        list.add(v);
+      }
+    }
+    return list;
+  }
+
   private void prune(Object p) throws Exception {
     ViewGroup holder = holder(p);
-    View a = (View) f320.get(p);
-    View b = (View) fFreeSync.get(p);
+    List<View> keep = moved(p);
     if (Boolean.TRUE.equals(BUILDING.get())) {
       for (int i = holder.getChildCount() - 1; i >= 0; i--) {
-        View c = holder.getChildAt(i);
-        if (c != a && c != b) {
+        if (!keep.contains(holder.getChildAt(i))) {
           holder.removeViewAt(i);
         }
       }
     } else {
-      holder.removeView(a);
-      holder.removeView(b);
+      for (View v : keep) {
+        holder.removeView(v);
+      }
+    }
+  }
+
+  private void addHiddenItems(Object p) {
+    String[][] hidden = {
+      {"mFPSCounterItem", "initFPSCounterItem"},
+      {"mTimerItem", "initTimerItem"},
+      {"mStopwatchItem", "initStopWatchCounterItem"}
+    };
+    for (String[] h : hidden) {
+      try {
+        Field f = field(pageClass, h[0]);
+        if (f.get(p) != null) {
+          continue;
+        }
+        Method init = pageClass.getDeclaredMethod(h[1]);
+        init.setAccessible(true);
+        PM2_OVERRIDE.set(Boolean.TRUE);
+        try {
+          init.invoke(p);
+        } finally {
+          PM2_OVERRIDE.remove();
+        }
+      } catch (Throwable t) {
+        log(Log.WARN, "add hidden item " + h[0] + " failed", t);
+      }
     }
   }
 
@@ -330,13 +420,15 @@ final class GameTab {
         BUILDING.remove();
       }
       addItems(p, ctx);
-      invokeByName(main, "setOnThirdPageListen", p);
-      invokeByName(main, "setOnParamsReportListen", p);
       pageClass.getMethod("refreshItemState").invoke(p);
       pageClass.getMethod("updateFreeSyncState").invoke(p);
       page = p;
       owner = main;
     }
+    // 监听器是 MonitorMainView 上的单个字段，切到别的标签页会被换掉，缓存的页面每次显示都要重新挂上，
+    // 否则在二级菜单里按返回键会被当成“退出右侧”，二级菜单留在原地
+    invokeByName(main, "setOnThirdPageListen", page);
+    invokeByName(main, "setOnParamsReportListen", page);
     fLastFocused.setInt(main, INDEX);
     ((ViewGroup) fRight.get(main)).addView((View) page);
   }
@@ -354,8 +446,7 @@ final class GameTab {
 
   private void addItems(Object p, Context ctx) throws Exception {
     ViewGroup holder = holder(p);
-    View a = (View) f320.get(p);
-    View b = (View) fFreeSync.get(p);
+    List<View> keep = moved(p);
     holder.removeAllViews();
     Object cat = fCategory.get(p);
 
@@ -409,8 +500,20 @@ final class GameTab {
         i -> call(setStretch, pm, i),
         () -> true);
 
-    holder.addView(a);
-    holder.addView(b);
+    View hz320 = (View) fMoved[0].get(p);
+    if (hz320 != null) {
+      try {
+        hz320
+            .getClass()
+            .getMethod("setDescription", String.class)
+            .invoke(hz320, "开启后支持 1080P 320Hz 刷新率");
+      } catch (Exception e) {
+        log(Log.WARN, "320Hz description failed", e);
+      }
+    }
+    for (View v : keep) {
+      holder.addView(v);
+    }
 
     menuItem(
         p,
@@ -450,7 +553,6 @@ final class GameTab {
     }
   }
 
-  /** 点击后在右侧展开选项列表（原版第三页），选中后收起；返回/左键收起由页面自己的 dispatchKeyEvent 处理。 */
   private View menuItem(
       Object p,
       Context ctx,

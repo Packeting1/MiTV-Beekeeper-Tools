@@ -119,39 +119,50 @@ final class Catalog {
           "apk_moredisplaysettings.apk"),
       Group.apk(
           "游戏设置合并（LSPosed模块）",
-          "游戏设置条的功能项合并至快捷设置中的「游戏」标签",
+          "游戏设置条的功能项合并到快捷设置的「游戏」页，并新增FPS 计数器、计时器、秒表。",
           null,
           "com.beekeeper.gamemenu",
           "apk_gamemenu.apk"),
       Group.apk(
           "杜比视界标题（LSPosed模块）",
-          "快捷设置的标题在杜比视界模式下都显示 Dolby Vision。",
+          "在杜比视界模式时，快捷设置的标题显示 Dolby Vision。",
           null,
           "com.beekeeper.dolbyvisiontitle",
           "apk_dolbyvisiontitle.apk"),
       Group.apk(
           "媒体角标（LSPosed模块）",
-          "根据播放的媒体内容，显示 HDR10 / HLG / HDR Vivid / Dolby Vision / Technicolor 角标，以及 Dolby / DTS"
-              + " 系列音频角标。",
+          "根据播放内容显示 HDR10 / HLG / Dolby / DTS 等角标，可在快捷设置的「专业功能」页开关显示。",
           null,
           "com.beekeeper.mediabadge",
           "apk_mediabadge.apk"),
+      Group.apk(
+          "信号源角标（LSPosed模块）",
+          "简化信号源信息角标，可在快捷设置的「专业功能」页开关显示。",
+          null,
+          "com.beekeeper.signalinfobadge",
+          "apk_signalinfobadge.apk"),
       new Group(
               KIND_MOD,
               "FreeSync 保持图像模式（Magisk模块）",
-              "开启 FreeSync，或杜比视界信号带有游戏标志时，不再自动切换到游戏图像模式。",
+              "开启 FreeSync 或杜比视界信号带有游戏标志时，不再自动切换到游戏图像模式。",
               "风险：在信号切换或重载时画面可能出现异常；仅适用于 OS 3.0.109。")
           .mod("beekeeper_freesync_keep", "mod_freesynckeep.zip")
           .fwOnly(),
-      new Group(KIND_MOD, "IMAX支持（Magisk模块）", "在图像模式中显示 IMAX。", null)
+      new Group(KIND_MOD, "IMAX 支持（Magisk模块）", "在图像模式中显示「IMAX模式」。", null)
           .mod("beekeeper_imax", "mod_imax.zip"),
-      new Group(KIND_MOD, "HDR10+支持（Magisk模块）", "上报 HDR10+ 能力，实际效果未验证。", null)
+      new Group(KIND_MOD, "HDR10+ 支持（Magisk模块）", "上报 HDR10+ 能力，实际效果未验证。", null)
           .mod("beekeeper_hdr10plus", "mod_hdr10plus.zip"),
-      new Group(KIND_MOD, "AISR 强度调节（Magisk模块）", "在“图像参数 > 清晰度”中显示超分辨率强度调节。", null)
+      new Group(KIND_MOD, "AISR 强度调节（Magisk模块）", "在「图像参数 > 清晰度」中显示超分辨率强度调节。", null)
           .mod("beekeeper_aisr_level", "mod_aisr.zip"),
-      new Group(KIND_MOD, "音量均衡（Magisk模块）", "在声音设置中显示“音量均衡”。", null)
-          .mod("beekeeper_volume_balance", "mod_volbalance.zip"),
-      new Group(KIND_MOD, "LLDV支持（Magisk模块）", "声明支持低延迟杜比视界（LLDV），使 Windows 能够识别杜比视界。", null)
+      new Group(
+              KIND_MOD,
+              "音量均衡（Magisk + LSPosed模块）",
+              "在声音设置中显示“音量均衡”，并在快捷设置的声音页新增「音量均衡」开关。",
+              null,
+              "com.beekeeper.volumebalanceswitch")
+          .mod("beekeeper_volume_balance", "mod_volbalance.zip")
+          .companion("apk_volumebalanceswitch.apk"),
+      new Group(KIND_MOD, "LLDV 支持（Magisk模块）", "声明支持低延迟杜比视界，使 Windows 能够识别杜比视界。", null)
           .mod("beekeeper_dv_edid", "mod_dvedid.zip"),
       new Group(KIND_MOD, "DP 音频格式支持（Magisk模块）", "使 DP 输入声明与 HDMI 相同的音频格式，支持通过 DP 输出比特流。", null)
           .mod("beekeeper_dp_audio", "mod_dpaudio.zip"),
@@ -178,11 +189,7 @@ final class Catalog {
           .fwOnly(),
       new Group(KIND_MOD, "ADB 常开（Magisk模块）", "保持 ADB 开关的开启状态。", null)
           .mod("mitv_adb_keeper", "mod_adbkeeper.zip"),
-      new Group(
-              KIND_MOD,
-              "4K 界面开关（Magisk模块）",
-              "在系统设置中显示 4K 界面开关，位置：设置 > 通用设置 > UI 显示模式 > 极清模式。",
-              null)
+      new Group(KIND_MOD, "4K 界面开关（Magisk模块）", "在「系统设置 > 通用设置」中显示「UI 显示模式」选项。", null)
           .mod("mitv_4kui_switch", "mod_4kui.zip")
           .fwOnly(),
       new Group(KIND_MOD, "HGIG 修复（Magisk模块）", "修复 OS 3.0.109 中 HDR 色调映射的 HGIG 档位错位。", null)
@@ -240,7 +247,9 @@ final class Catalog {
         new String[] {"com.xiaomi.mitv.tvplayer", "com.mediatek.tvinput"});
     LS_SCOPES.put(
         "com.beekeeper.castpip",
-        new String[] {"com.xiaomi.mitv.smartshare", "com.xiaomi.mitv.tvplayer", "mitv.service"});
+        new String[] {
+          "com.xiaomi.mitv.smartshare", "com.xiaomi.mitv.tvplayer", "mitv.service", "system"
+        });
     LS_SCOPES.put(
         "com.beekeeper.homeref",
         new String[] {"com.xiaomi.mitv.settings", "com.xiaomi.mitv.tvplayer", "mitv.service"});
@@ -255,7 +264,13 @@ final class Catalog {
     LS_SCOPES.put("com.beekeeper.dolbyvisiontitle", new String[] {"com.xiaomi.mitv.settings"});
     LS_SCOPES.put(
         "com.beekeeper.mediabadge",
-        new String[] {"mitv.service", "com.mitv.tvhome", "com.xiaomi.mitv.tvplayer"});
+        new String[] {
+          "mitv.service", "com.mitv.tvhome", "com.xiaomi.mitv.tvplayer", "com.xiaomi.mitv.settings"
+        });
+    LS_SCOPES.put(
+        "com.beekeeper.signalinfobadge",
+        new String[] {"com.xiaomi.mitv.tvplayer", "com.xiaomi.mitv.settings"});
+    LS_SCOPES.put("com.beekeeper.volumebalanceswitch", new String[] {"com.xiaomi.mitv.settings"});
     LS_SCOPES.put("com.beekeeper.voicekeymap", new String[] {"system"});
   }
 

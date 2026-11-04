@@ -728,6 +728,10 @@ public class MainActivity extends Activity {
                                 if (g.kind == KIND_MOD) {
                                   v = modUp.readBundledMod(g.asset);
                                   if (v != null) bm.put(g.modId, v);
+                                  if (g.companion != null) {
+                                    v = modUp.readBundledApk(g.companion);
+                                    if (v != null) ba.put(g.pkgs[0], v);
+                                  }
                                 } else if (g.kind == KIND_APK) {
                                   v = modUp.readBundledApk(g.asset);
                                   if (v != null) ba.put(g.pkgs[0], v);
@@ -989,7 +993,7 @@ public class MainActivity extends Activity {
         if (modInstalled(g) && g.pkgs.length > 0) {
           String companion =
               state(g.pkgs[0]) == MISSING
-                  ? "实际：配套 APK 未安装，请重新安装模块"
+                  ? "实际：配套 APK 未安装"
                   : state(g.pkgs[0]) == DISABLED ? "实际：配套 APK 已停用" : ls.lsActual(g.pkgs[0]);
           t += "\n" + companion;
           if (!companion.startsWith("实际：已在") || companion.contains("缺")) lv = ItemView.WARN;

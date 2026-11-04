@@ -199,6 +199,8 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DE
         ("gamemenu", "GameMenu"),
         ("dolbyvisiontitle", "DolbyVisionTitle"),
         ("mediabadge", "MediaBadge"),
+        ("signalinfobadge", "SignalInfoBadge"),
+        ("volumebalanceswitch", "VolumeBalanceSwitch"),
         ("voicekeymap", "VoiceKeyMap"),
     ):
         zout.write(

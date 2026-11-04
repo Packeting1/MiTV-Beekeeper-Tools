@@ -9,6 +9,9 @@ final class Group {
   final int kind;
   String modId, asset, confirm, confirmOff, requires, requiresMsg;
 
+  /** Magisk 模块的配套 LSPosed APK（资产名，包名即 pkgs[0]）：由应用随模块一起安装和卸载。 */
+  String companion;
+
   /** 放在“修复类”页的 Magisk 模块。 */
   boolean fix;
 
@@ -35,6 +38,11 @@ final class Group {
   Group mod(String id, String asset) {
     this.modId = id;
     this.asset = asset;
+    return this;
+  }
+
+  Group companion(String asset) {
+    this.companion = asset;
     return this;
   }
 
