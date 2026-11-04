@@ -9,12 +9,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 /*
- * 去掉小米系统安装器按云端黑名单拦截安装（例如“根据互联网电视相关要求，应用存在违规功能，禁止安装”）。
- *
- * 安装器每次进入 InstallStaging 时会向小米服务器请求 pi_config（失败则用本地缓存），
- * 在 Config.app_pi_control 为 true 时按 4 个黑名单（来源/安装包 × 普通/强）拦截。
- * 这里在拿到 Config 的两个回调里把 app_pi_control 改成 false，这样不管云端下发什么名单都不拦。
- * 不碰云端配置本身，也不影响安装器的其它检查（未知来源开关、签名校验等）。
+ * 去掉系统安装器按云端黑名单拦截安装。
+ * InstallStaging 拿到 pi_config（云端或缓存）后，Config.app_pi_control 为 true 才按黑名单拦；
+ * 这里在两个 Config 回调里把它改成 false，不影响安装器的其它检查（未知来源、签名校验等）。
  */
 public final class HookEntry extends XposedModule {
 

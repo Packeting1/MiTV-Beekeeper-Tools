@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.util.Log;
+import android.view.KeyEvent;
 import io.github.libxposed.api.XposedModule;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
@@ -14,13 +15,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 /*
- * 取消菜单键弹出的游戏设置条，把里面的功能挪进快捷设置（图像页）左侧新增的“游戏”标签。
- * 作用域：settings + tvplayer。
- *
- * - tvplayer：菜单键原本在游戏图像模式下弹游戏设置条，只在处理菜单键期间让 isGameModePic() 返回 false，
- *   走原版“非游戏模式”分支（打开快捷设置）。isGameModePic 还被准星恢复等逻辑使用，所以不能全局改。
- *   准星是播放器进程里的叠加视图，设置进程写完 Settings.Global 后发广播，由这里调 onChanged(int) 即时显示/隐藏。
- * - settings：见 GameTab。
+ * 取消菜单键弹出的游戏设置条，功能挪进快捷设置（图像页）新增的“游戏”标签（settings 侧见 GameTab）。
+ * tvplayer 侧只在处理菜单键期间让 isGameModePic() 返回 false，走原版“非游戏模式”分支；它还被准星恢复等逻辑使用，不能全局改。
+ * 准星是播放器进程的叠加视图，设置进程写完设置后发广播，这里调 onChanged 刷新。
  */
 public final class HookEntry extends XposedModule {
 
@@ -70,7 +67,7 @@ public final class HookEntry extends XposedModule {
         .intercept(
             chain -> Boolean.TRUE.equals(IN_MENU_KEY.get()) ? Boolean.FALSE : chain.proceed());
 
-    hook(esa.getDeclaredMethod("onKeyDown", int.class, android.view.KeyEvent.class))
+    hook(esa.getDeclaredMethod("onKeyDown", int.class, KeyEvent.class))
         .intercept(chain -> {
           if ((Integer) chain.getArg(0) != KEYCODE_MENU) {
             return chain.proceed();

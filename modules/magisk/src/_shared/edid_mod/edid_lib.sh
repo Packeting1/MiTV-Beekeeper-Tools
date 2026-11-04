@@ -1,10 +1,10 @@
 #!/system/bin/sh
-# Shared by the EDID modules (Support LLDV, Support DP Audio). Each module sets DATA_DIR, APPLY and
-# RESTORE in edid_cfg.sh. EDID_TARGET / EDID_DATA_DIR / EDID_MODDIR may be overridden for offline tests.
+# EDID 类模块（Support LLDV、Support DP Audio）共用。各模块在 edid_cfg.sh 里设置 DATA_DIR、APPLY、
+# RESTORE。EDID_TARGET / EDID_DATA_DIR / EDID_MODDIR 可被覆盖，用于离线测试。
 #
-# edid/list: "name o n a b", the sha256 of the file in four states: o = stock, n = LLDV, a = DP audio,
-# b = both ("-" = state does not exist). The state's content is edid/<o|n|a|b>_<name>.
-# APPLY / RESTORE are space separated "from:to" column pairs, e.g. "1:2 3:4" = o->n and a->b.
+# edid/list：每行 "name o n a b"，是文件在四种状态下的 sha256：o = 原版，n = LLDV，a = DP 音频，
+# b = 两者都有（"-" 表示该状态不存在）。各状态的内容在 edid/<o|n|a|b>_<name>。
+# APPLY / RESTORE 是空格分隔的 "from:to" 列号对，如 "1:2 3:4" 表示 o->n 和 a->b。
 MODDIR=${EDID_MODDIR:-${0%/*}}
 . "$MODDIR/edid_cfg.sh"
 TARGET_DIR=${EDID_TARGET:-/vendor/tvconfig/bsp/common/EDID_BIN}
@@ -19,8 +19,8 @@ device_ok() { [ "$(getprop ro.product.name)" = "beekeeper" ]; }
 
 sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 
-# In the Magisk installer/boot context a plain remount is refused with "Permission denied", while
-# the same command run through nsenter into init's mount namespace is accepted.
+# Magisk 安装/开机环境下直接 remount 会被拒绝（Permission denied），
+# 同一条命令经 nsenter 进入 init 的挂载命名空间执行则可以。
 remount_rw() {
   [ -n "$EDID_TARGET" ] && return 0
   mount -o remount,rw "$MNT" 2>/dev/null && return 0
@@ -32,13 +32,13 @@ remount_ro() {
   nsenter --mount=/proc/1/ns/mnt mount -o remount,ro "$MNT" 2>/dev/null
 }
 
-# col <n>: sha in column n of the current list line (set by read in the callers)
+# col <n>：当前 list 行第 n 列的 sha（由调用方的 read 设置）
 col() { case $1 in 1) echo "$c1";; 2) echo "$c2";; 3) echo "$c3";; 4) echo "$c4";; esac; }
-# usable <p>: both states of the "from:to" pair exist for the current file (a missing state is "-")
+# usable <p>：当前文件的 "from:to" 两个状态都存在（缺失的状态记为 "-"）
 usable() { [ "$(col "${1%:*}")" != - ] && [ "$(col "${1#*:}")" != - ]; }
 state_name() { case $1 in 1) echo o;; 2) echo n;; 3) echo a;; 4) echo b;; esac; }
 
-# edid_count <map>: files that are currently in a "from" state of the map
+# edid_count <map>：当前处于 map 中某个 "from" 状态的文件数
 edid_count() {
   _n=0
   while read -r name c1 c2 c3 c4; do
@@ -51,9 +51,9 @@ edid_count() {
   echo $_n
 }
 
-# edid_switch <map>: rewrite every file that is in a "from" state of the map with its "to" state, in
-# place and same size. Files with any other content are left alone.
-# returns 0 changed all, 2 nothing to change, 1 failure
+# edid_switch <map>：把处于 map 中 "from" 状态的文件原地（同大小）改写成对应的 "to" 状态，
+# 内容是其它任何值的文件不动。
+# 返回 0 全部改完，2 无需改动，1 失败
 edid_switch() {
   [ "$(edid_count "$1")" -gt 0 ] || return 2
   remount_rw || { log "switch: remount rw refused: $(grep " $MNT " /proc/mounts)"; return 1; }

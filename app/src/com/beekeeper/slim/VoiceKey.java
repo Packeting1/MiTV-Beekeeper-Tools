@@ -120,14 +120,7 @@ final class VoiceKey extends Part {
         sb.length() == 0
             ? "settings delete global " + KEY + "\n"
             : "settings put global " + KEY + " '" + sb + "'\n";
-    new Thread(
-            new Runnable() {
-              public void run() {
-                Shell.suOut(cmd);
-              }
-            },
-            "slim-voicekey")
-        .start();
+    Shell.suAsync("slim-voicekey", cmd);
   }
 
   private void set(int i, String v) {
@@ -251,9 +244,7 @@ final class VoiceKey extends Part {
               pick.on(k);
             }
           });
-      LinearLayout.LayoutParams lp =
-          new LinearLayout.LayoutParams(
-              LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+      LinearLayout.LayoutParams lp = Ui.lp();
       lp.topMargin = dp(6);
       list.addView(b, lp);
     }

@@ -17,14 +17,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /*
- * 把遥控器的语音键（小爱键）改成可自定义的单击 / 双击 / 长按动作。作用域：system（system_server）。
+ * 语音键（小爱键）自定义单击 / 双击 / 长按动作。作用域：system（system_server）。
+ * 该键是 evdev 扫描码 63，键值表映射成 KEYCODE_UNKNOWN(0)，所以按 keycode 0 + 扫描码拦截。
+ * 小爱由蓝牙服务直接发意图拉起、不经按键层，语音助手未禁用时拦不住（应用端会锁定开关）。
  *
- * 蓝牙语音遥控器的语音键发的是 evdev KEY_F5（扫描码 63），键值表把它映射成 KEYCODE_UNKNOWN(0)，
- * 到 MitvPhoneWindowManager.interceptKeyBeforeQueueing 时仍是 keycode 0。小爱本身是蓝牙服务直接发意图拉起的，
- * 不经过按键层，所以语音助手没有禁用时本模块拦不住它（应用端会锁定开关）。
- *
- * 配置存在 Settings.Global voicekeymap，形如 click=sleep,long=source,double=app:com.pkg；
- * 动作值：sleep、source（循环）、source:<序号 23/24/29>、app:<包名>，都在 system_server 里直接做。
+ * 配置在 Settings.Global voicekeymap，如 click=sleep,long=source,double=app:com.pkg；
+ * 动作值：sleep、source（循环）、source:<序号 23/24/29>、app:<包名>。
  */
 public final class HookEntry extends XposedModule {
 
@@ -36,7 +34,7 @@ public final class HookEntry extends XposedModule {
   private static final long LONG_MS = 700;
   private static final long DOUBLE_MS = 350;
 
-  /** 可切换的信号源：播放器 input 序号、TvInput 的输入 id、显示名（按遥控器上的顺序循环）。 */
+  // 可切换的信号源（循环顺序）：播放器 input 序号、TvInput id、显示名，三个数组下标一一对应。
   private static final int[] SOURCES = {23, 24, 29};
 
   private static final String[] INPUTS = {
@@ -100,8 +98,6 @@ public final class HookEntry extends XposedModule {
     }
   }
 
-  // ---- 手势识别（system_server） ----
-
   private void onKey(Context c, boolean down) {
     ctx = c;
     if (down) {
@@ -129,8 +125,11 @@ public final class HookEntry extends XposedModule {
     if (second) {
       second = false;
       run("double");
-    } else if (action("double").isEmpty()) {
-      run("click");
+      return;
+    }
+    Map<String, String> cfg = config(c);
+    if (action(cfg, "double").isEmpty()) {
+      run("click", cfg);
     } else {
       tapPending = true;
       worker.postDelayed(singleTask, DOUBLE_MS);
@@ -164,13 +163,17 @@ public final class HookEntry extends XposedModule {
     return m;
   }
 
-  private String action(String gesture) {
-    String a = config(ctx).get(gesture);
+  private static String action(Map<String, String> cfg, String gesture) {
+    String a = cfg.get(gesture);
     return a == null ? "" : a;
   }
 
   private void run(String gesture) {
-    String a = action(gesture);
+    run(gesture, config(ctx));
+  }
+
+  private void run(String gesture, Map<String, String> cfg) {
+    String a = action(cfg, gesture);
     log(Log.INFO, TAG, gesture + " -> " + a);
     try {
       if (a.equals("sleep")) {
@@ -182,6 +185,7 @@ public final class HookEntry extends XposedModule {
         for (int i = 0; i < SOURCES.length; i++) {
           if (SOURCES[i] == id) {
             switchTo(i);
+            break;
           }
         }
       } else if (a.startsWith("app:")) {
@@ -191,8 +195,6 @@ public final class HookEntry extends XposedModule {
       log(Log.ERROR, TAG, "action failed: " + a, t);
     }
   }
-
-  // ---- 动作 ----
 
   private void toast(String text) {
     ui.post(() -> Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show());

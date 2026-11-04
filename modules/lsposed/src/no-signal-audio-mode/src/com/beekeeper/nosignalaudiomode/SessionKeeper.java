@@ -23,8 +23,9 @@ import java.lang.reflect.Method;
 /** 音响模式下保留框架的 TV 会话，信号恢复时才有视频回调可用。 */
 final class SessionKeeper {
   private static final String TAG = "NoSignalSession";
-  private static XposedModule module;
   private static final String EXTERNAL_SOURCE = "com.xiaomi.mitv.tvplayer.ExternalSourceActivity";
+
+  private static XposedModule module;
   private static Context context;
   private static TvView view;
   private static Activity owner;
@@ -51,15 +52,11 @@ final class SessionKeeper {
     context = value;
   }
 
-  static void error(String tag, String what, Throwable cause) {
-    module.log(Log.ERROR, tag, what, cause);
-  }
-
   private static Object sourceManager() throws ReflectiveOperationException {
     return tvContextSourceManager.invoke(tvContextInstance.invoke(null));
   }
 
-  static void prepareInputWake(String inputId) {
+  private static void prepareInputWake(String inputId) {
     if (inputId == null || context == null) return;
     try {
       Object manager = sourceManager();
@@ -82,7 +79,7 @@ final class SessionKeeper {
       }
       module.log(Log.INFO, TAG, "Recovery wake selects source=" + source + " input=" + inputId);
     } catch (Throwable error) {
-      error(TAG, "Recovery source preparation failed", error);
+      module.log(Log.ERROR, TAG, "Recovery source preparation failed", error);
     }
   }
 
@@ -142,7 +139,7 @@ final class SessionKeeper {
       sinkSurface();
     } catch (Throwable error) {
       releaseSink();
-      error(TAG, "Session retention unavailable", error);
+      module.log(Log.ERROR, TAG, "Session retention unavailable", error);
       return false;
     }
     keptActivity = activity;
@@ -186,7 +183,7 @@ final class SessionKeeper {
     try {
       destroyMethod.invoke(self);
     } catch (Throwable error) {
-      error(TAG, "Retained session release failed", error);
+      module.log(Log.ERROR, TAG, "Retained session release failed", error);
     } finally {
       allowDestroy = false;
       clearState();
@@ -222,13 +219,13 @@ final class SessionKeeper {
           try {
             if (retainSession((Activity) self)) return null;
           } catch (Throwable error) {
-            error(TAG, "Session retention check failed", error);
+            module.log(Log.ERROR, TAG, "Session retention check failed", error);
           }
           Object result = chain.proceed();
           try {
             if (owner == self && tvViewField.get(self) == null) clearState();
           } catch (Throwable error) {
-            error(TAG, "Session cleanup failed", error);
+            module.log(Log.ERROR, TAG, "Session cleanup failed", error);
           }
           return result;
         });
@@ -245,7 +242,7 @@ final class SessionKeeper {
               videoLost = false;
             }
           } catch (Throwable error) {
-            error(TAG, "Session tracking failed", error);
+            module.log(Log.ERROR, TAG, "Session tracking failed", error);
           }
           return result;
         });
@@ -270,7 +267,7 @@ final class SessionKeeper {
               module.log(Log.INFO, TAG, "Retained an offscreen signal surface");
             }
           } catch (Throwable error) {
-            error(TAG, "Offscreen surface unavailable", error);
+            module.log(Log.ERROR, TAG, "Offscreen surface unavailable", error);
           }
           return replacement == null ? chain.proceed() : chain.proceed(new Object[] {replacement});
         });
@@ -286,7 +283,7 @@ final class SessionKeeper {
               module.log(Log.INFO, TAG, "Video unavailable reason=" + reason);
             }
           } catch (Throwable error) {
-            error(TAG, "Video state tracking failed", error);
+            module.log(Log.ERROR, TAG, "Video state tracking failed", error);
           }
           return result;
         });
@@ -309,7 +306,7 @@ final class SessionKeeper {
               }
             }
           } catch (Throwable error) {
-            error(TAG, "Video recovery handling failed", error);
+            module.log(Log.ERROR, TAG, "Video recovery handling failed", error);
           }
           return result;
         });

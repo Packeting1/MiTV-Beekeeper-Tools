@@ -4,9 +4,11 @@ import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
+import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -32,6 +34,11 @@ final class Ui {
     return Math.round(v * c.getResources().getDisplayMetrics().density);
   }
 
+  static LinearLayout.LayoutParams lp() {
+    return new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+  }
+
   static GradientDrawable shape(Context c, int fill, int stroke, float strokeDp, float radiusDp) {
     GradientDrawable g = new GradientDrawable();
     g.setColor(fill);
@@ -53,7 +60,7 @@ final class Ui {
 
   /** 去掉系统在已处理焦点态的控件上额外叠加的高亮。 */
   static void noDefaultHighlight(View v) {
-    if (android.os.Build.VERSION.SDK_INT >= 26) v.setDefaultFocusHighlightEnabled(false);
+    if (Build.VERSION.SDK_INT >= 26) v.setDefaultFocusHighlightEnabled(false);
   }
 
   static void toast(Context c, String msg, boolean longer) {

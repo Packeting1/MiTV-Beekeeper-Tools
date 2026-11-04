@@ -11,7 +11,7 @@
 #
 # 安全措施：
 #   - 每次开机最多执行一轮（用 boot_id 做标记；加锁见下面 LOCK）
-#   - Zygisk Next 模块被禁用/不存在时直接退出
+#   - 等不到 Zygisk Next 守护进程 zn-daemon（模块被禁用或不存在）时直接退出
 #
 # 日志：/data/adb/lsposed_zygote64_fix.log
 
@@ -33,8 +33,8 @@ if [ -n "$BOOTID" ] && [ "$(cat "$FLAG" 2>/dev/null)" = "$BOOTID" ]; then
   exit 0
 fi
 
-# Magisk with Zygisk Next runs the service stage twice per boot, ~0.3 s apart, so two copies of
-# this script race. An atomic symlink lets exactly one of them do the work.
+# 装了 Zygisk Next 时，Magisk 每次开机会把 service 阶段跑两遍（间隔约 0.3 秒），两份脚本会抢着执行。
+# 用原子的符号链接保证只有一份真正干活。
 LOCK=/data/adb/.zygote64_fix_lock
 if [ -n "$BOOTID" ]; then
   if [ -L "$LOCK" ] && [ "$(readlink "$LOCK")" != "$BOOTID" ]; then rm -f "$LOCK"; fi
@@ -44,7 +44,7 @@ fi
 # 等 Zygisk Next 守护进程就绪，最多 60 秒
 i=0
 while [ $i -lt 120 ]; do
-  # Magisk's busybox ps has no NAME column; pidof works in both shells
+  # Magisk 的 busybox ps 没有 NAME 列，用 pidof 在两种 shell 下都可用
   pidof zn-daemon >/dev/null 2>&1 && break
   i=$((i + 1))
   sleep 0.5

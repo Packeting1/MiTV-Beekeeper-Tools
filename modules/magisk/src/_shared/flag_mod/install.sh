@@ -1,7 +1,5 @@
 #!/system/bin/sh
-# Legacy Magisk module installer. Used instead of customize.sh because Magisk
-# prints a "<name> / by <author>" banner for the modern format and nothing for
-# this one, so the install log stays free of extra text.
+# 旧格式安装脚本：print_modname 留空，Magisk 不显示模块名和作者横幅。
 
 SKIPMOUNT=false
 PROPFILE=false

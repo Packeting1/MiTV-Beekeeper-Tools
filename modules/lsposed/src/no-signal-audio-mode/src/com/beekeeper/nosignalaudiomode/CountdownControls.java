@@ -19,8 +19,9 @@ import java.lang.reflect.Field;
 /** 在倒计时页新增“息屏”按钮，不替换原有按钮的监听。 */
 final class CountdownControls {
   private static final String TAG = "NoSignalControls";
-  private static XposedModule module;
   private static final String AUDIO_BUTTON_TAG = "NoSignalXiaoAi:audio-button";
+
+  private static XposedModule module;
 
   // SearchingView 的字段，在 install() 里一次性解析。
   private static Field homeField;
@@ -43,7 +44,7 @@ final class CountdownControls {
           try {
             update((ViewGroup) chain.getThisObject());
           } catch (Throwable error) {
-            SessionKeeper.error(TAG, "Countdown UI unavailable", error);
+            module.log(Log.ERROR, TAG, "Countdown UI unavailable", error);
           }
           return result;
         };
@@ -102,7 +103,7 @@ final class CountdownControls {
               if (handler != null && countdown != null) handler.removeCallbacks(countdown);
               module.log(Log.INFO, TAG, "Audio button: requested XiaoAi mode; countdown cancelled");
             } catch (Throwable error) {
-              SessionKeeper.error(TAG, "Audio button failed", error);
+              module.log(Log.ERROR, TAG, "Audio button failed", error);
             }
           }
         });

@@ -34,35 +34,36 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * 在右上角弹出视频角标（Dolby Vision / HDR10 / HLG / HDR Vivid / Technicolor）和音频角标（Dolby / DTS 系列），停留 5 秒。
- * 系统桌面和信号源播放器自带的杜比角标会叠在一起，在它们的进程里屏蔽，改为广播给本模块弹；桌面前台时不按 HDR 类型弹。 视频角标由 HDR 类型变化的回调触发；Technicolor /
- * HDR Vivid 的类型值取自 SDK 常量，未实测；HDR10+ 与 HDR10 无法区分。
+/*
+ * 在右上角弹视频角标（Dolby Vision / HDR10 / HLG / HDR Vivid / Technicolor）和音频角标（Dolby / DTS），停留 5 秒。
+ * 桌面和信号源播放器自带的杜比角标在各自进程里屏蔽，改广播给本模块弹；桌面前台时不按 HDR 类型弹。
+ * Technicolor / HDR Vivid 的类型值取自 SDK 常量，未实测；HDR10+ 与 HDR10 无法区分。
  */
 public final class HookEntry extends XposedModule {
 
   private static final String TAG = "MediaBadge";
   private static final String SERVICE = "mitv.service";
   private static final String SETTINGS = "com.xiaomi.mitv.settings";
-  private static final String KEY_ENABLED = "mediabadge_enabled";
   private static final String HOME = "com.mitv.tvhome";
   private static final String PLAYER = "com.xiaomi.mitv.tvplayer";
+  private static final String ACTIVITY = "com.xiaomi.mitv.tvplayer.ExternalSourceActivity";
   private static final String[] NATIVE_CONTROLLERS = {
     "com.mitv.oneplayer.controller.BaseVideoUIController",
     "com.mitv.videoplayer.controller.BaseVideoUIController"
   };
   private static final String AV_MODE = "com.mediatek.twoworlds.tv.MtkTvAVModeBase";
+  private static final String CALLBACK = "com.mediatek.twoworlds.tv.TVCallback";
+  private static final String KEY_ENABLED = "mediabadge_enabled";
+  private static final String ACTION_BADGE = "com.beekeeper.mediabadge.BADGE";
+  private static final String ACTION_INFO_PENDING = "com.beekeeper.mediabadge.INFO_PENDING";
+  private static final String ACTION_INFO_SHOWN = "com.beekeeper.mediabadge.INFO_SHOWN";
+  private static final String ACTION_INFO_ARM = "com.beekeeper.mediabadge.INFO_ARM";
   private static final int VIDEOINFO_HDR_TYPE = 2;
   private static final int HDR10 = 1;
   private static final int HLG = 2;
   private static final int DOLBY = 3;
   private static final int TECHNICOLOR = 4;
   private static final int HDR_VIVID = 6;
-  private static final String ACTION_BADGE = "com.beekeeper.mediabadge.BADGE";
-  private static final String CALLBACK = "com.mediatek.twoworlds.tv.TVCallback";
-  private static final String ACTION_INFO_PENDING = "com.beekeeper.mediabadge.INFO_PENDING";
-  private static final String ACTION_INFO_SHOWN = "com.beekeeper.mediabadge.INFO_SHOWN";
-  private static final String ACTION_INFO_ARM = "com.beekeeper.mediabadge.INFO_ARM";
   private static final long INFO_WAIT_MS = 3000;
   private static final long ARM_WAIT_MS = 4000;
   private static final long AFTER_INFO_MS = 300;
@@ -72,23 +73,23 @@ public final class HookEntry extends XposedModule {
   private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
 
   private Handler ui;
-  private LinearLayout box;
-  private String videoText;
-  private String audioText;
-  private final Runnable fadeTask = this::fadeOut;
-  private int lastType = -1;
   private volatile Handler worker;
   private final Runnable checkTask = this::checkNow;
-  private String lastAudio = "";
-  private int audioRetry;
-  private boolean fading;
   private final Runnable audioTask = this::checkAudio;
   private final Runnable releaseTask = this::release;
+  private final Runnable fadeTask = this::fadeOut;
+  private Object avMode;
+  private Method getInfo;
+  private int lastType = -1;
+  private String lastAudio = "";
+  private int audioRetry;
   private long infoUntil;
   private String heldVideo;
   private String heldAudio;
-  private Object avMode;
-  private Method getInfo;
+  private LinearLayout box;
+  private String videoText;
+  private String audioText;
+  private boolean fading;
 
   @Override
   public void onModuleLoaded(ModuleLoadedParam param) {
@@ -101,8 +102,8 @@ public final class HookEntry extends XposedModule {
     if (SETTINGS.equals(pkg) && HOOKED.add(SETTINGS)) {
       try {
         SettingsSwitch.install(this, param.getDefaultClassLoader(), TAG, "媒体角标", KEY_ENABLED);
-      } catch (Throwable e) {
-        log(Log.ERROR, TAG, "cannot add settings switch", e);
+      } catch (Throwable t) {
+        log(Log.ERROR, TAG, "cannot add settings switch", t);
       }
       return;
     }
@@ -148,8 +149,8 @@ public final class HookEntry extends XposedModule {
       worker = new Handler(t.getLooper());
       worker.post(checkTask);
       log(Log.INFO, TAG, "badge watcher started");
-    } catch (Throwable e) {
-      log(Log.ERROR, TAG, "cannot start", e);
+    } catch (Throwable t) {
+      log(Log.ERROR, TAG, "cannot start", t);
     }
   }
 
@@ -168,8 +169,8 @@ public final class HookEntry extends XposedModule {
                 }
               },
               worker);
-    } catch (Throwable e) {
-      log(Log.ERROR, TAG, "cannot watch audio", e);
+    } catch (Throwable t) {
+      log(Log.ERROR, TAG, "cannot watch audio", t);
     }
   }
 
@@ -195,10 +196,10 @@ public final class HookEntry extends XposedModule {
       if (top == null || PLAYER.equals(top) || isHome(ctx, top)) {
         return;
       }
-      final String text = audioName(v);
+      String text = audioName(v);
       ui.post(() -> present(ctx, null, text));
-    } catch (Throwable e) {
-      log(Log.WARN, TAG, "audio check failed", e);
+    } catch (Throwable t) {
+      log(Log.WARN, TAG, "audio check failed", t);
     }
   }
 
@@ -234,8 +235,8 @@ public final class HookEntry extends XposedModule {
                 }
               },
               new IntentFilter(ACTION_BADGE));
-    } catch (Throwable e) {
-      log(Log.ERROR, TAG, "cannot listen badge", e);
+    } catch (Throwable t) {
+      log(Log.ERROR, TAG, "cannot listen badge", t);
     }
   }
 
@@ -247,8 +248,8 @@ public final class HookEntry extends XposedModule {
               .putExtra("vision", vision)
               .putExtra("audio", audio));
       return true;
-    } catch (Throwable e) {
-      log(Log.WARN, TAG, "cannot notify badge", e);
+    } catch (Throwable t) {
+      log(Log.WARN, TAG, "cannot notify badge", t);
       return false;
     }
   }
@@ -272,8 +273,8 @@ public final class HookEntry extends XposedModule {
             });
         log(Log.INFO, TAG, "native dolby logo muted: " + name);
       } catch (ClassNotFoundException | NoSuchMethodException ignored) {
-      } catch (Throwable e) {
-        log(Log.ERROR, TAG, "cannot mute native logo " + name, e);
+      } catch (Throwable t) {
+        log(Log.ERROR, TAG, "cannot mute native logo " + name, t);
       }
     }
   }
@@ -282,7 +283,7 @@ public final class HookEntry extends XposedModule {
   // 音频种类按图标资源名区分，认不出时不拦，保持原样
   private void mutePlayerDolbyIcon(ClassLoader cl) {
     try {
-      Class<?> c = cl.loadClass("com.xiaomi.mitv.tvplayer.ExternalSourceActivity");
+      Class<?> c = cl.loadClass(ACTIVITY);
       hook(c.getDeclaredMethod("showDolbyIcon", int.class, int.class))
           .intercept(chain -> {
             Context ctx = (Context) chain.getThisObject();
@@ -298,8 +299,8 @@ public final class HookEntry extends XposedModule {
             return chain.proceed(new Object[] {0, 0});
           });
       log(Log.INFO, TAG, "player dolby icons muted");
-    } catch (Throwable e) {
-      log(Log.ERROR, TAG, "cannot mute player icon", e);
+    } catch (Throwable t) {
+      log(Log.ERROR, TAG, "cannot mute player icon", t);
     }
   }
 
@@ -307,7 +308,7 @@ public final class HookEntry extends XposedModule {
   // 播放器预告“面板将显示”和“面板已显示”，服务进程据此暂存角标
   private void gateBehindSourceInfo(ClassLoader cl) {
     try {
-      Class<?> c = cl.loadClass("com.xiaomi.mitv.tvplayer.ExternalSourceActivity");
+      Class<?> c = cl.loadClass(ACTIVITY);
       Field support = field(c, "mSupportHdmiInfo");
       Field target = field(c, "mTargetSource");
       Method isHdmi = c.getDeclaredMethod("isHDMISource", int.class);
@@ -323,8 +324,8 @@ public final class HookEntry extends XposedModule {
                   .sendBroadcast(
                       new Intent(expected ? ACTION_INFO_PENDING : ACTION_INFO_SHOWN)
                           .setPackage(SERVICE));
-            } catch (Throwable e) {
-              log(Log.WARN, TAG, "cannot announce source info", e);
+            } catch (Throwable t) {
+              log(Log.WARN, TAG, "cannot announce source info", t);
             }
             return r;
           });
@@ -355,8 +356,8 @@ public final class HookEntry extends XposedModule {
             }
             return r;
           });
-    } catch (Throwable e) {
-      log(Log.WARN, TAG, "cannot gate behind source info", e);
+    } catch (Throwable t) {
+      log(Log.WARN, TAG, "cannot gate behind source info", t);
     }
   }
 
@@ -401,8 +402,8 @@ public final class HookEntry extends XposedModule {
                 }
               },
               f);
-    } catch (Throwable e) {
-      log(Log.ERROR, TAG, "cannot listen source info", e);
+    } catch (Throwable t) {
+      log(Log.ERROR, TAG, "cannot listen source info", t);
     }
   }
 
@@ -431,8 +432,8 @@ public final class HookEntry extends XposedModule {
       if (ctx != null) {
         present(ctx, v, a);
       }
-    } catch (Throwable e) {
-      log(Log.WARN, TAG, "cannot release held badge", e);
+    } catch (Throwable t) {
+      log(Log.WARN, TAG, "cannot release held badge", t);
     }
   }
 
@@ -457,7 +458,7 @@ public final class HookEntry extends XposedModule {
         default:
           return null;
       }
-    } catch (Throwable e) {
+    } catch (Throwable t) {
       return null;
     }
   }
@@ -477,7 +478,7 @@ public final class HookEntry extends XposedModule {
       Object info = proxy.getClass().getMethod("getVideoInfo").invoke(proxy);
       return info.getClass().getField("isDolbyVision").getBoolean(info)
           && !info.getClass().getField("isIMax").getBoolean(info);
-    } catch (Throwable e) {
+    } catch (Throwable t) {
       return false;
     }
   }
@@ -509,8 +510,8 @@ public final class HookEntry extends XposedModule {
       if (top != null && !isHome(ctx, top)) {
         ui.post(() -> request(ctx, label, null));
       }
-    } catch (Throwable e) {
-      log(Log.WARN, TAG, "check failed", e);
+    } catch (Throwable t) {
+      log(Log.WARN, TAG, "check failed", t);
     }
   }
 
@@ -524,7 +525,7 @@ public final class HookEntry extends XposedModule {
           ctx.getPackageManager()
               .resolveActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0);
       return r != null && r.activityInfo != null && pkg.equals(r.activityInfo.packageName);
-    } catch (Throwable e) {
+    } catch (Throwable t) {
       return false;
     }
   }
@@ -635,8 +636,8 @@ public final class HookEntry extends XposedModule {
       ui.removeCallbacks(fadeTask);
       ui.postDelayed(fadeTask, SHOW_MS);
       log(Log.INFO, TAG, "badge shown: " + videoText + " / " + audioText);
-    } catch (Throwable e) {
-      log(Log.ERROR, TAG, "cannot show badge", e);
+    } catch (Throwable t) {
+      log(Log.ERROR, TAG, "cannot show badge", t);
     }
   }
 
@@ -655,7 +656,7 @@ public final class HookEntry extends XposedModule {
   }
 
   private void fadeOut() {
-    final LinearLayout b = box;
+    LinearLayout b = box;
     if (b == null) {
       return;
     }

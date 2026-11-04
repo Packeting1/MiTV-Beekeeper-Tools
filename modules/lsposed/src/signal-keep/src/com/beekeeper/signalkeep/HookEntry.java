@@ -27,14 +27,9 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /*
- * 减少 PC 信号 (HDMI/DP) 与电视系统之间切换时的黑屏。作用域：tvplayer + com.mediatek.tvinput。
- *
- * A. 播放器不在前台 30 秒后会自己 killProcess (BaseActivity.mKillSelf)，下次进 PC 信号是冷启动。跳过它。
- * B. 按 HOME 回桌面时不拆 PC 信号：onPause 保留、用 TV-Mute 静音 PC 声音，看门狗确认去向仍是桌面/设置才继续保留，
- *    去别的应用或息屏就补跑原始 onPause 拆除。回到 PC 时在 MtkTvInput 里允许把新 Surface 重绑到已打开的流。
- *
- * 和 TvPlayerKeep (设置键/图像参数页不黑屏) 互不依赖：设置相关的 onPause 交给它 (或原版)，本模块只处理
- * 「用户离开播放器」。
+ * 减少 PC 信号 (HDMI/DP) 与电视系统之间切换时的黑屏（tvplayer + com.mediatek.tvinput）：
+ * 跳过播放器后台 30 秒自杀；按 HOME 回桌面时保留信号并静音，由看门狗决定继续保留还是补跑拆除。
+ * 设置键/图像参数页的 onPause 交给 TvPlayerKeep（或原版），两者互不依赖。
  */
 public final class HookEntry extends XposedModule {
 
@@ -44,25 +39,33 @@ public final class HookEntry extends XposedModule {
   private static final String TV_HOME = "com.mitv.tvhome";
   private static final String TVINPUT = "com.mediatek.tvinput";
 
-  /** TvPlayerKeep 写的设置键标记，只读用来避开它负责的流程。 */
+  /** TvPlayerKeep 写的设置键标记，只读，用来避开它负责的流程。 */
   private static final String SETTINGS_FLAG = "settings_window_showing";
 
   private static final String SETTINGS_PENDING = "tvplayerkeep_settings_pending";
 
-  /** 设置键标记到 onPause 通常只隔几十毫秒；比 TvPlayerKeep 的 3 秒窗口短，避免把紧随其后的 HOME 当成设置流程。 */
+  /** 设置键标记到 onPause 通常只隔几十毫秒；取比 TvPlayerKeep 的 3 秒窗口短，免得把随后的 HOME 当成设置流程。 */
   private static final long PENDING_WINDOW_MS = 800;
 
-  /** Settings.System，写 0 关闭 B (回桌面保留信号)；没写或其它值都开启。A 不受影响。 */
+  /** Settings.System，写 0 关闭回桌面保留信号；没写或其它值都开启。 */
   private static final String HOME_KEEP = "signalkeep_home";
 
-  /** 播放器从「保留」恢复时写入的时间戳，MtkTvInput 据此允许一次把新 Surface 重绑到已打开的流。 */
+  /** 播放器从「保留」恢复时写入的时间戳，MtkTvInput 据此允许重绑新 Surface。 */
   private static final String REBIND = "signalkeep_rebind";
 
-  private static final String MUTED = "signalkeep_muted";
   private static final long REBIND_WINDOW_MS = 5000;
+
+  /** TV-Mute 状态；播放器进程被杀后下次回来仍据此补取消静音。 */
+  private static final String MUTED = "signalkeep_muted";
 
   /** 停在桌面超过这个时间就拆除信号：保留着 4K160 信号时 HDMI RX/scaler 中断会多占约 16% CPU。 */
   private static final long HOME_HOLD_MS = 60000;
+
+  /* 看门狗每 100ms 判断一次桌面，默认桌面几乎不变，短时缓存避免反复查 PackageManager。 */
+  private static final long HOME_PKG_TTL_MS = 5000;
+
+  private volatile String homePkg;
+  private volatile long homePkgAt = -1_000_000L;
 
   private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
   private final Set<Object> kept =
@@ -96,15 +99,12 @@ public final class HookEntry extends XposedModule {
     }
   }
 
-  /**
-   * MtkTvInput 对已打开的流会忽略新的 Surface (mStreamOpened=true → 不调 doSetSurfaceToHardware)， 保留信号回来时
-   * Surface 已重建，不重绑就黑屏。播放器恢复后的短时间窗内，把标志清掉让它重绑一次。
-   */
+  /** MtkTvInput 对已打开的流 (mStreamOpened) 忽略新 Surface，保留信号回来时不重绑会黑屏；恢复后的短窗口内清掉标志。 */
   private void installTvInput(ClassLoader cl) throws Throwable {
     Class<?> sess =
         cl.loadClass(
             "com.mediatek.tvinputservice.AbstractTvInputServiceBase$AbstractTvInputSession");
-    final Field opened = sess.getDeclaredField("mStreamOpened");
+    Field opened = sess.getDeclaredField("mStreamOpened");
     opened.setAccessible(true);
     Method onSetSurface = sess.getDeclaredMethod("onSetSurface", Surface.class);
     hook(onSetSurface)
@@ -131,7 +131,7 @@ public final class HookEntry extends XposedModule {
     try {
       long age = System.currentTimeMillis() - Long.parseLong(stamp);
       return age >= 0 && age < windowMs;
-    } catch (NumberFormatException e) {
+    } catch (NumberFormatException ignored) {
       return false;
     }
   }
@@ -150,14 +150,14 @@ public final class HookEntry extends XposedModule {
     Class<?> act = cl.loadClass(PLAYER + ".ExternalSourceActivity");
     Class<?> frag = cl.loadClass("android.support.v4.app.FragmentActivity");
 
-    final Method onPause = act.getDeclaredMethod("onPause");
-    final Method onResume = act.getDeclaredMethod("onResume");
-    final Method onStop = act.getDeclaredMethod("onStop");
-    final Method fragPause = frag.getDeclaredMethod("onPause");
-    final Method fragResume = frag.getDeclaredMethod("onResume");
-    final XposedInterface.Invoker<?, Method> superPause = getInvoker(fragPause);
-    final XposedInterface.Invoker<?, Method> superResume = getInvoker(fragResume);
-    final XposedInterface.Invoker<?, Method> origPause =
+    Method onPause = act.getDeclaredMethod("onPause");
+    Method onResume = act.getDeclaredMethod("onResume");
+    Method onStop = act.getDeclaredMethod("onStop");
+    Method fragPause = frag.getDeclaredMethod("onPause");
+    Method fragResume = frag.getDeclaredMethod("onResume");
+    XposedInterface.Invoker<?, Method> superPause = getInvoker(fragPause);
+    XposedInterface.Invoker<?, Method> superResume = getInvoker(fragResume);
+    XposedInterface.Invoker<?, Method> origPause =
         getInvoker(onPause).setType(XposedInterface.Invoker.Type.ORIGIN);
 
     hook(Activity.class.getDeclaredMethod("onUserLeaveHint"))
@@ -253,7 +253,7 @@ public final class HookEntry extends XposedModule {
       }
     }
 
-    // 播放器在后台 30 秒后会自己 killProcess (BaseActivity.mKillSelf)，下次进 PC 信号是冷启动 (多约 0.9 秒)。
+    // BaseActivity.mKillSelf 的 killBackGround：不跳过则下次进 PC 信号是冷启动 (多约 0.9 秒)。
     try {
       Method kill = cl.loadClass(PLAYER + ".BaseActivity").getDeclaredMethod("killBackGround");
       hook(kill)
@@ -292,7 +292,7 @@ public final class HookEntry extends XposedModule {
         Field f;
         try {
           f = c.getDeclaredField("mSearchingView");
-        } catch (NoSuchFieldException e) {
+        } catch (NoSuchFieldException ignored) {
           continue;
         }
         f.setAccessible(true);
@@ -369,20 +369,25 @@ public final class HookEntry extends XposedModule {
     if (TV_HOME.equals(pkg)) {
       return true;
     }
-    try {
-      ResolveInfo ri =
-          a.getPackageManager()
-              .resolveActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0);
-      return ri != null && ri.activityInfo != null && pkg.equals(ri.activityInfo.packageName);
-    } catch (Throwable t) {
-      return false;
+    long now = SystemClock.elapsedRealtime();
+    if (now - homePkgAt > HOME_PKG_TTL_MS) {
+      try {
+        ResolveInfo ri =
+            a.getPackageManager()
+                .resolveActivity(
+                    new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0);
+        homePkg = ri != null && ri.activityInfo != null ? ri.activityInfo.packageName : null;
+      } catch (Throwable t) {
+        homePkg = null;
+      }
+      homePkgAt = now;
     }
+    return pkg.equals(homePkg);
   }
 
   /**
-   * 只静音 PC 信号：小米音频 HAL 的 "TV-Mute" 参数 (播放器自己切源时也在用) 会释放/重建输入源的 audio patch，不影响应用的混音通路 (dumpsys 实测
-   * mix 通路不变)。TvView.setStreamVolume(0) 无效 (HDMI In 端口增益只有 0~1 dB)，静音媒体流又会把应用的声音一起静掉。 静音状态记在
-   * Settings.System，播放器进程被杀后下次回来仍会补取消，避免电视一直没声音。
+   * 只静音 PC 信号：音频 HAL 的 "TV-Mute" 会释放/重建输入源的 audio patch，不影响应用混音 (dumpsys 实测)。
+   * TvView.setStreamVolume(0) 无效 (HDMI In 增益只有 0~1 dB)，静音媒体流又会连应用声音一起静掉。
    */
   private void audioMute(Context c, boolean mute) {
     try {
@@ -403,8 +408,8 @@ public final class HookEntry extends XposedModule {
   }
 
   /**
-   * 播放器每次 onSourceSignalStable 都会写这个属性。保留期间桌面的视频壁纸 (Aerial 实时壁纸，4K) 会用硬件解码器抢占输入源的主视频通道， 系统随即上报
-   * WEAK_SIGNAL，被抢占的会话无法靠「跳过重初始化」恢复，必须拆掉重来。
+   * 播放器每次 onSourceSignalStable 都会写 sys.inputsource.have_signal。保留期间 Aerial 视频壁纸 (4K)
+   * 会用硬件解码器抢占主视频通道并上报 WEAK_SIGNAL，被抢占的会话只能拆掉重来。
    */
   private static boolean hasSignal() {
     try {
@@ -436,22 +441,17 @@ public final class HookEntry extends XposedModule {
     }
   }
 
-  /**
-   * 播放器被盖住期间每 100ms 查一次：仍在设置/桌面就继续保留，去了别的应用或息屏就补跑拆除。 fromPause=true 时去向可能还没更新 (顶层仍是播放器自己)，最多宽限 1.5
-   * 秒。
-   */
+  /** 播放器被盖住期间每 100ms 查一次：仍在设置/桌面就继续保留，去了别的应用或息屏就补跑拆除。 fromPause 时顶层可能仍是播放器自己，最多宽限 1.5 秒。 */
   private void startWatchdog(
-      final Activity a,
-      final XposedInterface.Invoker<?, Method> origPause,
-      final boolean fromPause) {
-    final Object token = new Object();
+      Activity a, XposedInterface.Invoker<?, Method> origPause, boolean fromPause) {
+    Object token = new Object();
     // onPause 总是接管旧的看门狗 (HOME→PC→HOME 间隔很短时旧的还没退出)；onStop 只在没有时才补一个。
     if (fromPause) {
       watchers.put(a, token);
     } else if (watchers.putIfAbsent(a, token) != null) {
       return;
     }
-    final Handler h = new Handler(Looper.getMainLooper());
+    Handler h = new Handler(Looper.getMainLooper());
     h.post(
         new Runnable() {
           int idle = 0;

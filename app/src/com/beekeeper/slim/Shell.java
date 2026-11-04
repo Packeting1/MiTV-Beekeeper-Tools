@@ -48,6 +48,18 @@ final class Shell {
     }
   }
 
+  /** 后台线程里执行，忽略输出。 */
+  static void suAsync(String threadName, final String script) {
+    new Thread(
+            new Runnable() {
+              public void run() {
+                suOut(script);
+              }
+            },
+            threadName)
+        .start();
+  }
+
   static String runSu(String script) {
     try {
       int[] rc = new int[1];

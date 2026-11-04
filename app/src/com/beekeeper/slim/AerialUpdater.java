@@ -4,11 +4,15 @@ import static com.beekeeper.slim.Catalog.*;
 import static com.beekeeper.slim.Net.*;
 import static com.beekeeper.slim.Shell.*;
 
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import java.io.File;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /** Aerial 桌面的更新：查 Release、更新提示条、下载安装并同步到 Magisk 模块。 */
@@ -18,7 +22,6 @@ final class AerialUpdater extends Part {
     super(a);
   }
 
-  // ---- Aerial 更新：查 github.com/pengchujin/aerial-tv 的最新 Release，用户点了才下载安装 ----
   static final String AERIAL_REPO = "pengchujin/aerial-tv";
 
   static final String AERIAL_ASSET = "aerial-standard.apk";
@@ -124,17 +127,16 @@ final class AerialUpdater extends Part {
   boolean sameAerialSigner(String apkPath) {
     try {
       PackageManager pm = getPackageManager();
-      android.content.pm.PackageInfo a =
-          pm.getPackageArchiveInfo(apkPath, PackageManager.GET_SIGNATURES);
-      android.content.pm.PackageInfo i = pm.getPackageInfo(DB_PKG, PackageManager.GET_SIGNATURES);
+      PackageInfo a = pm.getPackageArchiveInfo(apkPath, PackageManager.GET_SIGNATURES);
+      PackageInfo i = pm.getPackageInfo(DB_PKG, PackageManager.GET_SIGNATURES);
       if (a == null
           || a.signatures == null
           || a.signatures.length == 0
           || i.signatures == null
           || i.signatures.length == 0) return true;
       Set<String> x = new HashSet<String>(), y = new HashSet<String>();
-      for (android.content.pm.Signature s : a.signatures) x.add(s.toCharsString());
-      for (android.content.pm.Signature s : i.signatures) y.add(s.toCharsString());
+      for (Signature s : a.signatures) x.add(s.toCharsString());
+      for (Signature s : i.signatures) y.add(s.toCharsString());
       return x.equals(y);
     } catch (Exception e) {
       return true;
@@ -150,12 +152,12 @@ final class AerialUpdater extends Part {
     new Thread(
             new Runnable() {
               public void run() {
-                final java.io.File f = new java.io.File(getCacheDir(), "aerial_update.apk");
+                final File f = new File(getCacheDir(), "aerial_update.apk");
                 try {
-                  java.util.List<String> cands = withMirrors(url);
+                  List<String> cands = withMirrors(url);
                   cands.add(AERIAL_SITE_APK);
                   downloadFile(main, cands, digest, f, p, tok);
-                  android.content.pm.PackageInfo pi =
+                  PackageInfo pi =
                       getPackageManager().getPackageArchiveInfo(f.getAbsolutePath(), 0);
                   if (pi == null || !DB_PKG.equals(pi.packageName))
                     throw new Exception("下载的不是 Aerial 安装包");

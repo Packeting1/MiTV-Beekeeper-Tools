@@ -6,23 +6,35 @@ import static com.beekeeper.slim.Shell.*;
 
 import android.app.Activity;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 
 /*
@@ -167,10 +179,10 @@ public class MainActivity extends Activity {
   Set<String> modDisabled = new HashSet<String>(), modActive = new HashSet<String>();
 
   /** 版本信息：模块 id -> {versionCode, version}。modVer 是已装的，modUpVer 是已暂存、重启后生效的；bundled* 是本应用自带的。 */
-  java.util.Map<String, String[]> modVer = new java.util.HashMap<String, String[]>(),
-      modUpVer = new java.util.HashMap<String, String[]>(),
-      bundledMod = new java.util.HashMap<String, String[]>(),
-      bundledApk = new java.util.HashMap<String, String[]>();
+  Map<String, String[]> modVer = new HashMap<String, String[]>(),
+      modUpVer = new HashMap<String, String[]>(),
+      bundledMod = new HashMap<String, String[]>(),
+      bundledApk = new HashMap<String, String[]>();
 
   LinearLayout updateBar;
 
@@ -203,14 +215,13 @@ public class MainActivity extends Activity {
     page.addView(t);
     if (hintText != null) {
       TextView h = new TextView(this);
-      android.text.SpannableString s =
-          new android.text.SpannableString(emphasis == null ? hintText : emphasis + hintText);
+      SpannableString s = new SpannableString(emphasis == null ? hintText : emphasis + hintText);
       if (emphasis != null) {
         s.setSpan(
-            new android.text.style.ForegroundColorSpan(Ui.WARN),
+            new ForegroundColorSpan(Ui.WARN),
             0,
             emphasis.length(),
-            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
       }
       h.setText(s);
       h.setTextSize(12);
@@ -227,9 +238,7 @@ public class MainActivity extends Activity {
 
   /** index 为 -1 时加到末尾。 */
   void addItem(LinearLayout page, View item, int index) {
-    LinearLayout.LayoutParams lp =
-        new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    LinearLayout.LayoutParams lp = Ui.lp();
     lp.topMargin = dp(6);
     page.addView(item, index, lp);
   }
@@ -363,9 +372,7 @@ public class MainActivity extends Activity {
               if (f != null) f.requestFocus();
             }
           });
-      LinearLayout.LayoutParams nlp =
-          new LinearLayout.LayoutParams(
-              LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+      LinearLayout.LayoutParams nlp = Ui.lp();
       nlp.topMargin = dp(4);
       side.addView(navs[i], nlp);
     }
@@ -379,10 +386,7 @@ public class MainActivity extends Activity {
             applier.confirmApply();
           }
         });
-    side.addView(
-        applyBtn,
-        new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+    side.addView(applyBtn, Ui.lp());
     Button reboot = Ui.button(this, "重启电视", false);
     reboot.setOnClickListener(
         new View.OnClickListener() {
@@ -390,9 +394,7 @@ public class MainActivity extends Activity {
             confirmReboot();
           }
         });
-    LinearLayout.LayoutParams rlp =
-        new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    LinearLayout.LayoutParams rlp = Ui.lp();
     rlp.topMargin = dp(6);
     side.addView(reboot, rlp);
 
@@ -419,9 +421,7 @@ public class MainActivity extends Activity {
             });
     aerial.aerialBarText = (TextView) aerial.aerialBar.getChildAt(0);
     for (View bar : new View[] {updateBar, aerial.aerialBar}) {
-      LinearLayout.LayoutParams blp =
-          new LinearLayout.LayoutParams(
-              LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+      LinearLayout.LayoutParams blp = Ui.lp();
       blp.bottomMargin = dp(6);
       content.addView(bar, blp);
     }
@@ -494,18 +494,15 @@ public class MainActivity extends Activity {
     LinearLayout about = card();
     TextView aboutText = new TextView(this);
     String aboutHead = "小米电视团队是干嘛的？";
-    android.text.SpannableString aboutSpan =
-        new android.text.SpannableString(
+    SpannableString aboutSpan =
+        new SpannableString(
             aboutHead
                 + "\n项目作者：酷安@pkkka\n项目地址：github.com/"
                 + GH_REPO
                 + "\n有任何想法或建议，欢迎在项目地址的 Issue / Pull Request 中提交"
                 + "\n贡献者：@Rin010、酷安@伏犬、@Filey-Aaron");
     aboutSpan.setSpan(
-        new android.text.style.RelativeSizeSpan(1.35f),
-        0,
-        aboutHead.length(),
-        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        new RelativeSizeSpan(1.35f), 0, aboutHead.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
     aboutText.setText(aboutSpan);
     aboutText.setTextSize(13);
     aboutText.setTextColor(Ui.TEXT);
@@ -595,8 +592,8 @@ public class MainActivity extends Activity {
     row.setOrientation(LinearLayout.HORIZONTAL);
     row.setGravity(Gravity.CENTER_VERTICAL);
     row.setPadding(0, dp(8), 0, dp(8));
-    android.widget.ProgressBar pb = new android.widget.ProgressBar(this);
-    pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+    ProgressBar pb = new ProgressBar(this);
+    pb.setIndeterminateTintList(ColorStateList.valueOf(Ui.ACCENT));
     row.addView(pb, new LinearLayout.LayoutParams(dp(40), dp(40)));
     TextView t = new TextView(this);
     t.setText("正在加载模块状态中……");
@@ -651,10 +648,8 @@ public class MainActivity extends Activity {
 
   String homePackage() {
     try {
-      android.content.Intent i =
-          new android.content.Intent(android.content.Intent.ACTION_MAIN)
-              .addCategory(android.content.Intent.CATEGORY_HOME);
-      android.content.pm.ResolveInfo ri = getPackageManager().resolveActivity(i, 0);
+      Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+      ResolveInfo ri = getPackageManager().resolveActivity(i, 0);
       return ri == null || ri.activityInfo == null ? "" : ri.activityInfo.packageName;
     } catch (Exception e) {
       return "";
@@ -677,11 +672,6 @@ public class MainActivity extends Activity {
 
   boolean noHomeReady() {
     return dbState() == DB_ACTIVE && state("com.beekeeper.homeref") != MISSING;
-  }
-
-  boolean dbInstalledAsSystem() {
-    int s = dbState();
-    return s == DB_SYSTEM || s == DB_ACTIVE;
   }
 
   /** 系统桌面开关：Aerial已装成系统应用且已是默认桌面、Aerial开关开着才能开；已经禁用时总能点，方便恢复。 */
@@ -714,9 +704,8 @@ public class MainActivity extends Activity {
             new Runnable() {
               public void run() {
                 // 读内置模块的版本（解压、解析安装包）和 su 脚本并行，各自耗时不叠加。
-                final java.util.Map<String, String[]>
-                    bm = new java.util.HashMap<String, String[]>(),
-                    ba = new java.util.HashMap<String, String[]>();
+                final Map<String, String[]> bm = new HashMap<String, String[]>(),
+                    ba = new HashMap<String, String[]>();
                 Thread bundledReader = null;
                 if (bundledMod.isEmpty() && bundledApk.isEmpty()) {
                   bundledReader =
@@ -831,9 +820,8 @@ public class MainActivity extends Activity {
                     active = new HashSet<String>();
                 boolean lsR = false, lsDead = false, lsS = false, lsI = false;
                 boolean ok = out != null && out.contains("__Q_OK__");
-                final java.util.Map<String, String[]>
-                    vInst = new java.util.HashMap<String, String[]>(),
-                    vUp = new java.util.HashMap<String, String[]>();
+                final Map<String, String[]> vInst = new HashMap<String, String[]>(),
+                    vUp = new HashMap<String, String[]>();
                 if (ok) {
                   for (String line : out.split("\n")) {
                     line = line.trim();
@@ -858,10 +846,8 @@ public class MainActivity extends Activity {
                 }
                 final boolean lsRun = lsR, lsSrv = lsS, lsKnown = ok && (lsR || lsDead);
                 final boolean lsInst = !ok || lsI;
-                final java.util.Map<String, Boolean> lsEn =
-                    new java.util.HashMap<String, Boolean>();
-                final java.util.Map<String, Set<String>> lsSc =
-                    new java.util.HashMap<String, Set<String>>();
+                final Map<String, Boolean> lsEn = new HashMap<String, Boolean>();
+                final Map<String, Set<String>> lsSc = new HashMap<String, Set<String>>();
                 final boolean dbRead = ok && ls.readLsDb(lsEn, lsSc);
                 if (bundledReader != null) {
                   try {
@@ -907,7 +893,7 @@ public class MainActivity extends Activity {
 
   String flagQuery() {
     StringBuilder sb = new StringBuilder();
-    for (java.util.Map.Entry<String, String> e : FLAG_MODS.entrySet()) {
+    for (Map.Entry<String, String> e : FLAG_MODS.entrySet()) {
       sb.append("service call TvService 82 s16 ")
           .append(e.getValue())
           .append(" 2>/dev/null | grep -q 'Y.E.S' && echo \"F:")
@@ -918,7 +904,7 @@ public class MainActivity extends Activity {
   }
 
   void render() {
-    java.util.LinkedHashMap<Group, String[]> ups = modUp.pendingUpdates();
+    LinkedHashMap<Group, String[]> ups = modUp.pendingUpdates();
     for (Group g : GROUPS) {
       String t;
       int lv = ItemView.NEUTRAL;
@@ -952,7 +938,7 @@ public class MainActivity extends Activity {
         String apkVer = "";
         if (inst) {
           try {
-            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(g.pkgs[0], 0);
+            PackageInfo pi = getPackageManager().getPackageInfo(g.pkgs[0], 0);
             apkVer = pi.versionName != null ? " " + pi.versionName : " （没有版本号的旧版）";
           } catch (Exception e) {
             // 读不到版本就不显示

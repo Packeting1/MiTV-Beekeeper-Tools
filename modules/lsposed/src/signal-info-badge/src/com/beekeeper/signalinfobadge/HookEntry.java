@@ -19,11 +19,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-/*
- * 切换信号源时左上角的信息面板（图标 + 端口名 + 分辨率@帧率，269x93dp）改成一行小药丸，
- * 30dp 高、黑色约 80% 透明、白色粗体字，位置仍在左上角，只是缩小并略微上移。
- * 面板的显示时机和 5 秒后隐藏的逻辑不动，只在 HDMISourceInfoView.setData 填完文字后改外观，并加上淡入淡出。
- */
+/** 切换信号源时左上角的信息面板改成一行小药丸（30dp），并加淡入淡出；显示时机和隐藏逻辑不动。 */
 public final class HookEntry extends XposedModule {
 
   private static final String TAG = "SignalInfoBadge";
@@ -32,15 +28,14 @@ public final class HookEntry extends XposedModule {
   private static final String KEY_ENABLED = "signalinfobadge_enabled";
   private static final String INFO_VIEW =
       "com.xiaomi.mitv.tvplayer.widget.views.HDMISourceInfoView";
-
   private static final String ACTIVITY = "com.xiaomi.mitv.tvplayer.ExternalSourceActivity";
   private static final long FADE_IN_MS = 250;
   private static final long FADE_OUT_MS = 400;
 
   private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
 
-  private boolean fading;
-  private boolean passThrough;
+  private volatile boolean fading;
+  private volatile boolean passThrough;
 
   @Override
   public void onModuleLoaded(ModuleLoadedParam param) {
@@ -87,8 +82,7 @@ public final class HookEntry extends XposedModule {
     }
   }
 
-  // 原版直接 setVisibility 显示/隐藏；这里加上淡入（250ms）和淡出（400ms）。
-  // 淡出期间推迟真正的 hideHdmiInfoView，期间又要显示时先立即收起再重新显示，否则原版会因“仍在显示”直接返回
+  // 淡出期间推迟真正的 hideHdmiInfoView；期间又要显示时先立即收起再显示，否则原版会因“仍在显示”直接返回
   private void hookFade(ClassLoader cl) throws Exception {
     Class<?> a = cl.loadClass(ACTIVITY);
     Field view = field(a, "mHdmiSourceInfoView");

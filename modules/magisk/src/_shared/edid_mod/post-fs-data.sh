@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Runs before the TV services start, so the patched EDID is what gets loaded on this boot.
+# 在电视服务启动前运行，这次开机加载的就是改过的 EDID。
 MODDIR=${0%/*}
 . "$MODDIR/edid_lib.sh"
 

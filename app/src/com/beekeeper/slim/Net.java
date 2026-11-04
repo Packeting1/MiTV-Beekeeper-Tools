@@ -1,7 +1,17 @@
 package com.beekeeper.slim;
 
 import android.os.Handler;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /** GitHub 访问（官方 + 镜像线路）、版本号比较和下载。 */
 final class Net {
@@ -25,8 +35,8 @@ final class Net {
     return (i0 < 0 ? 1 : 0) - (j0 < 0 ? 1 : 0);
   }
 
-  static String readAll(java.io.InputStream in) throws Exception {
-    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+  static String readAll(InputStream in) throws Exception {
+    ByteArrayOutputStream bo = new ByteArrayOutputStream();
     byte[] buf = new byte[8192];
     int n;
     while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
@@ -57,12 +67,12 @@ final class Net {
   /** 下载阶段可取消；开始安装后不能再取消（pm install 不能中途停）。 */
   static class CancelToken {
     volatile boolean cancelled, installing;
-    volatile java.net.HttpURLConnection conn;
+    volatile HttpURLConnection conn;
 
     synchronized boolean cancel() {
       if (installing) return false;
       cancelled = true;
-      final java.net.HttpURLConnection c = conn;
+      final HttpURLConnection c = conn;
       if (c != null)
         new Thread(
                 new Runnable() {
@@ -87,9 +97,9 @@ final class Net {
   static String fetchApi(String repo, String path) throws Exception {
     Throwable last = null;
     for (String cand : withMirrors("https://api.github.com/repos/" + repo + "/" + path)) {
-      java.net.HttpURLConnection c = null;
+      HttpURLConnection c = null;
       try {
-        c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
+        c = (HttpURLConnection) new URL(cand).openConnection();
         c.setConnectTimeout(6000);
         c.setReadTimeout(8000);
         c.setRequestProperty("Accept", "application/vnd.github+json");
@@ -119,11 +129,11 @@ final class Net {
    */
   static Release fetchRelease(String repo, String asset, String cur) throws Exception {
     Release r = new Release();
-    org.json.JSONObject j = new org.json.JSONObject(fetchApi(repo, "releases/latest"));
+    JSONObject j = new JSONObject(fetchApi(repo, "releases/latest"));
     r.tag = j.getString("tag_name");
-    org.json.JSONArray as = j.optJSONArray("assets");
+    JSONArray as = j.optJSONArray("assets");
     for (int i = 0; as != null && i < as.length(); i++) {
-      org.json.JSONObject a = as.getJSONObject(i);
+      JSONObject a = as.getJSONObject(i);
       String name = a.optString("name");
       if (asset == null ? name.endsWith(".apk") : asset.equals(name)) {
         r.url = a.getString("browser_download_url");
@@ -137,11 +147,11 @@ final class Net {
     r.count = 1;
     if (cur != null && cmpVersion(r.tag, cur) > 0) {
       try {
-        org.json.JSONArray rs = new org.json.JSONArray(fetchApi(repo, "releases?per_page=30"));
+        JSONArray rs = new JSONArray(fetchApi(repo, "releases?per_page=30"));
         StringBuilder rec = new StringBuilder(), all = new StringBuilder();
         int n = 0;
         for (int i = 0; i < rs.length(); i++) {
-          org.json.JSONObject o = rs.getJSONObject(i);
+          JSONObject o = rs.getJSONObject(i);
           String t = o.optString("tag_name");
           if (o.optBoolean("draft") || o.optBoolean("prerelease")) continue;
           if (cmpVersion(t, cur) <= 0 || cmpVersion(t, r.tag) > 0) continue;
@@ -171,8 +181,8 @@ final class Net {
     return "【" + tag + "】\n" + (body.length() == 0 ? "（没有更新说明）" : body);
   }
 
-  static java.util.List<String> withMirrors(String url) {
-    java.util.ArrayList<String> l = new java.util.ArrayList<String>();
+  static List<String> withMirrors(String url) {
+    ArrayList<String> l = new ArrayList<String>();
     l.add(url);
     for (String m : GH_MIRRORS) l.add(m + url);
     return l;
@@ -183,16 +193,16 @@ final class Net {
       final Handler main,
       List<String> cands,
       String digest,
-      java.io.File f,
+      File f,
       final Progress p,
       CancelToken tok)
       throws Throwable {
     Throwable lastErr = null;
     for (String cand : cands) {
       if (tok.cancelled) throw new CancelledException();
-      java.net.HttpURLConnection c = null;
+      HttpURLConnection c = null;
       try {
-        c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
+        c = (HttpURLConnection) new URL(cand).openConnection();
         tok.conn = c;
         if (tok.cancelled) throw new CancelledException();
         c.setConnectTimeout(10000);
@@ -200,9 +210,9 @@ final class Net {
         c.setRequestProperty("User-Agent", "MiTV-Beekeeper-Tools");
         if (c.getResponseCode() != 200) throw new Exception("下载失败 HTTP " + c.getResponseCode());
         final long total = c.getContentLength();
-        java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
-        java.io.InputStream in = c.getInputStream();
-        java.io.FileOutputStream out = new java.io.FileOutputStream(f);
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        InputStream in = c.getInputStream();
+        FileOutputStream out = new FileOutputStream(f);
         long got = 0, lastUi = 0;
         try {
           byte[] buf = new byte[65536];

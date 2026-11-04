@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Runs before zygote/system_server, so before TvService parses the config.
+# 在 zygote/system_server 之前运行，即早于 TvService 解析配置。
 MODDIR=${0%/*}
 . "$MODDIR/common.sh"
 

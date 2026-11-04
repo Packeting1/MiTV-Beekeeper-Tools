@@ -7,8 +7,15 @@ import android.graphics.Typeface;
 import android.view.Gravity;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPOutputStream;
 
 /** 上传诊断：收集固件、模块和日志信息，脱敏后上传换诊断码。 */
 final class Diag extends Part {
@@ -136,9 +143,7 @@ final class Diag extends Part {
     box.setOrientation(LinearLayout.VERTICAL);
     box.setPadding(0, dp(12), 0, dp(4));
     box.addView(big);
-    LinearLayout.LayoutParams lp =
-        new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    LinearLayout.LayoutParams lp = Ui.lp();
     lp.topMargin = dp(12);
     box.addView(hint, lp);
     new Dlg.Builder(a).setTitle("诊断码").setView(box).setPositiveButton("确定", null).show();
@@ -198,7 +203,7 @@ final class Diag extends Part {
   static String redact(String text) {
     String[] lines = text.split("\n");
     // 敏感属性的值在别处（如 adb 的 guid、日志）也可能出现，一并替换
-    java.util.List<String> secrets = new java.util.ArrayList<String>();
+    List<String> secrets = new ArrayList<String>();
     for (String line : lines) {
       Matcher k = KEY.matcher(line);
       if (k.find() && line.endsWith("]")) {
@@ -224,9 +229,9 @@ final class Diag extends Part {
     Throwable last = null;
     for (String cand :
         Net.withMirrors("https://raw.githubusercontent.com/" + Net.GH_REPO + "/" + ENDPOINT_PATH)) {
-      java.net.HttpURLConnection c = null;
+      HttpURLConnection c = null;
       try {
-        c = (java.net.HttpURLConnection) new java.net.URL(cand).openConnection();
+        c = (HttpURLConnection) new URL(cand).openConnection();
         c.setConnectTimeout(6000);
         c.setReadTimeout(8000);
         c.setRequestProperty("User-Agent", "MiTV-Beekeeper-Tools");
@@ -245,14 +250,14 @@ final class Diag extends Part {
   }
 
   private String upload(String text, String url) throws Exception {
-    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
-    java.util.zip.GZIPOutputStream gz = new java.util.zip.GZIPOutputStream(bo);
+    ByteArrayOutputStream bo = new ByteArrayOutputStream();
+    GZIPOutputStream gz = new GZIPOutputStream(bo);
     gz.write(text.getBytes("UTF-8"));
     gz.close();
     byte[] body = bo.toByteArray();
-    java.net.HttpURLConnection c = null;
+    HttpURLConnection c = null;
     try {
-      c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+      c = (HttpURLConnection) new URL(url).openConnection();
       c.setConnectTimeout(8000);
       c.setReadTimeout(15000);
       c.setRequestMethod("POST");
@@ -269,7 +274,7 @@ final class Diag extends Part {
               .matcher(Net.readAll(c.getInputStream()));
       if (!m.find()) throw new Exception("服务器响应异常");
       return m.group(1);
-    } catch (java.io.IOException e) {
+    } catch (IOException e) {
       throw new Exception("网络连接失败，建议换网络（例如手机热点）后重试。\n" + e.getMessage());
     } finally {
       if (c != null) c.disconnect();

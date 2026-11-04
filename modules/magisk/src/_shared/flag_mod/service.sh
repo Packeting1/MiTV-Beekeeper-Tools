@@ -1,7 +1,6 @@
 #!/system/bin/sh
-# Late-boot safety net. Normally post-fs-data.sh already did the work and this
-# only confirms it. If TvService still reports the key as NULL (it parsed the
-# file before the item was there), restart TvService once.
+# 开机后期的兜底：通常 post-fs-data.sh 已经改好，这里只做确认。
+# 若 TvService 仍报告该键为 NULL（它解析文件时配置项还不在），就重启 TvService 一次。
 MODDIR=${0%/*}
 . "$MODDIR/common.sh"
 

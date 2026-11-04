@@ -14,9 +14,10 @@ import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/**
- * MCU 刷写流程，只在 Magisk 的 root 进程里运行，和灯带输出串行执行，网络数据不能触发刷写。 流程：设置页发 prepare（校验并生成一次性授权）→ 等满 10 秒风险提示 →
- * 设置页发 start → 刷写。 刷写前写恢复记录，成功才删除；记录存在时禁止再次刷写，也不输出网络灯光。
+/*
+ * MCU 刷写流程，只在 Magisk 的 root 进程里运行，和灯带输出串行执行，网络数据不能触发刷写。
+ * 流程：设置页发 prepare（校验并生成一次性授权）→ 等满 10 秒风险提示 → 设置页发 start → 刷写。
+ * 刷写前写恢复记录，成功才删除；记录存在时禁止再次刷写，也不输出网络灯光。
  */
 final class McuManager {
   interface Host {
@@ -137,7 +138,7 @@ final class McuManager {
     String enable = host.savedEnable();
     Properties record = new Properties();
     record.setProperty("action", selected);
-    record.setProperty("network", String.valueOf(network));
+    if (network != null) record.setProperty("network", network);
     record.setProperty("driver", enable);
     record.setProperty("image", McuImage.sha256(raw));
     record.setProperty("phase", "prepared");

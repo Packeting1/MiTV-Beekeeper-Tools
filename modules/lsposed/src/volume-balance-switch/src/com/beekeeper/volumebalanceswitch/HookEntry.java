@@ -12,10 +12,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-/*
- * 在快捷设置“声音”页末尾加「音量均衡」开关，行为与系统设置的声音页一致：
- * SoundManager.setAGCMode(0/1)，并写 Settings.System current_volume_balance_status。
- */
+/** 在快捷设置“声音”页末尾加「音量均衡」开关；与系统设置一致：setAGCMode(0/1) 并写 Settings.System。 */
 public final class HookEntry extends XposedModule {
 
   private static final String TAG = "VolumeBalanceSwitch";

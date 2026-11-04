@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Legacy Magisk module installer (no name/author banner, same format as the other modules).
+# 旧格式安装脚本：print_modname 留空，Magisk 不显示模块名和作者横幅。
 
 SKIPMOUNT=true
 PROPFILE=false
@@ -21,10 +21,10 @@ on_install() {
   . "$MODPATH/ldm_lib.sh"
   ldm_apply
   case $? in
-    0) ui_print "ldm.ini 已写入，请重启电视生效" ;;
-    2) ui_print "ldm.ini 已是修复后的版本" ;;
+    0) ui_print "- ldm.ini 已写入，请重启电视生效" ;;
+    2) ui_print "- ldm.ini 已是修复后的版本" ;;
     3) abort "! ldm.ini 不是 3.0.109 原始文件，已跳过，未做任何修改" ;;
-    *) ui_print "写入失败，模块已安装，开机时会自动重试。日志: /data/adb/ldm_fix/ldm_fix.log" ;;
+    *) ui_print "- 写入失败，模块已安装，开机时会自动重试。日志: /data/adb/ldm_fix/ldm_fix.log" ;;
   esac
 }
 

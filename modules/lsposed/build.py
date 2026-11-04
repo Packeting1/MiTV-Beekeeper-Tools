@@ -14,7 +14,13 @@ Each module dir under src/ holds AndroidManifest.xml, scope.txt (one target pack
 src/<package path>/HookEntry.java (the entry class; other .java files under src/ are compiled too). Output: modules/lsposed/dist/<label>.apk
 """
 
-import os, re, shutil, subprocess, sys, tempfile, zipfile
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -67,7 +73,7 @@ def build(mod):
     entry = mod / "src" / Path(*pkg.split(".")) / "HookEntry.java"
     if not entry.exists():
         sys.exit("missing entry class source: %s" % entry)
-    # 构建中间文件放在源码树之外，失败也不会留下目录
+    # temp dir outside the source tree; removed even when the build fails
     out = Path(tempfile.mkdtemp(prefix="lsposed_"))
     try:
         compile_and_sign(mod, out, manifest_path, pkg, label, scope)

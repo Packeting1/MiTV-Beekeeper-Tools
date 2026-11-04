@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Legacy-format installer: Magisk prints no name/author banner for this format.
+# 旧格式安装脚本：print_modname 留空，Magisk 不显示模块名和作者横幅。
 
 SKIPMOUNT=false
 PROPFILE=false

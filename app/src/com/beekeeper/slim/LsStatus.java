@@ -2,7 +2,11 @@ package com.beekeeper.slim;
 
 import static com.beekeeper.slim.Catalog.*;
 
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import java.io.File;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /** LSPosed 的运行状态和模块启用/作用域读取。 */
@@ -18,27 +22,25 @@ final class LsStatus extends Part {
   /** 是否装了 LSPosed / Vector（Magisk 模块目录存在）；没读到状态前按已安装处理。 */
   boolean lsInstalled = true;
 
-  java.util.Map<String, Boolean> lsEnabled;
+  Map<String, Boolean> lsEnabled;
 
-  java.util.Map<String, Set<String>> lsScope;
+  Map<String, Set<String>> lsScope;
 
   /** 读 su 复制到缓存目录的配置库副本。 */
-  boolean readLsDb(java.util.Map<String, Boolean> en, java.util.Map<String, Set<String>> sc) {
-    java.io.File db = new java.io.File(getCacheDir(), "lsp_modules_config.db");
-    android.database.sqlite.SQLiteDatabase d = null;
+  boolean readLsDb(Map<String, Boolean> en, Map<String, Set<String>> sc) {
+    File db = new File(getCacheDir(), "lsp_modules_config.db");
+    SQLiteDatabase d = null;
     try {
       if (!db.exists()) return false;
       d =
-          android.database.sqlite.SQLiteDatabase.openDatabase(
+          SQLiteDatabase.openDatabase(
               db.getAbsolutePath(),
               null,
-              android.database.sqlite.SQLiteDatabase.OPEN_READWRITE
-                  | android.database.sqlite.SQLiteDatabase.NO_LOCALIZED_COLLATORS);
+              SQLiteDatabase.OPEN_READWRITE | SQLiteDatabase.NO_LOCALIZED_COLLATORS);
       // 两种库结构：旧 LSPosed 有 modules_state 表、scope 直接带包名；
       // 原版 LSPosed 1.9+ 和 Vector 的 modules 表自带 enabled，scope 用 mid 关联。
       boolean legacy = false;
-      android.database.Cursor c =
-          d.rawQuery("select 1 from sqlite_master where name='modules_state'", null);
+      Cursor c = d.rawQuery("select 1 from sqlite_master where name='modules_state'", null);
       if (c.moveToFirst()) legacy = true;
       c.close();
       c =
@@ -77,7 +79,7 @@ final class LsStatus extends Part {
     } finally {
       if (d != null) d.close();
       for (String suffix : new String[] {"", "-wal", "-shm"})
-        new java.io.File(db.getPath() + suffix).delete();
+        new File(db.getPath() + suffix).delete();
     }
   }
 

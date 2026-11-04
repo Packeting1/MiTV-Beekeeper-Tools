@@ -192,80 +192,13 @@ final class ApplyRunner extends Part {
                 if (dbOn) {
                   try {
                     String apk = copyAsset("aerial.apk");
-                    StringBuilder b = new StringBuilder();
-                    // 系统拒绝把非系统应用设为默认桌面：用 Magisk 模块把 Aerial 放进 /system/app，重启后生效
-                    b.append("rm -rf /data/adb/modules/").append(OLD_DB_MODULE).append("\n");
-                    b.append("PKG=").append(DB_PKG).append("\n");
-                    b.append("MD=/data/adb/modules/").append(DB_MODULE).append("\n");
-                    b.append(
-                        "if [ -d $MD ] && pm list packages -s | grep -q \"package:$PKG\\$\";"
-                            + " then\n");
-                    b.append("  cmd package set-home-activity --user 0 ")
-                        .append(DB_COMP)
-                        .append("\n");
-                    b.append("  echo '@@MSG 已设为默认桌面'\n");
-                    b.append("else\n");
-                    b.append("  rm -rf $MD /data/local/tmp/dbx\n");
-                    b.append("  mkdir -p $MD/system/app/Aerial/lib/arm64 /data/local/tmp/dbx\n");
-                    b.append("  cp ").append(apk).append(" $MD/system/app/Aerial/Aerial.apk\n");
-                    b.append("  unzip -o ").append(apk).append(" -d /data/local/tmp/dbx\n");
-                    b.append(
-                        "  cp /data/local/tmp/dbx/lib/arm64-v8a/*.so"
-                            + " $MD/system/app/Aerial/lib/arm64/\n");
-                    b.append("  rm -rf /data/local/tmp/dbx\n");
-                    b.append(
-                        "  printf 'id=beekeeper_aerial\\n"
-                            + "name=Aerial Launcher\\n"
-                            + "version=2026.10.28\\n"
-                            + "versionCode=20261028\\n"
-                            + "author=酷安@pkkka\\n"
-                            + "description=Installs Aerial as a system app and sets it as the"
-                            + " default home.\\n"
-                            + "' > $MD/module.prop\n");
-                    b.append("  cat > $MD/service.sh <<'SVCEOF'\n");
-                    b.append("#!/system/bin/sh\n");
-                    b.append("until [ \"$(getprop sys.boot_completed)\" = 1 ]; do sleep 3; done\n");
-                    b.append("sleep 10\n");
-                    b.append("P=").append(DB_PKG).append("\n");
-                    b.append(
-                        "for p in WRITE_SECURE_SETTINGS ACCESS_FINE_LOCATION; do pm grant $P"
-                            + " android.permission.$p; done\n");
-                    b.append("cmd package set-home-activity --user 0 ")
-                        .append(DB_COMP)
-                        .append("\n");
-                    b.append("SVCEOF\n");
-                    b.append("  chmod -R a+rX $MD; chmod 755 $MD/service.sh\n");
-                    b.append("  pm uninstall $PKG >/dev/null 2>&1\n");
-                    b.append("  echo '@@MSG 已安装，重启后设为默认桌面'\n");
-                    b.append("fi\n");
-                    b.append("rm -f ").append(apk).append("\n");
-                    step(script, "Aerial 桌面", "正在安装", "已安装", b.toString());
+                    step(script, "Aerial 桌面", "正在安装", "已安装", aerialScript(apk));
                   } catch (Exception e) {
-                    err = "无法读取内置的 Aerial 安装包：" + e + "\n";
+                    err = (err == null ? "" : err) + "无法读取内置的 Aerial 安装包：" + e + "\n";
                   }
                 }
                 if (nhOn && err == null) {
-                  // 先确认Aerial是系统应用；禁用后再确认默认桌面确实落到Aerial，否则立刻恢复系统桌面。
-                  StringBuilder b = new StringBuilder();
-                  b.append("if pm list packages -s | grep -q \"package:")
-                      .append(DB_PKG)
-                      .append("\\$\"; then\n");
-                  b.append("  pm disable-user --user 0 ").append(STOCK_HOME_PKG).append("\n");
-                  b.append(
-                      "  H=$(cmd package resolve-activity --brief -a android.intent.action.MAIN"
-                          + " -c android.intent.category.HOME | tail -1)\n");
-                  b.append("  case \"$H\" in\n");
-                  b.append("    ")
-                      .append(DB_PKG)
-                      .append("/*) am force-stop ")
-                      .append(STOCK_HOME_PKG)
-                      .append("; echo '@@MSG 已禁用';;\n");
-                  b.append("    *) pm enable ")
-                      .append(STOCK_HOME_PKG)
-                      .append("; echo '@@MSG 默认桌面不是 Aerial，已自动恢复系统桌面';;\n");
-                  b.append("  esac\n");
-                  b.append("else echo '@@MSG Aerial 桌面还不是系统应用，已跳过'; fi\n");
-                  step(script, "系统桌面", "正在禁用", "已禁用", b.toString());
+                  step(script, "系统桌面", "正在禁用", "已禁用", noHomeScript());
                 }
                 if (nhOff || dbOff) {
                   step(script, "系统桌面", "正在恢复", "已恢复", "pm enable " + STOCK_HOME_PKG + "\n");
@@ -364,6 +297,70 @@ final class ApplyRunner extends Part {
             },
             "slim-apply")
         .start();
+  }
+
+  private static String aerialScript(String apk) {
+    StringBuilder b = new StringBuilder();
+    // 系统拒绝把非系统应用设为默认桌面：用 Magisk 模块把 Aerial 放进 /system/app，重启后生效
+    b.append("rm -rf /data/adb/modules/").append(OLD_DB_MODULE).append("\n");
+    b.append("PKG=").append(DB_PKG).append("\n");
+    b.append("MD=/data/adb/modules/").append(DB_MODULE).append("\n");
+    b.append("if [ -d $MD ] && pm list packages -s | grep -q \"package:$PKG\\$\"; then\n");
+    b.append("  cmd package set-home-activity --user 0 ").append(DB_COMP).append("\n");
+    b.append("  echo '@@MSG 已设为默认桌面'\n");
+    b.append("else\n");
+    b.append("  rm -rf $MD /data/local/tmp/dbx\n");
+    b.append("  mkdir -p $MD/system/app/Aerial/lib/arm64 /data/local/tmp/dbx\n");
+    b.append("  cp ").append(apk).append(" $MD/system/app/Aerial/Aerial.apk\n");
+    b.append("  unzip -o ").append(apk).append(" -d /data/local/tmp/dbx\n");
+    b.append("  cp /data/local/tmp/dbx/lib/arm64-v8a/*.so $MD/system/app/Aerial/lib/arm64/\n");
+    b.append("  rm -rf /data/local/tmp/dbx\n");
+    b.append(
+        "  printf 'id=beekeeper_aerial\\n"
+            + "name=Aerial Launcher\\n"
+            + "version=2026.10.28\\n"
+            + "versionCode=20261028\\n"
+            + "author=酷安@pkkka\\n"
+            + "description=Installs Aerial as a system app and sets it as the default home.\\n"
+            + "' > $MD/module.prop\n");
+    b.append("  cat > $MD/service.sh <<'SVCEOF'\n");
+    b.append("#!/system/bin/sh\n");
+    b.append("until [ \"$(getprop sys.boot_completed)\" = 1 ]; do sleep 3; done\n");
+    b.append("sleep 10\n");
+    b.append("P=").append(DB_PKG).append("\n");
+    b.append(
+        "for p in WRITE_SECURE_SETTINGS ACCESS_FINE_LOCATION; do pm grant $P"
+            + " android.permission.$p; done\n");
+    b.append("cmd package set-home-activity --user 0 ").append(DB_COMP).append("\n");
+    b.append("SVCEOF\n");
+    b.append("  chmod -R a+rX $MD; chmod 755 $MD/service.sh\n");
+    b.append("  pm uninstall $PKG >/dev/null 2>&1\n");
+    b.append("  echo '@@MSG 已安装，重启后设为默认桌面'\n");
+    b.append("fi\n");
+    b.append("rm -f ").append(apk).append("\n");
+    return b.toString();
+  }
+
+  private static String noHomeScript() {
+    // 先确认Aerial是系统应用；禁用后再确认默认桌面确实落到Aerial，否则立刻恢复系统桌面。
+    StringBuilder b = new StringBuilder();
+    b.append("if pm list packages -s | grep -q \"package:").append(DB_PKG).append("\\$\"; then\n");
+    b.append("  pm disable-user --user 0 ").append(STOCK_HOME_PKG).append("\n");
+    b.append(
+        "  H=$(cmd package resolve-activity --brief -a android.intent.action.MAIN"
+            + " -c android.intent.category.HOME | tail -1)\n");
+    b.append("  case \"$H\" in\n");
+    b.append("    ")
+        .append(DB_PKG)
+        .append("/*) am force-stop ")
+        .append(STOCK_HOME_PKG)
+        .append("; echo '@@MSG 已禁用';;\n");
+    b.append("    *) pm enable ")
+        .append(STOCK_HOME_PKG)
+        .append("; echo '@@MSG 默认桌面不是 Aerial，已自动恢复系统桌面';;\n");
+    b.append("  esac\n");
+    b.append("else echo '@@MSG Aerial 桌面还不是系统应用，已跳过'; fi\n");
+    return b.toString();
   }
 
   /** 在工作线程里执行步骤脚本，实时刷新进度，结束后弹出每项一行的结果（需要重启时带重启按钮）。 */

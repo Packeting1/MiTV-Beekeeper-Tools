@@ -5,11 +5,17 @@ import static com.beekeeper.slim.Net.*;
 import static com.beekeeper.slim.Shell.*;
 
 import android.content.DialogInterface;
+import android.content.pm.PackageInfo;
 import android.view.View;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /** 内置 Magisk / LSPosed 模块的版本比较与更新。 */
 final class ModuleUpdater extends Part {
@@ -20,9 +26,9 @@ final class ModuleUpdater extends Part {
 
   String[] readBundledMod(String asset) {
     try {
-      java.util.zip.ZipInputStream z = new java.util.zip.ZipInputStream(getAssets().open(asset));
+      ZipInputStream z = new ZipInputStream(getAssets().open(asset));
       try {
-        java.util.zip.ZipEntry e;
+        ZipEntry e;
         while ((e = z.getNextEntry()) != null) {
           if (!"module.prop".equals(e.getName())) continue;
           BufferedReader r = new BufferedReader(new InputStreamReader(z, "UTF-8"));
@@ -46,14 +52,14 @@ final class ModuleUpdater extends Part {
     try {
       String path = copyAsset(asset);
       try {
-        android.content.pm.PackageInfo pi = getPackageManager().getPackageArchiveInfo(path, 0);
+        PackageInfo pi = getPackageManager().getPackageArchiveInfo(path, 0);
         if (pi == null) return null;
         return new String[] {
           String.valueOf(pi.versionCode),
           pi.versionName == null ? String.valueOf(pi.versionCode) : pi.versionName
         };
       } finally {
-        new java.io.File(path).delete();
+        new File(path).delete();
       }
     } catch (Exception e) {
       return null;
@@ -71,8 +77,8 @@ final class ModuleUpdater extends Part {
   }
 
   /** 有新版本的项目：Group -> {当前版本, 新版本}。Aerial 桌面不参与。 */
-  java.util.LinkedHashMap<Group, String[]> pendingUpdates() {
-    java.util.LinkedHashMap<Group, String[]> res = new java.util.LinkedHashMap<Group, String[]>();
+  LinkedHashMap<Group, String[]> pendingUpdates() {
+    LinkedHashMap<Group, String[]> res = new LinkedHashMap<Group, String[]>();
     for (Group g : a.GROUPS) {
       if (g.kind == KIND_MOD) {
         if (a.modPresent == null || a.modRemoving == null) continue;
@@ -89,7 +95,7 @@ final class ModuleUpdater extends Part {
         String[] nb = a.bundledApk.get(g.pkgs[0]);
         if (nb == null) continue;
         try {
-          android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(g.pkgs[0], 0);
+          PackageInfo pi = getPackageManager().getPackageInfo(g.pkgs[0], 0);
           int n = toInt(nb[0]);
           if (n >= 0 && pi.versionCode < n) {
             res.put(g, new String[] {pi.versionName == null ? "旧版（无版本号）" : pi.versionName, nb[1]});
@@ -104,7 +110,7 @@ final class ModuleUpdater extends Part {
 
   void updateBanner() {
     if (a.updateBar == null) return;
-    java.util.LinkedHashMap<Group, String[]> ups = pendingUpdates();
+    LinkedHashMap<Group, String[]> ups = pendingUpdates();
     if (ups.isEmpty()) {
       a.updateBar.setVisibility(View.GONE);
       return;
@@ -114,14 +120,14 @@ final class ModuleUpdater extends Part {
   }
 
   void confirmUpdate() {
-    final java.util.LinkedHashMap<Group, String[]> ups = pendingUpdates();
+    final LinkedHashMap<Group, String[]> ups = pendingUpdates();
     if (ups.isEmpty()) {
       showResult("没有可用的更新。");
       return;
     }
     StringBuilder msg = new StringBuilder();
     boolean hasMod = false;
-    for (java.util.Map.Entry<Group, String[]> e : ups.entrySet()) {
+    for (Map.Entry<Group, String[]> e : ups.entrySet()) {
       String t = e.getKey().title;
       msg.append(t.replace("（Magisk模块）", ""))
           .append("：")

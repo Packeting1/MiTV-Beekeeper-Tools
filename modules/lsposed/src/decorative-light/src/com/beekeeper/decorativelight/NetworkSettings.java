@@ -19,6 +19,7 @@ import android.widget.TextView;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.Collections;
 
 /** 网络灯控设置页：设置写进 Settings.Global 的 beekeeper_net_*，由 root 进程里的 NetworkDaemon 读取。 */
@@ -206,7 +207,7 @@ public final class NetworkSettings {
           out.append(a.getHostAddress());
         }
       }
-    } catch (java.net.SocketException ignored) {
+    } catch (SocketException ignored) {
     }
     return out.length() == 0 ? "未连接网络" : out.toString();
   }

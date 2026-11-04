@@ -14,8 +14,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.UUID;
 
-/**
- * MCU 固件管理页。设置进程只负责界面和授权流程，真正的校验与刷写由 Magisk 的 root 进程执行， 双方通过 Settings.Global 的 beekeeper_mcu_* 通信。
+/*
+ * MCU 固件管理页。设置进程只负责界面和授权流程，真正的校验与刷写由 Magisk 的 root 进程执行，
+ * 双方通过 Settings.Global 的 beekeeper_mcu_* 通信。
  */
 public final class McuSettings {
   private static final String WARNING =

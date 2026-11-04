@@ -37,9 +37,10 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-/**
- * 系统设置的装饰灯页（菜单键图像页与完整设置页）新增“自定义颜色”和“网络灯控”， 并让自定义颜色在灯效被改写时继续生效。颜色经配套 Magisk 模块的灯控扩展下发， 属性
- * sys.beekeeper_rgb.native 就绪后才起作用。 作者：Rin010
+/*
+ * 系统设置的装饰灯页（菜单键图像页与完整设置页）新增“自定义颜色”和“网络灯控”，并让自定义颜色在灯效被改写时继续生效。
+ * 颜色经配套 Magisk 模块的灯控扩展下发，属性 sys.beekeeper_rgb.native 就绪后才起作用。
+ * 作者：Rin010
  */
 public final class HookEntry extends XposedModule {
   private static final String TAG = "DecorativeLight";

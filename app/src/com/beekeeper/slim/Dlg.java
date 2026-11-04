@@ -3,6 +3,7 @@ package com.beekeeper.slim;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.view.Gravity;
@@ -10,6 +11,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
@@ -124,10 +126,8 @@ final class Dlg extends Dialog {
           busy.addView(m);
           ProgressBar pb = new ProgressBar(c, null, android.R.attr.progressBarStyleHorizontal);
           pb.setIndeterminate(true);
-          pb.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
-          LinearLayout.LayoutParams plp =
-              new LinearLayout.LayoutParams(
-                  ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+          pb.setIndeterminateTintList(ColorStateList.valueOf(Ui.ACCENT));
+          LinearLayout.LayoutParams plp = Ui.lp();
           plp.topMargin = Ui.dp(c, 14);
           busy.addView(pb, plp);
           body = busy;
@@ -140,9 +140,7 @@ final class Dlg extends Dialog {
         LinearLayout row = new LinearLayout(c);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams rlp =
-            new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams rlp = Ui.lp();
         rlp.topMargin = Ui.dp(c, 12);
         card.addView(row, rlp);
         // 左：中性按钮；右：取消、确定
@@ -174,7 +172,7 @@ final class Dlg extends Dialog {
         if (first != null) first.requestFocus();
       }
       // 外面留一圈透明边，长内容不会顶到屏幕边缘
-      android.widget.FrameLayout frame = new android.widget.FrameLayout(c);
+      FrameLayout frame = new FrameLayout(c);
       frame.setPadding(0, Ui.dp(c, 20), 0, Ui.dp(c, 20));
       frame.addView(card);
       d.setContentView(frame);

@@ -1,5 +1,9 @@
 package com.beekeeper.slim;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /** 勾选项清单、隐藏页清单和各种常量。 */
 final class Catalog {
 
@@ -231,8 +235,7 @@ final class Catalog {
     };
   }
 
-  static final java.util.Map<String, String[]> LS_SCOPES =
-      new java.util.HashMap<String, String[]>();
+  static final Map<String, String[]> LS_SCOPES = new HashMap<String, String[]>();
 
   static {
     LS_SCOPES.put(
@@ -275,8 +278,7 @@ final class Catalog {
   }
 
   /** 只改 mitv.config.xml 一个开关的模块：模块 id -> 开关 key。 */
-  static final java.util.Map<String, String> FLAG_MODS =
-      new java.util.LinkedHashMap<String, String>();
+  static final Map<String, String> FLAG_MODS = new LinkedHashMap<String, String>();
 
   static {
     FLAG_MODS.put("beekeeper_hdr10plus", "support_hdr10_plus");

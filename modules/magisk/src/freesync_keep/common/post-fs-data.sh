@@ -28,6 +28,7 @@ log() { echo "$(date '+%F %T') $*" >>"$LOG"; }
 sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 
 mkdir -p "$DIR"
+# 已挂载过则跳过
 grep "$SRC" /proc/mounts | grep -q userdata && exit 0
 
 cur=$(sha "$SRC")
@@ -63,3 +64,4 @@ if mount -o bind "$DST" "$SRC"; then
 else
   log "挂载失败"
 fi
+exit 0

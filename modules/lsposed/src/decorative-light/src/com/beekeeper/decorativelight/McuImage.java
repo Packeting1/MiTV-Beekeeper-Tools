@@ -1,11 +1,12 @@
 package com.beekeeper.decorativelight;
 
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 
-/**
- * MCU 应用镜像都取自电视自带的厂商 MCU.bin：刷回原版直接用它，24 灯珠固件在它上面套用 firmware/pixels.patch 生成。补丁文件只含新增的代码，每行“十六进制偏移
- * 十六进制数据”。
+/*
+ * MCU 应用镜像都取自电视自带的厂商 MCU.bin：刷回原版直接用它，24 灯珠固件在它上面套用 firmware/pixels.patch 生成。
+ * 补丁文件只含新增的代码，每行“十六进制偏移 十六进制数据”。
  */
 public final class McuImage {
   /** 校验厂商文件后原样返回。 */
@@ -45,7 +46,7 @@ public final class McuImage {
       for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes))
         s.append(String.format(Locale.ROOT, "%02x", b & 255));
       return s.toString();
-    } catch (java.security.NoSuchAlgorithmException e) {
+    } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException(e);
     }
   }

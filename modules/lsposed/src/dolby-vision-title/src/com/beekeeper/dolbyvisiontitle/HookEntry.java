@@ -7,11 +7,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 /*
- * 菜单键弹出的图像页，标题栏在杜比信号下也显示 Dolby Vision。
- *
- * 原版 PictureSettingsManagerImpl.getVideoInfoValue() 只在场景模式为 19（杜比视界游戏）时返回 7，
- * MonitorMainView.initTopTitle() 看到 7 才写 Dolby Vision；其它杜比图像模式拿到的是原生 HDR 类型 3，
- * 被当成普通 HDR。这里只在标题刷新期间把 3 换成 7，其它调用方拿到的值不变。
+ * 菜单键图像页标题栏在杜比信号下也显示 Dolby Vision。
+ * 原版 getVideoInfoValue() 仅在场景模式 19 时返回 7（标题才写 Dolby Vision），其它杜比模式返回 3 被当成 HDR；
+ * 这里只在 initTopTitle 期间把 3 换成 7，其它调用方不受影响。
  */
 public final class HookEntry extends XposedModule {
 

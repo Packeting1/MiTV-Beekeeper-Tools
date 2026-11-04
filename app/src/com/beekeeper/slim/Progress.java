@@ -1,5 +1,6 @@
 package com.beekeeper.slim;
 
+import android.content.res.ColorStateList;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -19,16 +20,14 @@ final class Progress {
     bar = new ProgressBar(a, null, android.R.attr.progressBarStyleHorizontal);
     bar.setMax(100);
     bar.setIndeterminate(true);
-    bar.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
-    bar.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
-    bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF3A4350));
+    bar.setIndeterminateTintList(ColorStateList.valueOf(Ui.ACCENT));
+    bar.setProgressTintList(ColorStateList.valueOf(Ui.ACCENT));
+    bar.setProgressBackgroundTintList(ColorStateList.valueOf(0xFF3A4350));
     box = new LinearLayout(a);
     box.setOrientation(LinearLayout.VERTICAL);
     box.setPadding(0, a.dp(4), 0, a.dp(4));
     box.addView(text);
-    LinearLayout.LayoutParams lp =
-        new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    LinearLayout.LayoutParams lp = Ui.lp();
     lp.topMargin = a.dp(10);
     box.addView(bar, lp);
   }

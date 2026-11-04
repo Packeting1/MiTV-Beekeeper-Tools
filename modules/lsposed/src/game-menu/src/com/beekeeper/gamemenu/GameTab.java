@@ -1,5 +1,6 @@
 package com.beekeeper.gamemenu;
 
+import android.R;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -15,7 +16,6 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -27,18 +27,16 @@ import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
-/*
- * 快捷设置（MonitorMainView，菜单键弹出）左侧新增“游戏”标签。
- *
- * 右侧页面直接用“更多设置”页的类 MonitorProfessionalSettingView 另建一个实例：保留它自带的
- * 320Hz 竞技模式、FreeSync 开关（EDID 切换逻辑复杂，原样复用），去掉其它项，再加上预置场景、
- * 准星、暗区增强、灰阶响应时间。原“更多设置”页里的这几项随之移除。
- * 多档项点击后在右侧展开选项列表（原版第三页）。
+/**
+ * 快捷设置（MonitorMainView）左侧新增“游戏”标签。右侧页面另建一个“更多设置”页（MonitorProfessionalSettingView）实例： 保留 320Hz
+ * 竞技模式、FreeSync（EDID 切换逻辑复杂，原样复用），去掉其它项，加预置场景、准星、暗区增强、灰阶响应时间；
+ * 原“更多设置”页里的这几项随之移除。多档项点击后在右侧展开选项列表（原版第三页）。
  */
 final class GameTab {
 
   private static final String MON = "com.xiaomi.mitv.settings.monitor.";
   private static final String WIDGET = "com.xiaomi.mitv.settings.widget.";
+  private static final String UTILS = "com.xiaomi.mitv.settings.util.Utils";
   private static final String PICTURE = "mitv.display.PictureSettingsManager";
   private static final String FRONT_SIGHT_KEY = "front_sight_index";
   private static final int INDEX = 6;
@@ -50,7 +48,6 @@ final class GameTab {
     {15, 29, 30, 31, 32, 33}
   };
 
-  private static final String UTILS = "com.xiaomi.mitv.settings.util.Utils";
   private static final ThreadLocal<Boolean> BUILDING = new ThreadLocal<>();
   private static final ThreadLocal<Boolean> PM2_OVERRIDE = new ThreadLocal<>();
 
@@ -220,7 +217,8 @@ final class GameTab {
           Object result = null;
           try {
             result = chain.proceed();
-          } catch (Throwable ignored) {
+          } catch (Throwable t) {
+            log(Log.ERROR, "enterSecondPage failed", t);
           }
           focusFirst(chain.getThisObject());
           return result;
@@ -386,7 +384,7 @@ final class GameTab {
     }
     Bitmap src = ((BitmapDrawable) r.getDrawable(res, null)).getBitmap();
     StateListDrawable d = new StateListDrawable();
-    d.addState(new int[] {android.R.attr.state_focused}, glyph(r, src, 0xFFFFFF));
+    d.addState(new int[] {R.attr.state_focused}, glyph(r, src, 0xFFFFFF));
     d.addState(new int[0], glyph(r, src, 0xA8AAAA));
     return d;
   }
@@ -414,8 +412,7 @@ final class GameTab {
       Object p;
       BUILDING.set(Boolean.TRUE);
       try {
-        Constructor<?> c = pageClass.getConstructor(Context.class);
-        p = c.newInstance(ctx);
+        p = pageClass.getConstructor(Context.class).newInstance(ctx);
       } finally {
         BUILDING.remove();
       }
@@ -507,8 +504,8 @@ final class GameTab {
             .getClass()
             .getMethod("setDescription", String.class)
             .invoke(hz320, "开启后支持 1080P 320Hz 刷新率");
-      } catch (Exception e) {
-        log(Log.WARN, "320Hz description failed", e);
+      } catch (Throwable t) {
+        log(Log.WARN, "320Hz description failed", t);
       }
     }
     for (View v : keep) {
@@ -544,12 +541,13 @@ final class GameTab {
     return null;
   }
 
+  /* 失败返回 -1：不是合法选项下标，界面上表现为“没有选中项”，而不是误显示成第 0 项。 */
   private Object call(Method m, Object target, Object... args) {
     try {
       return m.invoke(target, args);
     } catch (Throwable t) {
       log(Log.ERROR, m.getName() + " failed", t);
-      return 0;
+      return -1;
     }
   }
 

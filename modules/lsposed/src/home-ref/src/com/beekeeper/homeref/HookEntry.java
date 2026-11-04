@@ -12,13 +12,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 /*
- * 默认桌面换成第三方桌面 (如当贝桌面) 后，把系统里写死 com.mitv.tvhome 的几处引用指向当前默认桌面。
- * 默认桌面仍是系统桌面时，这里不改任何东西。
- *
- * - mitv.service：TvService 靠 mitv.action.resume.activity 的 package/component 判断“现在是不是桌面”
- *   (4K UI 页面类型、回桌面清理后台)，只认 com.mitv.tvhome.MainActivityUserMode。
- * - tvplayer / settings：信号源列表和设置里的“主页”入口发 com.mitv.tvhome.HOME_PAGE，只有系统桌面能接，
- *   改成标准的 MAIN + HOME 交给默认桌面。
+ * 默认桌面换成第三方桌面后，把写死 com.mitv.tvhome 的引用指向当前默认桌面；默认桌面仍是系统桌面时不改任何东西。
+ * - mitv.service：TvService 只认 com.mitv.tvhome.MainActivityUserMode 为“桌面”，resume 广播里换成它。
+ * - tvplayer / settings：“主页”入口发的 HOME_PAGE 只有系统桌面能接，改成标准 MAIN + HOME。
  */
 public final class HookEntry extends XposedModule {
 

@@ -73,7 +73,12 @@ MODS = {  # asset suffix -> module zip glob
 aerial = ROOT / "bundled" / "aerial.apk"
 AERIAL_REPO = "pengchujin/aerial-tv"
 AERIAL_ASSET = "aerial-standard.apk"
-GH_MIRRORS = ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/"]
+GH_MIRRORS = [
+    "https://fastgit.cc/",
+    "https://ghfast.top/",
+    "https://gh-proxy.com/",
+    "https://ghproxy.net/",
+]
 
 
 def fetch_aerial():

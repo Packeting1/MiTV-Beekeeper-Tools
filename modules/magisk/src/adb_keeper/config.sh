@@ -1,4 +1,4 @@
-# Restart the keeper or reboot after changing these values.
+# 修改后需重启守护进程或重启电视才生效。
 TCP_PORT=5555
 CHECK_INTERVAL=3
 BOOT_DELAY=10

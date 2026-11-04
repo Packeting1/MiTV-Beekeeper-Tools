@@ -1,6 +1,7 @@
 package com.beekeeper.slim;
 
 import android.content.DialogInterface;
+import android.content.res.ColorStateList;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
@@ -160,8 +161,8 @@ final class LocalDimming extends Part {
     final SeekBar bar = new SeekBar(a);
     bar.setMax(255);
     bar.setProgress(orig);
-    bar.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
-    bar.setThumbTintList(android.content.res.ColorStateList.valueOf(Ui.ACCENT));
+    bar.setProgressTintList(ColorStateList.valueOf(Ui.ACCENT));
+    bar.setThumbTintList(ColorStateList.valueOf(Ui.ACCENT));
     val.setText(orig + " / 255");
     bar.setOnSeekBarChangeListener(
         new SeekBar.OnSeekBarChangeListener() {
@@ -177,9 +178,7 @@ final class LocalDimming extends Part {
     LinearLayout body = new LinearLayout(a);
     body.setOrientation(LinearLayout.VERTICAL);
     body.addView(val);
-    LinearLayout.LayoutParams lp =
-        new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    LinearLayout.LayoutParams lp = Ui.lp();
     lp.topMargin = dp(10);
     body.addView(bar, lp);
     TextView tip = new TextView(a);
@@ -224,51 +223,31 @@ final class LocalDimming extends Part {
     cur = v;
     on = true;
     update();
-    new Thread(
-            new Runnable() {
-              public void run() {
-                Shell.suOut(
-                    "mkdir -p /data/adb/service.d\n"
-                        + "cat > "
-                        + SCRIPT
-                        + " <<'EOF'\n"
-                        + DAEMON
-                        + "EOF\n"
-                        + "chmod 755 "
-                        + SCRIPT
-                        + "\necho "
-                        + hex(v)
-                        + " > "
-                        + CONF
-                        + "\n"
-                        + KILL
-                        + START);
-              }
-            },
-            "slim-ldm-apply")
-        .start();
+    Shell.suAsync(
+        "slim-ldm-apply",
+        "mkdir -p /data/adb/service.d\n"
+            + "cat > "
+            + SCRIPT
+            + " <<'EOF'\n"
+            + DAEMON
+            + "EOF\n"
+            + "chmod 755 "
+            + SCRIPT
+            + "\necho "
+            + hex(v)
+            + " > "
+            + CONF
+            + "\n"
+            + KILL
+            + START);
   }
 
   private void release() {
     cur = 255;
     on = false;
     update();
-    new Thread(
-            new Runnable() {
-              public void run() {
-                Shell.suOut(
-                    "rm -f "
-                        + CONF
-                        + " "
-                        + SCRIPT
-                        + "\n"
-                        + KILL
-                        + "echo 0xFF > "
-                        + D
-                        + "/ldm_set_ld_level\n");
-              }
-            },
-            "slim-ldm-release")
-        .start();
+    Shell.suAsync(
+        "slim-ldm-release",
+        "rm -f " + CONF + " " + SCRIPT + "\n" + KILL + "echo 0xFF > " + D + "/ldm_set_ld_level\n");
   }
 }

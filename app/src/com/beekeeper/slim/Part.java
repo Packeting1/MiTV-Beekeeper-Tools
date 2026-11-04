@@ -4,8 +4,12 @@ import static com.beekeeper.slim.Net.*;
 
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.os.Handler;
 import android.view.View;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 
 /** 功能类的共同基类：转发 MainActivity 的 UI 和状态。 */
 abstract class Part {
@@ -26,11 +30,11 @@ abstract class Part {
     return a.getPackageName();
   }
 
-  java.io.File getCacheDir() {
+  File getCacheDir() {
     return a.getCacheDir();
   }
 
-  android.content.res.AssetManager getAssets() {
+  AssetManager getAssets() {
     return a.getAssets();
   }
 
@@ -118,6 +122,17 @@ abstract class Part {
         });
   }
 
+  /** 在主线程收起进度弹窗并显示结果。 */
+  void finish(final Dlg progress, final String text) {
+    main.post(
+        new Runnable() {
+          public void run() {
+            if (progress.isShowing()) progress.dismiss();
+            showResult(text);
+          }
+        });
+  }
+
   /** 下载完成、开始安装：不能再取消。 */
   void showInstalling(final Dlg progress, final Progress p, final String msg) {
     main.post(
@@ -178,9 +193,9 @@ abstract class Part {
 
   /** 把内置资源复制到缓存目录（同名），让 root 能读到；返回路径。 */
   String copyAsset(String asset) throws Exception {
-    java.io.File f = new java.io.File(getCacheDir(), asset);
-    try (java.io.InputStream in = getAssets().open(asset);
-        java.io.FileOutputStream out = new java.io.FileOutputStream(f)) {
+    File f = new File(getCacheDir(), asset);
+    try (InputStream in = getAssets().open(asset);
+        FileOutputStream out = new FileOutputStream(f)) {
       byte[] buf = new byte[65536];
       int n;
       while ((n = in.read(buf)) > 0) out.write(buf, 0, n);

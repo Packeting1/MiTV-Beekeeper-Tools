@@ -23,15 +23,9 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /*
- * 小米电视播放器 (com.xiaomi.mitv.tvplayer) 在系统设置打开时不拆 HDMI。
- *
- * OS3 的完整设置是一个 Activity，播放器 onPause 会无条件拆掉播放环境(setSurface(null)+释放硬件)，
- * 所以 PC 信号进设置会黑屏。遥控器设置键由 com.xiaomi.mitv.smartpanel 发起，启动时设置窗口的
- * settings_window_showing 还没置位，因此再加两个更早的信号：smartpanel 启动前写入的时间戳标记，
- * 以及当前最顶层任务是否属于设置。命中任何一个就跳过 onPause/onResume 的函数体，只调用
- * FragmentActivity 的父类实现。播放器之后若被完全盖住 (onStop)，补跑原始 onPause 做拆除。
- *
- * 投屏小窗和桌面引用替换是各自独立的模块 (CastPip / HomeRef)，这里不含任何投屏或桌面逻辑。
+ * 系统设置打开时播放器不拆 HDMI。OS3 的设置是独立 Activity，播放器 onPause 会无条件拆掉播放环境。
+ * 设置键由 smartpanel 发起，此时 settings_window_showing 还没置位，所以另用启动前的时间戳标记和顶层任务两个更早的信号；
+ * 命中则 onPause/onResume 只调 FragmentActivity 父类实现，完全盖住 (onStop) 后补跑拆除。
  */
 public final class HookEntry extends XposedModule {
 
@@ -94,7 +88,7 @@ public final class HookEntry extends XposedModule {
       Class<?> c;
       try {
         c = cl.loadClass(cn);
-      } catch (ClassNotFoundException e) {
+      } catch (ClassNotFoundException ignored) {
         continue;
       }
       for (Method m : c.getDeclaredMethods()) {
@@ -112,11 +106,8 @@ public final class HookEntry extends XposedModule {
     log(Log.INFO, TAG, "panel hooks installed: " + n);
   }
 
-  /**
-   * 设置进程自己发起的设置主入口 (图像参数) 不经过 smartpanel，播放器暂停时没有任何前置信号。 只在目标是设置主入口 Activity 或设置的 action
-   * 时打标记，其他二级菜单保持原样。
-   */
-  private void installLaunchMarker(final boolean fromSettingsProcess) throws Throwable {
+  /** 设置进程自己发起的主入口 (图像参数) 不经过 smartpanel，没有前置信号；只在目标是主入口或设置 action 时打标记。 */
+  private void installLaunchMarker(boolean fromSettingsProcess) throws Throwable {
     int n = 0;
     for (Method m : Instrumentation.class.getDeclaredMethods()) {
       if (!m.getName().equals("execStartActivity")) {
@@ -208,14 +199,14 @@ public final class HookEntry extends XposedModule {
     Class<?> act = cl.loadClass(PLAYER + ".ExternalSourceActivity");
     Class<?> frag = cl.loadClass("android.support.v4.app.FragmentActivity");
 
-    final Method onPause = act.getDeclaredMethod("onPause");
-    final Method onResume = act.getDeclaredMethod("onResume");
-    final Method onStop = act.getDeclaredMethod("onStop");
-    final Method fragPause = frag.getDeclaredMethod("onPause");
-    final Method fragResume = frag.getDeclaredMethod("onResume");
-    final XposedInterface.Invoker<?, Method> superPause = getInvoker(fragPause);
-    final XposedInterface.Invoker<?, Method> superResume = getInvoker(fragResume);
-    final XposedInterface.Invoker<?, Method> origPause =
+    Method onPause = act.getDeclaredMethod("onPause");
+    Method onResume = act.getDeclaredMethod("onResume");
+    Method onStop = act.getDeclaredMethod("onStop");
+    Method fragPause = frag.getDeclaredMethod("onPause");
+    Method fragResume = frag.getDeclaredMethod("onResume");
+    XposedInterface.Invoker<?, Method> superPause = getInvoker(fragPause);
+    XposedInterface.Invoker<?, Method> superResume = getInvoker(fragResume);
+    XposedInterface.Invoker<?, Method> origPause =
         getInvoker(onPause).setType(XposedInterface.Invoker.Type.ORIGIN);
 
     hook(onPause)
@@ -311,11 +302,11 @@ public final class HookEntry extends XposedModule {
   }
 
   /** 播放器被完全盖住后，每秒查一次：设置已离开前台（回桌面等）或息屏，就补跑拆除。 */
-  private void startWatchdog(final Activity a, final XposedInterface.Invoker<?, Method> origPause) {
+  private void startWatchdog(Activity a, XposedInterface.Invoker<?, Method> origPause) {
     if (!watching.add(a)) {
       return;
     }
-    final Handler h = new Handler(Looper.getMainLooper());
+    Handler h = new Handler(Looper.getMainLooper());
     h.post(
         new Runnable() {
           int idle = 0;

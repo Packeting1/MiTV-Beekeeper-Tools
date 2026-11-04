@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Shared helpers. LDM_TARGET / LDM_DATA_DIR / LDM_MODDIR may be overridden for offline tests.
+# 公共函数。LDM_TARGET / LDM_DATA_DIR / LDM_MODDIR 可被覆盖，用于离线测试。
 MODDIR=${LDM_MODDIR:-${0%/*}}
 TARGET=${LDM_TARGET:-/vendor/tvconfig/bsp/chip/ldm_xiaomi/ldm_otfcn1n/ldm.ini}
 MNT=/vendor/tvconfig
@@ -15,7 +15,7 @@ device_ok() { [ "$(getprop ro.product.name)" = "beekeeper" ]; }
 
 sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 
-# prints: new | orig | other | missing
+# 输出：new | orig | other | missing
 ldm_state() {
   [ -f "$TARGET" ] || { echo missing; return; }
   case "$(sha "$TARGET")" in
@@ -25,8 +25,8 @@ ldm_state() {
   esac
 }
 
-# Raw fallback: the stock ldm.ini data sits at a fixed byte offset of tvconfig (same size, in place).
-# Used when remounting /vendor/tvconfig read-write is refused (seen from some Magisk app install contexts).
+# 直写分区的备用方案：原版 ldm.ini 的数据在 tvconfig 的固定偏移处（同大小，原地覆盖）。
+# 在 /vendor/tvconfig 无法重新挂载为可写时使用（某些 Magisk app 安装环境下会遇到）。
 BLK=${LDM_BLOCK:-/dev/block/by-name/tvconfig$(getprop ro.boot.slot_suffix)}
 RAW_OFF=20971520
 RAW_LEN=17040
@@ -37,7 +37,7 @@ diag() {
   log "diag: $(grep ' /vendor/tvconfig ' /proc/mounts 2>/dev/null)"
 }
 
-# ldm_write_fs <source> <expected sha>: remount rw, overwrite in place (same size), remount ro.
+# ldm_write_fs <源文件> <期望 sha>：重新挂载为可写，原地覆盖（同大小），再挂回只读。
 ldm_write_fs() {
   _src=$1
   _want=$2
@@ -51,11 +51,11 @@ ldm_write_fs() {
   [ "$(sha "$TARGET")" = "$_want" ]
 }
 
-# ldm_write_raw <source> <expected sha> <sha currently at the offset>
+# ldm_write_raw <源文件> <期望 sha> <偏移处当前的 sha>
 ldm_write_raw() {
   [ -e "$BLK" ] || { log "raw: $BLK not found"; return 1; }
   [ "$(raw_sha)" = "$3" ] || { log "raw: bytes at offset are not the expected ones, refusing"; return 1; }
-  # Android marks partitions read-only at the block layer; lift that only for this write.
+  # Android 在块设备层把分区设为只读，仅在这次写入时临时解除。
   _dev=$(readlink -f "$BLK" 2>/dev/null)
   [ -b "$_dev" ] && blockdev --setrw "$_dev" 2>/dev/null
   dd if="$1" of="$BLK" bs=1 seek=$RAW_OFF conv=notrunc 2>/dev/null
@@ -65,7 +65,7 @@ ldm_write_raw() {
   log "raw: block patch written (live file updates after reboot)"
 }
 
-# ldm_write <source> <expected sha> <sha at raw offset before the write>
+# ldm_write <源文件> <期望 sha> <写入前偏移处的 sha>
 ldm_write() {
   [ "$(sha "$1")" = "$2" ] || { log "write: source hash mismatch"; return 1; }
   ldm_write_fs "$1" "$2" && return 0
@@ -73,8 +73,8 @@ ldm_write() {
   ldm_write_raw "$1" "$2" "$3"
 }
 
-# Writes the OS2 values only over the known 3.0.109 original. Anything else is left alone.
-# returns 0 applied, 2 already applied, 3 unknown file (untouched), 1 failure
+# 只在已知的 3.0.109 原文件上写入 OS2 参数，其它情况一律不动。
+# 返回 0 已写入，2 已是修复版，3 未知文件（未改动），1 失败
 ldm_apply() {
   case "$(ldm_state)" in
     new) return 2 ;;
@@ -103,7 +103,7 @@ ldm_restore() {
       return 1
       ;;
     *)
-      # a raw patch is invisible to the mounted fs until reboot: undo it too
+      # 直写分区的补丁在重启前挂载的文件系统里看不到，所以也要一并撤销
       if [ "$_raw" = "$H_NEW" ] && [ "$(ldm_state)" = orig ]; then
         ldm_write_raw "$MODDIR/ldm_orig.ini" "$H_ORIG" "$H_NEW" || return 1
         log "restore: raw patch undone"

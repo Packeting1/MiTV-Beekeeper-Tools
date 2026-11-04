@@ -14,13 +14,16 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-/** 无信号倒计时结束后进入音响模式（而不是待机），倒计时页新增“息屏”按钮； 任意外部信号源恢复时自动亮屏。只作用于电视播放器进程。 作者：Rin010 */
+/** 无信号倒计时结束后进入音响模式（而不是待机），倒计时页新增“息屏”按钮；外部信号源恢复时自动亮屏。作者：Rin010 */
 public final class HookEntry extends XposedModule {
+
   private static final String TAG = "NoSignalAudioMode";
   private static final String PLAYER = "com.xiaomi.mitv.tvplayer";
   private static final String COUNTDOWN = PLAYER + ".widget.views.SearchingView$1";
-  private static TvInputManager.TvInputCallback inputCallback;
+
   private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
+
+  private static TvInputManager.TvInputCallback inputCallback;
 
   // PowerManager 的隐藏方法，在 install() 里解析。
   static Method wakeUp;

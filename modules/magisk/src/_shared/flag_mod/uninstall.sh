@@ -1,6 +1,5 @@
 #!/system/bin/sh
-# Magisk runs this once at boot when the module is removed, before TvService
-# starts, so the cleaned config is what the service parses.
+# Magisk 在模块移除后的开机阶段运行一次，早于 TvService 启动，服务解析到的就是清理后的配置。
 MODDIR=${0%/*}
 . "$MODDIR/common.sh"
 

@@ -1,7 +1,6 @@
 #!/system/bin/sh
-# Re-applies the OS2 ldm.ini if the partition got the stock 3.0.109 file back
-# (e.g. an OTA of the same tvconfig). The driver reads the file at boot, so a reboot
-# follows; at most 2 automatic reboots, the counter resets once the file is correct.
+# 分区里的 ldm.ini 变回 3.0.109 原版（如同一 tvconfig 的 OTA）时重新写入 OS2 版。
+# 驱动开机时读该文件，所以写完要重启；最多自动重启 2 次，文件正确后计数清零。
 MODDIR=${0%/*}
 . "$MODDIR/ldm_lib.sh"
 

@@ -3,9 +3,11 @@ package com.beekeeper.slim;
 import static com.beekeeper.slim.Net.*;
 import static com.beekeeper.slim.Shell.*;
 
+import android.content.pm.PackageInfo;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+import java.io.File;
 
 /** 本应用自身的更新：查 Release、关于页状态、下载安装。 */
 final class SelfUpdater extends Part {
@@ -143,10 +145,10 @@ final class SelfUpdater extends Part {
     new Thread(
             new Runnable() {
               public void run() {
-                final java.io.File f = new java.io.File(getCacheDir(), "selfupdate.apk");
+                final File f = new File(getCacheDir(), "selfupdate.apk");
                 try {
                   downloadFile(main, withMirrors(url), digest, f, p, tok);
-                  android.content.pm.PackageInfo pi =
+                  PackageInfo pi =
                       getPackageManager().getPackageArchiveInfo(f.getAbsolutePath(), 0);
                   if (pi == null || !getPackageName().equals(pi.packageName))
                     throw new Exception("下载的不是本应用的安装包");
@@ -178,14 +180,7 @@ final class SelfUpdater extends Part {
                             + "sleep 1\n");
                 if (noRoot(res)) {
                   f.delete();
-                  final String r = res;
-                  main.post(
-                      new Runnable() {
-                        public void run() {
-                          if (progress.isShowing()) progress.dismiss();
-                          showResult("没有 root 权限，无法安装。\n" + r);
-                        }
-                      });
+                  finish(progress, "没有 root 权限，无法安装。\n" + res);
                   return;
                 }
                 // 安装成功时本应用会被系统结束；只有失败才会走到后面。
@@ -198,24 +193,11 @@ final class SelfUpdater extends Part {
                   String s = suOut("cat " + log + " 2>/dev/null\n");
                   if (s != null && s.contains("Failure")) {
                     f.delete();
-                    final String m = s;
-                    main.post(
-                        new Runnable() {
-                          public void run() {
-                            if (progress.isShowing()) progress.dismiss();
-                            showResult("安装失败：\n" + m);
-                          }
-                        });
+                    finish(progress, "安装失败：\n" + s);
                     return;
                   }
                 }
-                main.post(
-                    new Runnable() {
-                      public void run() {
-                        if (progress.isShowing()) progress.dismiss();
-                        showResult("安装没有结束，请稍后重新打开应用确认版本。");
-                      }
-                    });
+                finish(progress, "安装没有结束，请稍后重新打开应用确认版本。");
               }
             },
             "slim-selfupdate")

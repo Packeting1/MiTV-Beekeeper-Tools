@@ -25,6 +25,7 @@ import io.github.libxposed.api.XposedModule;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -32,16 +33,12 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /*
- * 投屏小窗叠在 PC 信号 (HDMI) 上：投屏页盖住播放器时不拆 HDMI，进小窗后 PC 画面和投屏画面同时可见，
- * PC 声音和投屏声音混合输出。
- *
- * - tvplayer：投屏页启动前 smartshare 写一个时间戳标记，播放器 onPause 看到标记 (或最顶层是投屏页) 就不拆除；
- *   投屏页把 SurfaceView 销毁过 (onStop) 的话，回来时走原版拆除再重建。
- * - smartshare：打标记、小窗时不静音投屏、投屏页恢复后自动进小窗。
- * - mitv.service：前台包是播放器时把被它拆掉的投屏音频通道补回来。
- * - system：安卓手机投屏页 (WfdPlayerActivity) 清单没声明小窗支持，在 system_server 里放行。
- *
- * 黑屏修复 (系统设置) 是独立模块 TvPlayerKeep，两个模块各用各的标记和状态，可以单独启用。
+ * 投屏小窗叠在 PC 信号 (HDMI) 上：投屏页盖住播放器时不拆 HDMI，PC 画面和声音与投屏同时输出。
+ * - tvplayer：smartshare 启动投屏页前写时间戳标记，播放器 onPause 见标记或顶层是投屏页就不拆。
+ * - smartshare：打标记、小窗不静音、投屏页恢复后自动进小窗；手机投屏 (WFD) 自己监听双击菜单键切全屏。
+ * - mitv.service：补回被拆掉的投屏音频通道。
+ * - system_server：放行手机投屏页 (WfdPlayerActivity) 的小窗。
+ * 与 TvPlayerKeep 各用各的标记，可单独启用。
  */
 public final class HookEntry extends XposedModule {
 
@@ -90,7 +87,7 @@ public final class HookEntry extends XposedModule {
           .intercept(chain -> isWfd(chain.getThisObject()) || (boolean) chain.proceed());
       // ActivityRecord 的这个小方法可能把上面那个内联掉，所以两处都 hook
       Class<?> rec = param.getClassLoader().loadClass("com.android.server.wm.ActivityRecord");
-      final Field infoF = rec.getField("info");
+      Field infoF = rec.getField("info");
       hook(rec.getMethod("supportsPictureInPicture"))
           .intercept(chain -> isWfd(infoF.get(chain.getThisObject())) || (boolean) chain.proceed());
       log(Log.INFO, TAG, "system_server: wfd pip allowed");
@@ -123,18 +120,15 @@ public final class HookEntry extends XposedModule {
     }
   }
 
-  /**
-   * TvService：前台包变成播放器时它会开 mitv_source (信号源声音) 并拆掉投屏的音频通道。 投屏进行中 (sys.cast.state != 0)
-   * 时在原逻辑之后把投屏音频通道补回来，信号源声音和投屏声音混合输出。
-   */
+  /** 前台包变成播放器时 TvService 会拆掉投屏音频通道；投屏中 (sys.cast.state != 0) 在原逻辑之后补回来。 */
   private void installTvService(ClassLoader cl) throws Throwable {
     Class<?> svc = cl.loadClass("mitv.service.TvService");
-    final Method actions = svc.getDeclaredMethod("doActionsForPkg", String.class);
-    final Field patchF = svc.getDeclaredField("mMtkAudioPatchManager");
-    final Field inShareF = svc.getDeclaredField("mCurrentInSmartShare");
+    Method actions = svc.getDeclaredMethod("doActionsForPkg", String.class);
+    Field patchF = svc.getDeclaredField("mMtkAudioPatchManager");
+    Field inShareF = svc.getDeclaredField("mCurrentInSmartShare");
     patchF.setAccessible(true);
     inShareF.setAccessible(true);
-    final Method sysGet =
+    Method sysGet =
         Class.forName("android.os.SystemProperties").getMethod("get", String.class, String.class);
     hook(actions)
         .intercept(chain -> {
@@ -162,9 +156,8 @@ public final class HookEntry extends XposedModule {
   }
 
   /**
-   * smartshare 进程：(1) 投屏页启动前写时间戳标记，让 PC 信号的播放器暂停时不拆 HDMI； (2) 进小窗时不静音投屏； (3) 投屏页恢复后，若系统开启了小窗投屏
-   * (sys_cast_pip_disable != 1) 且正在全屏播放 (sys_cast_state == 1)， 调用 BasePipCastActivity.m(float)
-   * 自动进画中画，与遥控器菜单键双击走的是同一个入口。
+   * smartshare 进程：投屏页启动前打标记；进小窗不静音投屏；投屏页恢复后，若开启了小窗投屏 (sys_cast_pip_disable != 1) 且在全屏播放
+   * (sys_cast_state == 1)，调 BasePipCastActivity.m(float) 自动进小窗（菜单键双击同一入口）。
    */
   private void installCast(ClassLoader cl) throws Throwable {
     int n = 0;
@@ -209,20 +202,16 @@ public final class HookEntry extends XposedModule {
       log(Log.WARN, TAG, "cast audio mute hook failed", t);
     }
 
-    final Class<?> base = cl.loadClass(BASE_PIP_CAST);
-    final Method pipEntry = base.getDeclaredMethod("m", float.class);
+    Class<?> base = cl.loadClass(BASE_PIP_CAST);
+    Method pipEntry = base.getDeclaredMethod("m", float.class);
     pipEntry.setAccessible(true);
     XposedInterface.Hooker autoPip =
         chain -> {
           Object r = chain.proceed();
           try {
             Activity a = (Activity) chain.getThisObject();
-            String name = a.getClass().getName();
-            for (String s : AUTO_PIP_ACTIVITIES) {
-              if (s.equals(name)) {
-                scheduleAutoPip(a, pipEntry);
-                break;
-              }
+            if (Arrays.asList(AUTO_PIP_ACTIVITIES).contains(a.getClass().getName())) {
+              scheduleAutoPip(a, pipEntry);
             }
           } catch (Throwable t) {
             log(Log.ERROR, TAG, "auto pip schedule failed", t);
@@ -273,7 +262,7 @@ public final class HookEntry extends XposedModule {
 
   /** WfdPlayerActivity 的 PipHelper 是空实现，没人响应双击菜单键：小窗里回全屏，全屏时进小窗。 */
   private void bindMenuToggle(Activity a) {
-    final WeakReference<Activity> ref = new WeakReference<>(a);
+    WeakReference<Activity> ref = new WeakReference<>(a);
     a.getApplicationContext()
         .registerReceiver(
             new BroadcastReceiver() {
@@ -298,14 +287,14 @@ public final class HookEntry extends XposedModule {
             new IntentFilter("com.xiaomi.mitv.double.click.menu"));
   }
 
-  private void scheduleAutoPip(final Activity a, final Method pipEntry) {
+  private void scheduleAutoPip(Activity a, Method pipEntry) {
     if (!autoPipDone.add(a)) {
       return;
     }
     if (!pipEntry.getDeclaringClass().isInstance(a)) {
       bindMenuToggle(a);
     }
-    final Handler h = new Handler(Looper.getMainLooper());
+    Handler h = new Handler(Looper.getMainLooper());
     h.postDelayed(
         new Runnable() {
           int tries = 0;
@@ -354,15 +343,7 @@ public final class HookEntry extends XposedModule {
   }
 
   private static boolean isCastPlayerClass(String cls) {
-    if (cls == null) {
-      return false;
-    }
-    for (String s : CAST_PLAYER_ACTIVITIES) {
-      if (s.equals(cls)) {
-        return true;
-      }
-    }
-    return false;
+    return Arrays.asList(CAST_PLAYER_ACTIVITIES).contains(cls);
   }
 
   private void markPending() {
@@ -390,8 +371,7 @@ public final class HookEntry extends XposedModule {
     } catch (Throwable ignored) {
     }
     String top = topClass(a);
-    boolean topIsCast = isCastPlayerClass(top);
-    boolean showing = fresh || topIsCast;
+    boolean showing = fresh || isCastPlayerClass(top);
     log(
         Log.INFO,
         TAG,
@@ -403,14 +383,14 @@ public final class HookEntry extends XposedModule {
     Class<?> act = cl.loadClass(PLAYER + ".ExternalSourceActivity");
     Class<?> frag = cl.loadClass("android.support.v4.app.FragmentActivity");
 
-    final Method onPause = act.getDeclaredMethod("onPause");
-    final Method onResume = act.getDeclaredMethod("onResume");
-    final Method onStop = act.getDeclaredMethod("onStop");
-    final Method fragPause = frag.getDeclaredMethod("onPause");
-    final Method fragResume = frag.getDeclaredMethod("onResume");
-    final XposedInterface.Invoker<?, Method> superPause = getInvoker(fragPause);
-    final XposedInterface.Invoker<?, Method> superResume = getInvoker(fragResume);
-    final XposedInterface.Invoker<?, Method> origPause =
+    Method onPause = act.getDeclaredMethod("onPause");
+    Method onResume = act.getDeclaredMethod("onResume");
+    Method onStop = act.getDeclaredMethod("onStop");
+    Method fragPause = frag.getDeclaredMethod("onPause");
+    Method fragResume = frag.getDeclaredMethod("onResume");
+    XposedInterface.Invoker<?, Method> superPause = getInvoker(fragPause);
+    XposedInterface.Invoker<?, Method> superResume = getInvoker(fragResume);
+    XposedInterface.Invoker<?, Method> origPause =
         getInvoker(onPause).setType(XposedInterface.Invoker.Type.ORIGIN);
 
     hook(onPause)
@@ -483,7 +463,7 @@ public final class HookEntry extends XposedModule {
     // 投屏时播放器一旦 onStop 就 finishAndRemoveTask 并杀进程，小窗下面没有播放器任务，只能回到桌面。
     // 保留期间 (投屏页盖住播放器) 跳过这一步；其余情况仍走原逻辑。
     try {
-      final Method checkCast = act.getDeclaredMethod("checkScreenCast");
+      Method checkCast = act.getDeclaredMethod("checkScreenCast");
       hook(checkCast)
           .intercept(chain -> {
             if (kept.contains(chain.getThisObject())) {
@@ -492,33 +472,33 @@ public final class HookEntry extends XposedModule {
             }
             return chain.proceed();
           });
-    } catch (NoSuchMethodException e) {
+    } catch (NoSuchMethodException ignored) {
       log(Log.WARN, TAG, "checkScreenCast not found");
     }
 
     // 4K 且刷新率 >120Hz 的 HDMI 输入会让播放器广播 EXIT_CURRENT_PIP，把正在进行的投屏小窗关掉。
     try {
-      final Method mutex = act.getDeclaredMethod("isMiraCastMutualExclusion");
+      Method mutex = act.getDeclaredMethod("isMiraCastMutualExclusion");
       hook(mutex)
           .intercept(chain -> {
             log(Log.INFO, TAG, "isMiraCastMutualExclusion -> false (cast kept)");
             return Boolean.FALSE;
           });
-    } catch (NoSuchMethodException e) {
+    } catch (NoSuchMethodException ignored) {
       log(Log.WARN, TAG, "isMiraCastMutualExclusion not found");
     }
     // 中间件 SourceManagerImpl 里还有一份更严格的同名判断 (DLG / EDID 版本 / 高帧率 VRR / 4K>120Hz)，
     // 命中时同样会发 EXIT_CURRENT_PIP。
     try {
       Class<?> sm = cl.loadClass("mitv.impl.tv.SourceManagerImpl");
-      final Method mutex2 = sm.getDeclaredMethod("isMiraCastMutualExclusion");
+      Method mutex2 = sm.getDeclaredMethod("isMiraCastMutualExclusion");
       hook(mutex2)
           .intercept(chain -> {
             log(Log.INFO, TAG, "SourceManagerImpl.isMiraCastMutualExclusion -> false (cast kept)");
             return Boolean.FALSE;
           });
-    } catch (Throwable e) {
-      log(Log.WARN, TAG, "SourceManagerImpl.isMiraCastMutualExclusion hook failed", e);
+    } catch (Throwable t) {
+      log(Log.WARN, TAG, "SourceManagerImpl.isMiraCastMutualExclusion hook failed", t);
     }
 
     log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + n);
@@ -548,11 +528,11 @@ public final class HookEntry extends XposedModule {
   }
 
   /** 播放器被完全盖住后，每秒查一次：投屏页已离开前台（回桌面等）或息屏，就补跑拆除。 */
-  private void startWatchdog(final Activity a, final XposedInterface.Invoker<?, Method> origPause) {
+  private void startWatchdog(Activity a, XposedInterface.Invoker<?, Method> origPause) {
     if (!watching.add(a)) {
       return;
     }
-    final Handler h = new Handler(Looper.getMainLooper());
+    Handler h = new Handler(Looper.getMainLooper());
     h.post(
         new Runnable() {
           int idle = 0;

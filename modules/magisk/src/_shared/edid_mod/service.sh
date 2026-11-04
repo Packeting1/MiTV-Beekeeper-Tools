@@ -1,6 +1,6 @@
 #!/system/bin/sh
-# Fallback: if post-fs-data could not patch (partition not mounted yet), patch now and reboot so the
-# EDID is reloaded. At most 2 automatic reboots; the counter resets once everything is patched.
+# 兜底：post-fs-data 没改成（分区还没挂载）时，现在改并重启让 EDID 重新加载。
+# 最多自动重启 2 次，全部改好后计数清零。
 MODDIR=${0%/*}
 . "$MODDIR/edid_lib.sh"
 

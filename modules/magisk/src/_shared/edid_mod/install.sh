@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# Legacy Magisk module installer (same format as the other modules).
+# 旧格式安装脚本：print_modname 留空，Magisk 不显示模块名和作者横幅。
 
 SKIPMOUNT=true
 PROPFILE=false
@@ -23,9 +23,9 @@ on_install() {
   . "$MODPATH/edid_lib.sh"
   edid_apply
   case $? in
-    0) ui_print "EDID 已写入，请重启电视，并让 Windows 重新读取 EDID（重新插拔线或重启电脑）" ;;
-    2) ui_print "EDID 已经是修改后的版本，或与已知原文件不同，已跳过" ;;
-    *) ui_print "写入失败，模块已安装，开机时会自动重试。日志: $LOG" ;;
+    0) ui_print "- EDID 已写入，请重启电视，并让 Windows 重新读取 EDID（重新插拔线或重启电脑）" ;;
+    2) ui_print "- EDID 已经是修改后的版本，或与已知原文件不同，已跳过" ;;
+    *) ui_print "- 写入失败，模块已安装，开机时会自动重试。日志: $LOG" ;;
   esac
 }
 

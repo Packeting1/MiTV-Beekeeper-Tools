@@ -28,9 +28,9 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * 由 Magisk 的 service.sh 以 root 身份通过 app_process 启动：接收 DDP / sACN 数据并写入灯带， 同时负责串行执行 MCU 刷写。设置项放在
- * Settings.Global 的 beekeeper_net_* / beekeeper_mcu_* 下。
+/*
+ * 由 Magisk 的 service.sh 以 root 身份通过 app_process 启动：接收 DDP / sACN 数据并写入灯带，同时负责串行执行 MCU 刷写。
+ * 设置项放在 Settings.Global 的 beekeeper_net_* / beekeeper_mcu_* 下。
  */
 public final class NetworkDaemon {
   static final String BASE = "/sys/class/led_i2c/led_i2c/";

@@ -94,7 +94,7 @@ def pack(prefix, files):
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for name in sorted(files, key=lambda n: (n != "module.prop", n)):
             info = zipfile.ZipInfo(name, STAMP)
-            executable = name.endswith(".sh") or name.endswith("update-binary")
+            executable = name.endswith((".sh", "update-binary"))
             info.external_attr = (0o100755 if executable else 0o100644) << 16
             info.compress_type = zipfile.ZIP_DEFLATED
             info.create_system = 3  # 固定为 Unix，不同主机打出的 zip 才一致
