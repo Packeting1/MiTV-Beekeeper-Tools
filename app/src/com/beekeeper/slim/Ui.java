@@ -5,6 +5,9 @@ import android.content.res.ColorStateList;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -28,6 +31,8 @@ final class Ui {
       GOOD = 0xFF5BD68A,
       WARN = 0xFFFFB74D,
       BAD = 0xFFFF6B6B,
+      MAGISK = 0xFF3DC9B0,
+      LSPOSED = 0xFFB48EF7,
       CLEAR = 0x00000000;
 
   static int dp(Context c, float v) {
@@ -108,5 +113,48 @@ final class Ui {
     v.setBackground(g);
     v.setVisibility(View.GONE);
     return v;
+  }
+
+  static int tagColor(String tag) {
+    return tag.equals("Magisk") ? MAGISK : LSPOSED;
+  }
+
+  /** 在文字里“标题”之后补上类型标签：标题须在行首或“：”之后，且后面是行尾、“：”或空格（配套 APK 行不加）。 */
+  static CharSequence tagged(String text, Group[] groups) {
+    SpannableStringBuilder out = new SpannableStringBuilder();
+    String[] lines = text.split("\n", -1);
+    for (int i = 0; i < lines.length; i++) {
+      String l = lines[i];
+      Group best = null;
+      int bestEnd = 0;
+      for (Group g : groups) {
+        int at = l.indexOf(g.title);
+        if (at < 0 || (at > 0 && l.charAt(at - 1) != '：')) continue;
+        int end = at + g.title.length();
+        if (end < l.length() && l.charAt(end) != '：' && l.charAt(end) != ' ') continue;
+        if (l.startsWith("配套", end + 1)) continue;
+        if (best == null || g.title.length() > best.title.length()) {
+          best = g;
+          bestEnd = end;
+        }
+      }
+      if (best == null) {
+        out.append(l);
+      } else {
+        out.append(l, 0, bestEnd);
+        for (String tag : best.tags()) {
+          int s = out.length();
+          out.append(" [").append(tag).append(']');
+          out.setSpan(
+              new ForegroundColorSpan(tagColor(tag)),
+              s,
+              out.length(),
+              Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        out.append(l, bestEnd, l.length());
+      }
+      if (i < lines.length - 1) out.append('\n');
+    }
+    return out;
   }
 }

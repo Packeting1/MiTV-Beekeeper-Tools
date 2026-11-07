@@ -737,14 +737,16 @@ public class MainActivity extends Activity {
                             + getCacheDir().getAbsolutePath()
                             + "\n"
                             // LSPosed 和 Vector 的模块目录不同（zygisk_lsposed / zygisk_vector）；前者用
-                            // lspctl，后者用 cli。
+                            // lspctl，后者用 cli；部分 LSPosed 构建两者都没有，只能靠系统进程注入判断。
                             // 状态命令最慢（约 2 秒），放后台和其余检测并行
                             + "LM=/data/adb/modules/zygisk_lsposed; [ -d"
                             + " /data/adb/modules/zygisk_vector ] &&"
                             + " LM=/data/adb/modules/zygisk_vector\n"
-                            + "if [ -f \"$LM/lspctl\" ]; then CTL=lspctl; else CTL=cli; fi\n"
-                            + "( timeout 15 sh \"$LM/$CTL\" status > \"$CD/lsp_status\" 2>&1; echo"
-                            + " $? > \"$CD/lsp_rc\" ) < /dev/null &\n"
+                            + "CTL=; [ -f \"$LM/lspctl\" ] && CTL=lspctl\n"
+                            + "[ -z \"$CTL\" ] && [ -f \"$LM/cli\" ] && CTL=cli\n"
+                            + "if [ -n \"$CTL\" ]; then ( timeout 15 sh \"$LM/$CTL\" status >"
+                            + " \"$CD/lsp_status\" 2>&1; echo $? > \"$CD/lsp_rc\" ) < /dev/null &"
+                            + " fi\n"
                             // 只用 shell 内建命令读 module.prop，避免每个模块起多个子进程
                             + "pv() { code=; ver=; [ -r \"$1/module.prop\" ] || return; while IFS="
                             + " read -r l || [ -n \"$l\" ]; do case $l in versionCode=*) [ -z"
@@ -799,6 +801,7 @@ public class MainActivity extends Activity {
                             + "[ -d /data/adb/modules/zygisk_lsposed ] || [ -d"
                             + " /data/adb/modules/zygisk_vector ] && echo \"L:installed\"\n"
                             + "[ \"$rc\" = 0 ] && echo \"L:run\"\n"
+                            + "[ -z \"$CTL\" ] && [ -d \"$LM\" ] && echo \"L:noctl\"\n"
                             + "echo \"$S\" | grep -qE 'cannot connect|Socket file not found' &&"
                             + " echo \"L:dead\"\n"
                             // lspctl 直接报告；Vector 的 cli 不报告，改看系统进程里有没有加载 Zygisk 模块库
@@ -818,7 +821,7 @@ public class MainActivity extends Activity {
                     pending = new HashSet<String>(),
                     disabled = new HashSet<String>(),
                     active = new HashSet<String>();
-                boolean lsR = false, lsDead = false, lsS = false, lsI = false;
+                boolean lsR = false, lsDead = false, lsS = false, lsI = false, lsNoCtl = false;
                 boolean ok = out != null && out.contains("__Q_OK__");
                 final Map<String, String[]> vInst = new HashMap<String, String[]>(),
                     vUp = new HashMap<String, String[]>();
@@ -841,10 +844,13 @@ public class MainActivity extends Activity {
                     else if (line.equals("L:installed")) lsI = true;
                     else if (line.equals("L:run")) lsR = true;
                     else if (line.equals("L:dead")) lsDead = true;
+                    else if (line.equals("L:noctl")) lsNoCtl = true;
                     else if (line.equals("L:server")) lsS = true;
                   }
                 }
-                final boolean lsRun = lsR, lsSrv = lsS, lsKnown = ok && (lsR || lsDead);
+                final boolean lsRun = lsR || lsNoCtl && lsS,
+                    lsSrv = lsS,
+                    lsKnown = ok && (lsR || lsDead || lsNoCtl);
                 final boolean lsInst = !ok || lsI;
                 final Map<String, Boolean> lsEn = new HashMap<String, Boolean>();
                 final Map<String, Set<String>> lsSc = new HashMap<String, Set<String>>();
@@ -998,7 +1004,7 @@ public class MainActivity extends Activity {
         g.shown = dis > 0 && en == 0;
         g.box.setChecked(g.shown);
       }
-      g.box.setInfo(g.title, g.desc, g.warn, t, lv);
+      g.box.setInfo(g.title, g.desc, g.warn, t, lv, g.tags());
       g.box.markBase();
     }
     updateNoHomeBox();
@@ -1020,7 +1026,7 @@ public class MainActivity extends Activity {
     if (isFinishing()) return;
     new Dlg.Builder(this)
         .setTitle("应用完成")
-        .setMessage(summary + "\n\n需要重启电视，改动才会生效。是否现在重启？")
+        .setMessage(Ui.tagged(summary + "\n\n需要重启电视，改动才会生效。是否现在重启？", GROUPS))
         .setPositiveButton("重启", rebootClick)
         .setNegativeButton("稍后", null)
         .show();
@@ -1055,12 +1061,12 @@ public class MainActivity extends Activity {
     if (isFinishing()) return;
     new Dlg.Builder(this)
         .setTitle(title)
-        .setView(scrollText(text))
+        .setView(scrollText(Ui.tagged(text, GROUPS)))
         .setPositiveButton("确定", null)
         .show();
   }
 
-  ScrollView scrollText(String text) {
+  ScrollView scrollText(CharSequence text) {
     TextView tv = new TextView(this);
     tv.setText(text);
     tv.setTextSize(13);

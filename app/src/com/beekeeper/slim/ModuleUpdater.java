@@ -128,8 +128,7 @@ final class ModuleUpdater extends Part {
     StringBuilder msg = new StringBuilder();
     boolean hasMod = false;
     for (Map.Entry<Group, String[]> e : ups.entrySet()) {
-      String t = e.getKey().title;
-      msg.append(t.replace("（Magisk模块）", ""))
+      msg.append(e.getKey().title)
           .append("：")
           .append(e.getValue()[0])
           .append(" → ")
@@ -140,7 +139,7 @@ final class ModuleUpdater extends Part {
     if (hasMod) msg.append("\n更新后需要重启电视才生效。");
     new Dlg.Builder(a)
         .setTitle("发现更新")
-        .setMessage(msg.toString())
+        .setMessage(Ui.tagged(msg.toString(), a.GROUPS))
         .setPositiveButton(
             "全部更新",
             new DialogInterface.OnClickListener() {

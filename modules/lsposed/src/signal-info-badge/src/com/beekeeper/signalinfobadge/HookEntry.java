@@ -47,7 +47,8 @@ public final class HookEntry extends XposedModule {
     String pkg = param.getPackageName();
     if (SETTINGS.equals(pkg) && HOOKED.add(SETTINGS)) {
       try {
-        SettingsSwitch.install(this, param.getDefaultClassLoader(), TAG, "信号源角标", KEY_ENABLED);
+        SettingsSwitch.install(
+            this, param.getDefaultClassLoader(), TAG, "信号源角标", "切换信号源时显示简化的信号源信息角标", KEY_ENABLED);
       } catch (Throwable t) {
         log(Log.ERROR, TAG, "cannot add settings switch", t);
       }

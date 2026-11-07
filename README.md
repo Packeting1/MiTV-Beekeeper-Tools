@@ -103,6 +103,7 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | SignalInfoBadge | 简化信号源信息角标，可在快捷设置的「专业功能」页开关显示 |
 | VoiceKeyMap | 自定义遥控器语音键的单击、双击、长按动作：息屏（音响模式）、切换信号源、启动应用 |
 | VolumeBalanceSwitch | 在快捷设置的声音页新增「音量均衡」开关 |
+| LocalDimmingMemory | 按视频格式分别记忆精密光控档位，可在快捷设置的「专业功能」页开关 |
 
 ## 常见问题
 

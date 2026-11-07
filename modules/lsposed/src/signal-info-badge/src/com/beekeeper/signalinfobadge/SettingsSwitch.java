@@ -26,7 +26,8 @@ final class SettingsSwitch {
     }
   }
 
-  static void install(XposedModule module, ClassLoader cl, String tag, String title, String key)
+  static void install(
+      XposedModule module, ClassLoader cl, String tag, String title, String desc, String key)
       throws Exception {
     Class<?> page = cl.loadClass(PAGE);
     Class<?> item = cl.loadClass(ITEM);
@@ -37,6 +38,7 @@ final class SettingsSwitch {
     category.setAccessible(true);
     Method create = item.getMethod("createItem", Context.class, ViewGroup.class);
     Method setTitle = item.getMethod("setTitle", String.class);
+    Method setDesc = item.getMethod("setDescription", String.class);
     Method setChecked = item.getMethod("setChecked", boolean.class);
     Method setListener = item.getMethod("setOnCheckedListener", listener);
 
@@ -49,6 +51,7 @@ final class SettingsSwitch {
             Context ctx = (Context) context.get(p);
             Object it = create.invoke(null, ctx, category.get(p));
             setTitle.invoke(it, title);
+            setDesc.invoke(it, desc);
             setChecked.invoke(it, enabled(ctx, key));
             setListener.invoke(
                 it,

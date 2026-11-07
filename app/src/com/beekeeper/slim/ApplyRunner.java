@@ -76,7 +76,7 @@ final class ApplyRunner extends Part {
     msg.append("\n确定继续吗？");
     new Dlg.Builder(a)
         .setTitle("确认")
-        .setMessage(msg.toString())
+        .setMessage(Ui.tagged(msg.toString(), a.GROUPS))
         .setPositiveButton(
             "确定",
             new DialogInterface.OnClickListener() {
@@ -371,17 +371,21 @@ final class ApplyRunner extends Part {
       final Dlg progress,
       final boolean needReboot,
       boolean lateLoad) {
+    final int total = steps;
+    final int[] done = {0};
     final String out =
         suOut(
             script.toString(),
             new Shell.Lines() {
               public void line(String l) {
                 if (!l.startsWith("@@RUN|")) return;
-                final String t = l.substring(6) + "……";
+                final CharSequence t = Ui.tagged(l.substring(6) + "……", a.GROUPS);
+                final String title = "正在执行（" + ++done[0] + "/" + total + "）";
                 main.post(
                     new Runnable() {
                       public void run() {
                         pg.waiting(t);
+                        progress.setTitle(title);
                       }
                     });
               }

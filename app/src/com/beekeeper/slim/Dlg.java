@@ -25,6 +25,7 @@ final class Dlg extends Dialog {
       BUTTON_NEUTRAL = DialogInterface.BUTTON_NEUTRAL;
 
   private final Button[] buttons = new Button[3];
+  private TextView titleView;
 
   private Dlg(Context c) {
     super(c, android.R.style.Theme_Material_Dialog_NoActionBar);
@@ -34,9 +35,15 @@ final class Dlg extends Dialog {
     return buttons[-which - 1];
   }
 
+  @Override
+  public void setTitle(CharSequence t) {
+    if (titleView != null) titleView.setText(t);
+  }
+
   static final class Builder {
     private final Context c;
-    private String title, message;
+    private String title;
+    private CharSequence message;
     private View view;
     private final String[] labels = new String[3];
     private final DialogInterface.OnClickListener[] clicks = new DialogInterface.OnClickListener[3];
@@ -52,7 +59,7 @@ final class Dlg extends Dialog {
       return this;
     }
 
-    Builder setMessage(String m) {
+    Builder setMessage(CharSequence m) {
       message = m;
       return this;
     }
@@ -105,6 +112,7 @@ final class Dlg extends Dialog {
         t.setTextColor(Ui.TEXT);
         t.setPadding(0, 0, 0, Ui.dp(c, 8));
         card.addView(t);
+        d.titleView = t;
       }
       boolean hasButtons = labels[0] != null || labels[1] != null || labels[2] != null;
       View body = view;

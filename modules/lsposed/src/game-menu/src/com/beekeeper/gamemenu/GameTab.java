@@ -472,55 +472,65 @@ final class GameTab {
     menuItem(p, ctx, cat, "预置场景", PRESET_NAMES, presetGet, presetSet, () -> family.get() != null);
 
     ContentResolver cr = ctx.getContentResolver();
-    menuItem(
-        p,
-        ctx,
-        cat,
-        "准星",
-        new String[] {"关闭", "准星一", "准星二", "准星三", "准星四", "准星五"},
-        () -> Settings.Global.getInt(cr, FRONT_SIGHT_KEY, 0),
-        i -> {
-          Settings.Global.putInt(cr, FRONT_SIGHT_KEY, i);
-          ctx.sendBroadcast(
-              new Intent(HookEntry.ACTION_FRONT_SIGHT)
-                  .setPackage(HookEntry.PLAYER)
-                  .putExtra("index", i));
-        },
-        () -> true);
-    menuItem(
-        p,
-        ctx,
-        cat,
-        "暗区增强",
-        new String[] {"关闭", "低", "中", "高"},
-        () -> (int) call(getStretch, pm),
-        i -> call(setStretch, pm, i),
-        () -> true);
+    describe(
+        menuItem(
+            p,
+            ctx,
+            cat,
+            "准星",
+            new String[] {"关闭", "准星一", "准星二", "准星三", "准星四", "准星五"},
+            () -> Settings.Global.getInt(cr, FRONT_SIGHT_KEY, 0),
+            i -> {
+              Settings.Global.putInt(cr, FRONT_SIGHT_KEY, i);
+              ctx.sendBroadcast(
+                  new Intent(HookEntry.ACTION_FRONT_SIGHT)
+                      .setPackage(HookEntry.PLAYER)
+                      .putExtra("index", i));
+            },
+            () -> true),
+        "在画面中央叠加准星，辅助瞄准");
+    describe(
+        menuItem(
+            p,
+            ctx,
+            cat,
+            "暗区增强",
+            new String[] {"关闭", "低", "中", "高"},
+            () -> (int) call(getStretch, pm),
+            i -> call(setStretch, pm, i),
+            () -> true),
+        "提亮暗部细节，便于发现阴影中的目标");
 
-    View hz320 = (View) fMoved[0].get(p);
-    if (hz320 != null) {
-      try {
-        hz320
-            .getClass()
-            .getMethod("setDescription", String.class)
-            .invoke(hz320, "开启后支持 1080P 320Hz 刷新率");
-      } catch (Throwable t) {
-        log(Log.WARN, "320Hz description failed", t);
-      }
-    }
+    describe((View) fMoved[0].get(p), "开启后支持 1080P 320Hz 刷新率");
+    describe((View) fMoved[2].get(p), "在画面上显示实时帧率");
+    describe((View) fMoved[3].get(p), "在画面上显示倒计时");
+    describe((View) fMoved[4].get(p), "在画面上显示计时器");
     for (View v : keep) {
       holder.addView(v);
     }
 
-    menuItem(
-        p,
-        ctx,
-        cat,
-        "灰阶响应时间",
-        new String[] {"普通", "捷速", "高速"},
-        () -> (int) call(getResponse, pm),
-        i -> call(setResponse, pm, i),
-        () -> true);
+    describe(
+        menuItem(
+            p,
+            ctx,
+            cat,
+            "灰阶响应时间",
+            new String[] {"普通", "捷速", "高速"},
+            () -> (int) call(getResponse, pm),
+            i -> call(setResponse, pm, i),
+            () -> true),
+        "加快灰阶响应、减少拖影，过高可能出现过冲");
+  }
+
+  private void describe(View item, String text) {
+    if (item == null) {
+      return;
+    }
+    try {
+      item.getClass().getMethod("setDescription", String.class).invoke(item, text);
+    } catch (Throwable t) {
+      log(Log.WARN, "description failed: " + text, t);
+    }
   }
 
   private Object pictureManager() throws Exception {

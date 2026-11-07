@@ -5,6 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -20,6 +21,7 @@ final class ItemView extends LinearLayout {
   /** 状态行颜色：0 灰 / 1 绿 / 2 琥珀 / 3 红。 */
   static final int NEUTRAL = 0, GOOD = 1, WARN = 2, BAD = 3;
 
+  private final LinearLayout titleRow;
   private final TextView title, desc, warn, status, pending;
   private final Toggle toggle;
   private boolean checked, base, locked;
@@ -43,7 +45,10 @@ final class ItemView extends LinearLayout {
     desc = text(c, 12, Ui.SUB, false);
     warn = text(c, 11, Ui.WARN, false);
     status = text(c, 11, Ui.SUB, false);
-    col.addView(title);
+    titleRow = new LinearLayout(c);
+    titleRow.setGravity(Gravity.CENTER_VERTICAL);
+    titleRow.addView(title);
+    col.addView(titleRow);
     col.addView(desc);
     col.addView(warn);
     col.addView(status);
@@ -88,8 +93,28 @@ final class ItemView extends LinearLayout {
     return t;
   }
 
-  void setInfo(String t, String d, String w, String s, int level) {
+  private static TextView chip(Context c, String name) {
+    int color = Ui.tagColor(name);
+    TextView t = text(c, 10, color, true);
+    t.setText(name);
+    t.setPadding(Ui.dp(c, 5), Ui.dp(c, 1), Ui.dp(c, 5), Ui.dp(c, 1));
+    GradientDrawable bg = new GradientDrawable();
+    bg.setStroke(Ui.dp(c, 1), color);
+    bg.setCornerRadius(Ui.dp(c, 4));
+    t.setBackground(bg);
+    LayoutParams lp = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+    lp.leftMargin = Ui.dp(c, 8);
+    t.setLayoutParams(lp);
+    return t;
+  }
+
+  /** tags：标题后的类型标签（Magisk / LSPosed）。 */
+  void setInfo(String t, String d, String w, String s, int level, String... tags) {
     title.setText(t);
+    titleRow.removeViews(1, titleRow.getChildCount() - 1);
+    for (String tag : tags) {
+      titleRow.addView(chip(getContext(), tag));
+    }
     desc.setText(d);
     warn.setText(w == null ? "" : "⚠ " + w);
     warn.setVisibility(w == null ? GONE : VISIBLE);

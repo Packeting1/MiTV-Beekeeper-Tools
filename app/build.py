@@ -207,6 +207,7 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DE
         ("signalinfobadge", "SignalInfoBadge"),
         ("volumebalanceswitch", "VolumeBalanceSwitch"),
         ("voicekeymap", "VoiceKeyMap"),
+        ("localdimmingmemory", "LocalDimmingMemory"),
     ):
         zout.write(
             REPO / "modules" / "lsposed" / "dist" / (apk + ".apk"), "assets/apk_%s.apk" % name, zipfile.ZIP_STORED

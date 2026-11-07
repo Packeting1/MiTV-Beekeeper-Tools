@@ -75,6 +75,13 @@ final class Group {
     return this;
   }
 
+  /** 标题后的类型标签：Magisk 模块带配套 LSPosed APK 时（pkgs 非空）两个都有。 */
+  String[] tags() {
+    if (kind == KIND_APK) return new String[] {"LSPosed"};
+    if (kind != KIND_MOD) return new String[0];
+    return pkgs.length == 0 ? new String[] {"Magisk"} : new String[] {"Magisk", "LSPosed"};
+  }
+
   /** LSPosed 模块（APK）：包名即标识。 */
   static Group apk(String title, String desc, String warn, String pkg, String asset) {
     Group g = new Group(KIND_APK, title, desc, warn, pkg);

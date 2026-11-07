@@ -101,7 +101,13 @@ public final class HookEntry extends XposedModule {
     String pkg = param.getPackageName();
     if (SETTINGS.equals(pkg) && HOOKED.add(SETTINGS)) {
       try {
-        SettingsSwitch.install(this, param.getDefaultClassLoader(), TAG, "媒体角标", KEY_ENABLED);
+        SettingsSwitch.install(
+            this,
+            param.getDefaultClassLoader(),
+            TAG,
+            "媒体角标",
+            "播放时在右上角显示 HDR10、HLG、Dolby、DTS 等角标",
+            KEY_ENABLED);
       } catch (Throwable t) {
         log(Log.ERROR, TAG, "cannot add settings switch", t);
       }

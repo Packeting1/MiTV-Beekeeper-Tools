@@ -32,7 +32,7 @@ final class Progress {
     box.addView(bar, lp);
   }
 
-  void waiting(String msg) {
+  void waiting(CharSequence msg) {
     bar.setIndeterminate(true);
     text.setText(msg);
   }
