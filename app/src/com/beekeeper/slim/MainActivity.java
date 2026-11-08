@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
   final SelfUpdater self = new SelfUpdater(this);
   final AerialUpdater aerial = new AerialUpdater(this);
   final ModuleUpdater modUp = new ModuleUpdater(this);
+  BaseMods baseMods;
   final LsStatus ls = new LsStatus(this);
   final ApplyRunner applier = new ApplyRunner(this);
   LocalDimming ldm;
@@ -96,23 +97,25 @@ public class MainActivity extends Activity {
         .show();
   }
 
-  /** 有依赖的模块：被依赖项没勾选时锁定且不能勾选（已装的仍可取消）；它勾选期间，被依赖项也锁定。 */
+  /** 有依赖的模块：被依赖项没勾选时锁定且不能勾选（已装的仍可取消）；有依赖它的模块勾选着时，被依赖项也锁定。 */
   void updateDependents() {
-    for (Group g : GROUPS) {
-      if (g.requires == null) continue;
-      for (Group r : GROUPS) {
-        if (!g.requires.equals(r.modId)) continue;
+    for (Group r : GROUPS) {
+      boolean has = false, used = false;
+      for (Group g : GROUPS) {
+        if (g.requires == null || !g.requires.equals(r.modId)) continue;
+        has = true;
         boolean unmet = !r.box.isChecked() && !modInstalled(g);
         g.box.setLocked(modPresent == null || unmet, unmet ? g.requiresMsg : null);
         if (unmet) g.box.setChecked(false);
-        r.box.setLocked(
-            modPresent == null || g.box.isChecked(), g.box.isChecked() ? "需先取消依赖它的模块" : null);
+        used |= g.box.isChecked();
       }
+      boolean keep = used && r.box.isChecked();
+      if (has) r.box.setLocked(modPresent == null || keep, keep ? "需先取消依赖它的模块" : null);
     }
     Group vk = voiceKeyGroup;
     for (Group g : GROUPS) {
       if (g.kind == KIND_APK) {
-        g.box.setLocked(!ls.lsInstalled, ls.lsInstalled ? null : "未检测到 LSPosed / Vector，请先安装");
+        g.box.setLocked(!ls.lsInstalled, ls.lsInstalled ? null : "未检测到 Xposed 框架，请先安装");
         if (!ls.lsInstalled) continue;
       }
       // 语音助手没禁用时语音键拦不住：未安装的语音键自定义不能勾选；勾选着它时，语音助手要保持禁用
@@ -189,6 +192,9 @@ public class MainActivity extends Activity {
   TextView updateText;
 
   LinearLayout[] pages;
+
+  /** 页面序号，同时是 pages / navs 的下标。 */
+  static final int P_BASE = 0, P_APPS = 1, P_OPT = 2, P_FIX = 3, P_HIDDEN = 4, P_ABOUT = 5;
 
   NavItem[] navs;
 
@@ -353,7 +359,7 @@ public class MainActivity extends Activity {
     ver.setPadding(dp(14), dp(2), 0, dp(16));
     side.addView(ver);
 
-    String[] names = {"应用类", "优化类", "修复类", "隐藏项", "关于"};
+    String[] names = {"基础", "应用类", "优化类", "修复类", "隐藏项", "关于"};
     navs = new NavItem[names.length];
     for (int i = 0; i < names.length; i++) {
       final int idx = i;
@@ -376,7 +382,7 @@ public class MainActivity extends Activity {
       nlp.topMargin = dp(4);
       side.addView(navs[i], nlp);
     }
-    self.aboutDot = navs[4].dot;
+    self.aboutDot = navs[P_ABOUT].dot;
     side.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
     applyBtn = Ui.button(this, "应用", true);
     applyBtn.setVisibility(View.GONE);
@@ -420,7 +426,16 @@ public class MainActivity extends Activity {
               }
             });
     aerial.aerialBarText = (TextView) aerial.aerialBar.getChildAt(0);
-    for (View bar : new View[] {updateBar, aerial.aerialBar}) {
+    baseMods = new BaseMods(this);
+    baseMods.bar =
+        newBar(
+            new View.OnClickListener() {
+              public void onClick(View v) {
+                baseMods.confirmUpdate();
+              }
+            });
+    baseMods.barText = (TextView) baseMods.bar.getChildAt(0);
+    for (View bar : new View[] {updateBar, aerial.aerialBar, baseMods.bar}) {
       LinearLayout.LayoutParams blp = Ui.lp();
       blp.bottomMargin = dp(6);
       content.addView(bar, blp);
@@ -432,8 +447,9 @@ public class MainActivity extends Activity {
 
     pages =
         new LinearLayout[] {
+          newPage("基础", null, "其它模块依赖的基础组件。安装或更新后重启电视才生效。"),
           newPage("应用类", null, "禁用后随时可以恢复。"),
-          newPage("优化类", "LSPosed 模块安装时会自动在 LSPosed 中启用并勾选作用域。", "改动重启后生效。"),
+          newPage("优化类", "Xposed 模块安装时会自动启用并勾选作用域。", "改动重启后生效。"),
           newPage("修复类", null, "改动重启后生效。"),
           newPage("隐藏项", null, "以下是系统自带的页面，页面中的操作需注意。"),
           newPage("关于", null, null),
@@ -448,13 +464,13 @@ public class MainActivity extends Activity {
               confirmHidden(h);
             }
           });
-      addItem(pages[3], item);
+      addItem(pages[P_HIDDEN], item);
     }
     log = new TextView(this);
     log.setTextSize(11);
     log.setTextColor(Ui.SUB);
     log.setPadding(dp(4), dp(10), 0, 0);
-    pages[3].addView(log);
+    pages[P_HIDDEN].addView(log);
 
     for (final Group g : GROUPS) {
       ItemView item = new ItemView(this, false);
@@ -481,15 +497,20 @@ public class MainActivity extends Activity {
         voiceKeyGroup = g;
         continue;
       }
-      addItem(pages[g.kind == KIND_PKGS || g.kind == KIND_NOHOME ? 0 : g.fix ? 2 : 1], item);
+      addItem(
+          pages[
+              g.base
+                  ? P_BASE
+                  : g.kind == KIND_PKGS || g.kind == KIND_NOHOME ? P_APPS : g.fix ? P_FIX : P_OPT],
+          item);
     }
     ldm = new LocalDimming(this);
-    addItem(pages[1], ldm.sw);
-    addItem(pages[1], ldm.item);
+    addItem(pages[P_OPT], ldm.sw);
+    addItem(pages[P_OPT], ldm.item);
     voiceKey = new VoiceKey(this);
     // 语音键自定义排在优化类第一项（标题和说明之后）
-    addItem(pages[1], voiceKeyGroup.box, 2);
-    addItem(pages[1], voiceKey.item, 3);
+    addItem(pages[P_OPT], voiceKeyGroup.box, 2);
+    addItem(pages[P_OPT], voiceKey.item, 3);
 
     LinearLayout about = card();
     TextView aboutText = new TextView(this);
@@ -508,7 +529,7 @@ public class MainActivity extends Activity {
     aboutText.setTextColor(Ui.TEXT);
     aboutText.setLineSpacing(0, 1.2f);
     about.addView(aboutText);
-    addItem(pages[4], about);
+    addItem(pages[P_ABOUT], about);
 
     LinearLayout verCard = card();
     verCard.setOrientation(LinearLayout.HORIZONTAL);
@@ -542,7 +563,7 @@ public class MainActivity extends Activity {
     dotLp.rightMargin = -dp(6);
     btnWrap.addView(self.btnDot, dotLp);
     verCard.addView(btnWrap);
-    addItem(pages[4], verCard);
+    addItem(pages[P_ABOUT], verCard);
 
     final Diag diag = new Diag(this);
     LinearLayout diagCard = card();
@@ -567,7 +588,7 @@ public class MainActivity extends Activity {
     diagWrap.setPadding(0, dp(6), dp(6), 0);
     diagWrap.addView(diagBtn);
     diagCard.addView(diagWrap);
-    addItem(pages[4], diagCard);
+    addItem(pages[P_ABOUT], diagCard);
 
     for (int i = 0; i < pages.length; i++) {
       View first = firstFocusable(pages[i]);
@@ -748,17 +769,20 @@ public class MainActivity extends Activity {
                             + " \"$CD/lsp_status\" 2>&1; echo $? > \"$CD/lsp_rc\" ) < /dev/null &"
                             + " fi\n"
                             // 只用 shell 内建命令读 module.prop，避免每个模块起多个子进程
-                            + "pv() { code=; ver=; [ -r \"$1/module.prop\" ] || return; while IFS="
-                            + " read -r l || [ -n \"$l\" ]; do case $l in versionCode=*) [ -z"
+                            + "pv() { code=; ver=; nm=; [ -r \"$1/module.prop\" ] || return; while"
+                            + " IFS= read -r l || [ -n \"$l\" ]; do case $l in versionCode=*) [ -z"
                             + " \"$code\" ] && code=${l#versionCode=};; version=*) [ -z \"$ver\" ]"
-                            + " && ver=${l#version=};; esac; done < \"$1/module.prop\"; }\n"
+                            + " && ver=${l#version=};; name=*) [ -z \"$nm\" ] && nm=${l#name=};;"
+                            + " esac; done < \"$1/module.prop\"; }\n"
+                            // NeoZygisk 和 Zygisk Next 的模块 id 都是 zygisksu，按名字区分，改报 neozygisk
                             + "for d in /data/adb/modules/*/; do [ -d \"$d\" ] || continue;"
-                            + " d=${d%/}; id=${d##*/}; echo \"M:$id\"; [ -e \"$d/remove\" ] && echo"
-                            + " \"R:$id\"; [ -e \"$d/disable\" ] && echo \"D:$id\"; pv \"$d\"; echo"
+                            + " d=${d%/}; id=${d##*/}; pv \"$d\"; [ \"$nm\" = NeoZygisk ] &&"
+                            + " id=neozygisk; echo \"M:$id\"; [ -e \"$d/remove\" ] && echo"
+                            + " \"R:$id\"; [ -e \"$d/disable\" ] && echo \"D:$id\"; echo"
                             + " \"V:$id|$code|$ver\"; done\n"
                             + "for d in /data/adb/modules_update/*/; do [ -d \"$d\" ] || continue;"
-                            + " d=${d%/}; id=${d##*/}; echo \"U:$id\"; pv \"$d\"; echo"
-                            + " \"X:$id|$code|$ver\"; done\n"
+                            + " d=${d%/}; id=${d##*/}; pv \"$d\"; [ \"$nm\" = NeoZygisk ] &&"
+                            + " id=neozygisk; echo \"U:$id\"; echo \"X:$id|$code|$ver\"; done\n"
                             + "H=$(sha256sum /system/etc/mitv.config_product.xml 2>/dev/null | cut"
                             + " -d' ' -f1)\n"
                             + "M=$(sha256sum"
@@ -789,7 +813,9 @@ public class MainActivity extends Activity {
                             + " 29adce40ed1a7a733d3f9799c55451b00903c5eb806ab2008d324dc94e389903|e48a381124833ee6173d83ca82b948edc3918a31795a250c09f9a395233f67fc)"
                             + " echo \"F:beekeeper_dp_audio\";; esac\n"
                             + "for z in $(pidof zygote64); do grep -qE 'zygisk_(lsposed|vector)'"
-                            + " /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; done\n"
+                            + " /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; grep -q"
+                            + " modules/zygisksu/ /proc/$z/maps 2>/dev/null && echo \"F:zygisksu\";"
+                            + " done\n"
                             // 只有本模块会往这个路径 bind mount 补丁库
                             + "grep -q libmtkapp.so /proc/mounts && echo"
                             + " \"F:beekeeper_freesync_keep\"\n"
@@ -848,6 +874,13 @@ public class MainActivity extends Activity {
                     else if (line.equals("L:server")) lsS = true;
                   }
                 }
+                // 两个 Zygisk 实现共用 modules/zygisksu 目录，加载的是哪个由已安装的 id 决定
+                if (present.contains("neozygisk") && active.remove("zygisksu")) {
+                  active.add("neozygisk");
+                }
+                if (lsS) {
+                  active.add("zygisk_vector");
+                }
                 final boolean lsRun = lsR || lsNoCtl && lsS,
                     lsSrv = lsS,
                     lsKnown = ok && (lsR || lsDead || lsNoCtl);
@@ -883,6 +916,7 @@ public class MainActivity extends Activity {
                         ls.lsScope = dbRead ? lsSc : null;
                         render();
                         modUp.updateBanner();
+                        baseMods.autoCheck();
                         hideLoading();
                         refreshing = false;
                         if (refreshAgain) {
@@ -971,9 +1005,13 @@ public class MainActivity extends Activity {
           String act = off ? "实际：在 Magisk 中被停用，未生效" : on ? "实际：已生效" : "实际：未生效（需重启）";
           t = pend ? "当前：已安装，重启后生效" : "当前：已安装" + (iv == null ? "" : " " + iv[1]) + "\n" + act;
           lv = pend || off || !on ? ItemView.WARN : ItemView.GOOD;
-          if (ups.containsKey(g)) t += "\n⬆ 有新版本：" + ups.get(g)[0] + " → " + ups.get(g)[1];
+          String[] up = g.base && g.repo != null ? baseMods.update(g) : ups.get(g);
+          if (up != null) t += "\n⬆ 有新版本：" + up[0] + " → " + up[1];
         } else {
-          t = "当前：未安装";
+          t =
+              g.replaces != null && modPresent.contains(g.replaces)
+                  ? "当前：未安装（检测到 " + g.replacesName + "，安装时会先卸载它）"
+                  : "当前：未安装";
         }
         if (fwMismatch(g)) {
           t += "\n固件不匹配：仅适用于 " + FIRMWARE + "，当前为 " + Build.VERSION.INCREMENTAL;
@@ -981,7 +1019,7 @@ public class MainActivity extends Activity {
         }
         g.box.setChecked(modInstalled(g));
         g.box.setLocked(modPresent == null);
-        // 带配套 APK 的 Magisk 模块同时显示 LSPosed 启用及作用域状态。
+        // 带配套 APK 的 Magisk 模块同时显示 Xposed 启用及作用域状态。
         if (modInstalled(g) && g.pkgs.length > 0) {
           String companion =
               state(g.pkgs[0]) == MISSING
@@ -1010,6 +1048,7 @@ public class MainActivity extends Activity {
     updateNoHomeBox();
     updateDependents();
     aerial.updateAerialUi();
+    baseMods.updateUi();
   }
 
   void confirmReboot() {

@@ -13,9 +13,9 @@
 | 部分 | 源码 | 内容 |
 | --- | --- | --- |
 | Magisk 模块 `beekeeper_decorative_light` | `modules/magisk/src/decorative_light` | 灯控库补丁（安装时生成）、输出程序、MCU 固件补丁、启动脚本 |
-| LSPosed 模块 DecorativeLight | `modules/lsposed/src/decorative-light` | 设置页界面和网络灯控守护进程 |
+| Xposed 模块 DecorativeLight | `modules/xposed/src/decorative-light` | 设置页界面和网络灯控守护进程 |
 
-在工具应用勾选「Decorative Light」并应用，DecorativeLight 随之安装。再到 LSPosed 启用 DecorativeLight，作用域 `com.xiaomi.mitv.settings`、`mitv.service`，重启后在「炫彩灯」中使用。安装不会刷写 MCU。
+在工具应用勾选「Decorative Light」并应用，DecorativeLight 随之安装。再到 Xposed 启用 DecorativeLight，作用域 `com.xiaomi.mitv.settings`、`mitv.service`，重启后在「炫彩灯」中使用。安装不会刷写 MCU。
 
 ## 风险
 
@@ -25,7 +25,7 @@
 
 ## 构建
 
-- `python modules/lsposed/build.py decorative-light`。
+- `python modules/xposed/build.py decorative-light`。
 - `python modules/magisk/build.py decorative_light`，自动把上一步的 APK 打进模块。
 - `bin/` 和 `firmware/` 是预编译产物，由 `modules/magisk/src/_shared/rgb_native/build_native.py` 生成，需要 keystone-engine 和原版 `MCU.bin`（SHA-256 见脚本开头）。灯控库的补丁写在 `customize.sh`，安装时在设备上生成。
 

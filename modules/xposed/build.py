@@ -1,6 +1,6 @@
-"""Build the LSPosed/Vector (libxposed API 101) modules without Gradle (javac + D8 + aapt2 + zipalign + apksigner).
+"""Build the Xposed (libxposed API 101) modules without Gradle (javac + D8 + aapt2 + zipalign + apksigner).
 
-usage: python modules/lsposed/build.py [module-name ...]     (default: all modules in modules/lsposed/src/)
+usage: python modules/xposed/build.py [module-name ...]     (default: all modules in modules/xposed/src/)
 
 Environment variables (same as app/build.py, plus XPOSED_API):
   ANDROID_JAR   android.jar of API 28
@@ -11,7 +11,7 @@ Environment variables (same as app/build.py, plus XPOSED_API):
   JAVA_HOME     JDK 17+ (sources are compiled with --release 17 and dexed with min-api 26)
   KEYSTORE, KS_PASS, KS_ALIAS   signing key
 Each module dir under src/ holds AndroidManifest.xml, scope.txt (one target package per line) and
-src/<package path>/HookEntry.java (the entry class; other .java files under src/ are compiled too). Output: modules/lsposed/dist/<label>.apk
+src/<package path>/HookEntry.java (the entry class; other .java files under src/ are compiled too). Output: modules/xposed/dist/<label>.apk
 """
 
 import os
@@ -31,7 +31,7 @@ DIST = ROOT / "dist"
 def need(name):
     v = os.environ.get(name)
     if not v:
-        sys.exit("set environment variable %s (see modules/lsposed/build.py)" % name)
+        sys.exit("set environment variable %s (see modules/xposed/build.py)" % name)
     return v
 
 
@@ -74,7 +74,7 @@ def build(mod):
     if not entry.exists():
         sys.exit("missing entry class source: %s" % entry)
     # temp dir outside the source tree; removed even when the build fails
-    out = Path(tempfile.mkdtemp(prefix="lsposed_"))
+    out = Path(tempfile.mkdtemp(prefix="xposed_"))
     try:
         compile_and_sign(mod, out, manifest_path, pkg, label, scope)
     finally:

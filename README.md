@@ -26,10 +26,11 @@
 
 ## 功能
 
-- **禁用后台应用**：语音助手、统计诊断、云控中心、系统更新、屏保等。勾选即禁用，取消勾选即恢复；条目标题中标注了实测的内存占用。
-- **Aerial 桌面**：安装为系统应用并设为默认桌面（[Aerial](https://github.com/pengchujin/aerial-tv)，无广告、无推荐流）。可选禁用系统桌面，启动时检测 Aerial 的新版本。
+- **基础**：安装和更新 NeoZygisk、Vector。
+- **禁用后台应用**：语音助手、统计诊断、云控中心、系统更新、屏保等。勾选即禁用，取消勾选即恢复。
+- **Aerial 桌面**：安装Aerial为系统应用并设为默认桌面，可选禁用系统桌面。
 - **体验优化**：语音键自定义、局部调光强度调节，以及PC杜比视界、图像设置、角标显示等增强。
-- **模块管理**：勾选即安装 Magisk / LSPosed 模块，取消勾选即移除。
+- **模块管理**：勾选即安装 Magisk / Xposed 模块，取消勾选即移除。
 - **隐藏页面入口**：调试信息、色彩校准、开机视频、环绕声测试、MTK 工厂菜单等系统内置的隐藏页面。
 - **自动更新**：启动时在后台检查新版本；按顺序尝试多条下载线路，并校验 SHA-256、包名和签名后再安装。
 
@@ -37,8 +38,8 @@
 
 前提条件：
 
-- 已 root，并安装 [Magisk](https://github.com/topjohnwu/Magisk)（在 31.0 上测试）和 [Zygisk Next](https://github.com/Dr-TSNG/ZygiskNext)；
-- 使用 LSPosed 模块时，还需安装 [LSPosed / Vector](https://github.com/LSPosed/LSPosed)。
+- 已 root，并安装 [Magisk](https://github.com/topjohnwu/Magisk)；
+- 使用 Xposed 模块时，还需安装 Zygisk 和 Xposed 框架。
 
 ### 1. 安装应用
 
@@ -56,7 +57,7 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 在电视应用列表中打开「系统优化」，首次启动时授予 root 权限。勾选所需项目后，点击底部的「应用」。
 
 - **Magisk 模块**：安装后需重启电视。以条目下方显示「实际：已生效」为准。
-- **LSPosed 模块**：应用仅负责安装。安装后须在 LSPosed / Vector 中**启用该模块并勾选作用域**，然后重启对应进程或电视。条目下方的「实际」会提示缺少哪一步。
+- **Xposed 模块**：安装并自动勾选作用域。条目下方的「实际」会提示缺少哪一步。
 
 ### 升级
 
@@ -74,7 +75,7 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | :-- | :-- |
 | HGIG Fix | 补全缺失的 HGIG 支持标志，修复 HDR 色调映射菜单错位 |
 | LDM Fix | 将局部调光参数恢复为 OS2 的数值，减轻 HDR / 杜比视界过曝 |
-| Zygote64 Fix | 修复 Zygisk Next 遗漏注入 zygote64 的问题，使 LSPosed 钩子在开机后生效 |
+| Zygote64 Fix | 修复 Zygisk Next 遗漏注入 zygote64 的问题，使 Xposed 钩子在开机后生效 |
 | ADB Keeper | 保持 ADB 开关的开启状态 |
 | 4K UI Switch | 在「系统设置 > 通用设置」中显示「UI 显示模式」选项 |
 | Support HDR10+ | 上报 HDR10+ 能力（实际效果未验证） |
@@ -84,9 +85,9 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | Support LLDV | 声明支持低延迟杜比视界，使 Windows 能够识别杜比视界 |
 | Support DP Audio | 使 DP 输入声明与 HDMI 相同的音频格式，支持通过 DP 输出比特流 |
 | FreeSync Keep Mode | 开启 FreeSync 或杜比视界信号带有游戏标志时，不再自动切换到游戏图像模式 |
-| [Decorative Light](modules/lsposed/src/decorative-light/README.md) | 自定义装饰灯颜色，支持通过 DDP / sACN（如 OpenRGB）网络控制灯光；可选刷入自定义 MCU 固件，让 24 颗灯珠独立控制 |
+| [Decorative Light](modules/xposed/src/decorative-light/README.md) | 自定义装饰灯颜色，支持通过 DDP / sACN（如 OpenRGB）网络控制灯光；可选刷入自定义 MCU 固件，让 24 颗灯珠独立控制 |
 
-### LSPosed 模块
+### Xposed 模块
 
 | 模块 | 作用 |
 | :-- | :-- |
@@ -107,8 +108,7 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 
 ## 常见问题
 
-- **安装 LSPosed 模块后没有效果**：应用仅负责安装。请在 LSPosed / Vector 中启用该模块并勾选作用域，再重启对应进程或电视。条目下方的「实际：…」会说明缺少哪一步。
-- **Magisk 提示「Zygisk 未启用，此模块暂停加载」**：这是 Magisk 自身的提示文案，使用 Zygisk Next 时属于误报。请勿同时开启两个 Zygisk。
+- **Magisk 提示「Zygisk 未启用，此模块暂停加载」**：这是 Magisk 自身的提示文案，使用 NeoZygisk / Zygisk Next 时属于误报。请勿同时开启两个 Zygisk。
 - **系统升级之后**：FreeSync Keep Mode、LDM Fix 等依赖具体固件文件的模块会先校验文件，不匹配则自动跳过，不会写入分区。其他模块可能需要针对新版本重新适配。
 - **SignalKeep 的代价**：返回桌面时保留信号，内存多占用约 165 MB；在桌面停留超过 1 分钟后自动释放信号。保留期间桌面沿用信号的图像模式（例如信号为杜比视界时，桌面同样按杜比视界显示）。
 - **云端配置是否会覆盖开关类模块**：开关类模块将条目写入 `/data/system/mitv.config.xml`，并通过 `chattr +i` 锁定以防云端覆盖；卸载时解除锁定并还原。
@@ -128,14 +128,14 @@ set KEYSTORE=...\my.keystore
 set KS_PASS=...
 set KS_ALIAS=...
 set XPOSED_API=...\api-101.0.0.aar
-python modules\lsposed\build.py [模块名]
+python modules\xposed\build.py [模块名]
 python modules\magisk\build.py [模块目录名]
 python app\build.py
 ```
 
 - `XPOSED_API` 为 [libxposed API 101](https://github.com/libxposed/api)，可从 Maven Central 获取。
-- LSPosed 模块输出到 `modules/lsposed/dist/`。Magisk 模块从 `modules/magisk/src/` 打包为 `modules/magisk/dist/` 中的 zip，版本号见各模块的 `module.prop`。应用构建时从这两个 `dist` 目录取用，输出到 `dist/`。
-- 内置的 Aerial APK（[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT）若在 `app/bundled/aerial.apk` 不存在，构建时会自动下载最新 Release，并按 GitHub 提供的 SHA-256 校验。
+- Xposed 模块输出到 `modules/xposed/dist/`。Magisk 模块从 `modules/magisk/src/` 打包为 `modules/magisk/dist/` 中的 zip，版本号见各模块的 `module.prop`。应用构建时从这两个 `dist` 目录取用，输出到 `dist/`。
+- 内置的 Aerial APK（[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT）若在 `app/bundled/aerial.apk` 不存在，构建时会自动下载最新 Release，并按 GitHub 提供的 SHA-256 校验。内置的 Vector v2.2（GPL-3.0，[JingMatrix/Vector](https://github.com/JingMatrix/Vector)）和 NeoZygisk v2.4（GPL-3.0，[JingMatrix/NeoZygisk](https://github.com/JingMatrix/NeoZygisk)）分别放在 `app/bundled/vector.zip`、`app/bundled/neozygisk.zip`，不存在时构建会下载并按 GitHub 提供的 SHA-256 校验。
 - 使用自己的签名时替换 `KEYSTORE`。签名不同的应用无法覆盖安装。
 
 ## 贡献
@@ -149,5 +149,5 @@ python app\build.py
 ## 致谢
 
 - [Aerial](https://github.com/pengchujin/aerial-tv)（MIT）：随应用附带的桌面
-- [Magisk](https://github.com/topjohnwu/Magisk)、[LSPosed](https://github.com/LSPosed/LSPosed)、[Zygisk Next](https://github.com/Dr-TSNG/ZygiskNext)
+- [Magisk](https://github.com/topjohnwu/Magisk)、[Vector](https://github.com/JingMatrix/Vector)、[NeoZygisk](https://github.com/JingMatrix/NeoZygisk)
 - 贡献者：[@Rin010](https://github.com/Rin010)（NoSignalAudioMode、Decorative Light）、[@Filey-Aaron](https://github.com/Filey-Aaron)（MediaBadge）、酷安 @伏犬（ADB Keeper、4K UI Switch）

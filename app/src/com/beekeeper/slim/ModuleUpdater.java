@@ -9,6 +9,7 @@ import android.content.pm.PackageInfo;
 import android.view.View;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -17,7 +18,7 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-/** 内置 Magisk / LSPosed 模块的版本比较与更新。 */
+/** 内置 Magisk / Xposed 模块的版本比较与更新。 */
 final class ModuleUpdater extends Part {
 
   ModuleUpdater(MainActivity a) {
@@ -26,24 +27,31 @@ final class ModuleUpdater extends Part {
 
   String[] readBundledMod(String asset) {
     try {
-      ZipInputStream z = new ZipInputStream(getAssets().open(asset));
-      try {
-        ZipEntry e;
-        while ((e = z.getNextEntry()) != null) {
-          if (!"module.prop".equals(e.getName())) continue;
-          BufferedReader r = new BufferedReader(new InputStreamReader(z, "UTF-8"));
-          String code = null, name = null, l;
-          while ((l = r.readLine()) != null) {
-            if (l.startsWith("versionCode=")) code = l.substring(12).trim();
-            else if (l.startsWith("version=")) name = l.substring(8).trim();
-          }
-          return code == null ? null : new String[] {code, name == null ? code : name};
-        }
-      } finally {
-        z.close();
-      }
+      return readModProp(getAssets().open(asset));
     } catch (Exception e) {
       // 读不到就当没有版本信息，不提示更新
+      return null;
+    }
+  }
+
+  /** 读模块 zip 里的 module.prop：{versionCode, version, id}；没有 versionCode 返回 null。读完会关闭流。 */
+  static String[] readModProp(InputStream in) throws Exception {
+    ZipInputStream z = new ZipInputStream(in);
+    try {
+      ZipEntry e;
+      while ((e = z.getNextEntry()) != null) {
+        if (!"module.prop".equals(e.getName())) continue;
+        BufferedReader r = new BufferedReader(new InputStreamReader(z, "UTF-8"));
+        String code = null, name = null, id = null, l;
+        while ((l = r.readLine()) != null) {
+          if (l.startsWith("versionCode=")) code = l.substring(12).trim();
+          else if (l.startsWith("version=")) name = l.substring(8).trim();
+          else if (l.startsWith("id=")) id = l.substring(3).trim();
+        }
+        return code == null ? null : new String[] {code, name == null ? code : name, id};
+      }
+    } finally {
+      z.close();
     }
     return null;
   }
@@ -80,6 +88,7 @@ final class ModuleUpdater extends Part {
   LinkedHashMap<Group, String[]> pendingUpdates() {
     LinkedHashMap<Group, String[]> res = new LinkedHashMap<Group, String[]>();
     for (Group g : a.GROUPS) {
+      if (g.base) continue;
       if (g.kind == KIND_MOD) {
         if (a.modPresent == null || a.modRemoving == null) continue;
         if (!a.modPresent.contains(g.modId) || a.modRemoving.contains(g.modId)) continue;

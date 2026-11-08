@@ -67,7 +67,7 @@ final class ApplyRunner extends Part {
     if (nhOff) msg.append("将重新启用系统桌面\n");
     for (Group g : modOn) {
       boolean fixOnly = g.kind == KIND_APK && state(g.pkgs[0]) != MISSING;
-      msg.append(g.kind != KIND_APK ? "将启用：" : fixOnly ? "将在 LSPosed 启用：" : "将安装并在 LSPosed 启用：")
+      msg.append(g.kind != KIND_APK ? "将启用：" : fixOnly ? "将在 Xposed 启用：" : "将安装并在 Xposed 启用：")
           .append(g.title)
           .append("\n");
     }
@@ -88,7 +88,7 @@ final class ApplyRunner extends Part {
         .show();
   }
 
-  /** 先写 LSPosed 库再安装：守护进程在包更新时重新读取，不用重启就能加载。 */
+  /** 先写 Xposed 库再安装：守护进程在包更新时重新读取，不用重启就能加载。 */
   String installApkScript(String pkg, String asset) throws Exception {
     String apk = copyAsset(asset);
     StringBuilder b = new StringBuilder();
@@ -104,7 +104,7 @@ final class ApplyRunner extends Part {
     return b.toString();
   }
 
-  /** LSPosed 模块的作用域含常驻进程（系统进程、保持后台的播放器）：这些进程只有重启电视才会重新加载。 */
+  /** Xposed 模块的作用域含常驻进程（系统进程、保持后台的播放器）：这些进程只有重启电视才会重新加载。 */
   static boolean inSystemProcess(Group g) {
     String[] scopes = g.kind == KIND_APK ? LS_SCOPES.get(g.pkgs[0]) : null;
     if (scopes != null) {
@@ -245,8 +245,16 @@ final class ApplyRunner extends Part {
                   try {
                     String zip = copyAsset(g.asset);
                     StringBuilder b = new StringBuilder();
-                    b.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
-                    b.append("  rm -f /data/adb/modules/").append(g.modId).append("/remove\n");
+                    // 直接删目录而不打移除标记：不运行它的卸载脚本（LSPosed 的会删掉与 Vector 共用的 /data/adb/lspd）
+                    if (g.replaces != null && a.modPresent.contains(g.replaces)) {
+                      b.append("rm -rf /data/adb/modules/")
+                          .append(g.replaces)
+                          .append(" /data/adb/modules_update/")
+                          .append(g.replaces)
+                          .append("\n");
+                    }
+                    b.append("if [ -d /data/adb/modules/").append(g.dir()).append(" ]; then\n");
+                    b.append("  rm -f /data/adb/modules/").append(g.dir()).append("/remove\n");
                     b.append("  echo '@@MSG 已启用，重启后生效'\n");
                     b.append("else magisk --install-module ").append(zip).append("; fi\n");
                     b.append("rm -f ").append(zip).append("\n");
@@ -274,11 +282,11 @@ final class ApplyRunner extends Part {
                         "已卸载",
                         "pm uninstall " + g.pkgs[0] + "\n");
                   }
-                  b.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
-                  b.append("  touch /data/adb/modules/").append(g.modId).append("/remove\n");
+                  b.append("if [ -d /data/adb/modules/").append(g.dir()).append(" ]; then\n");
+                  b.append("  touch /data/adb/modules/").append(g.dir()).append("/remove\n");
                   b.append("  echo '@@MSG 已关闭，重启后生效'\n");
                   b.append("else rm -rf /data/adb/modules_update/")
-                      .append(g.modId)
+                      .append(g.dir())
                       .append("; echo '@@MSG 已移除'; fi\n");
                   step(script, g.title, "正在关闭", "已关闭", b.toString());
                 }
@@ -411,7 +419,7 @@ final class ApplyRunner extends Part {
         sum.append("\n");
       }
     }
-    if (lateLoad && good) sum.append("\nLSPosed 模块将在目标应用下次启动时生效。");
+    if (lateLoad && good) sum.append("\nXposed 模块将在目标应用下次启动时生效。");
     final String text = sum.toString().trim();
     final boolean ok = good;
     main.post(

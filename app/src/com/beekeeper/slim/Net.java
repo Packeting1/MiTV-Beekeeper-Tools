@@ -124,8 +124,8 @@ final class Net {
   }
 
   /**
-   * 查 repo 的最新 Release。asset 为 null 时取第一个 .apk（可能没有，url 为 null）； 否则取同名文件，找不到就抛错。cur 不为 null
-   * 且落后时，更新说明带上中间版本； 列表拿不到就只用最新版的。
+   * 查 repo 的最新 Release。asset 为 null 时取第一个 .apk（可能没有，url 为 null）； 否则取同名文件（以 * 开头则按后缀匹配），找不到就抛错。cur
+   * 不为 null 且落后时，更新说明带上中间版本； 列表拿不到就只用最新版的。
    */
   static Release fetchRelease(String repo, String asset, String cur) throws Exception {
     Release r = new Release();
@@ -135,7 +135,11 @@ final class Net {
     for (int i = 0; as != null && i < as.length(); i++) {
       JSONObject a = as.getJSONObject(i);
       String name = a.optString("name");
-      if (asset == null ? name.endsWith(".apk") : asset.equals(name)) {
+      boolean hit =
+          asset == null
+              ? name.endsWith(".apk")
+              : asset.startsWith("*") ? name.endsWith(asset.substring(1)) : asset.equals(name);
+      if (hit) {
         r.url = a.getString("browser_download_url");
         r.digest = a.optString("digest", "");
         break;
@@ -196,7 +200,7 @@ final class Net {
       File f,
       final Progress p,
       CancelToken tok)
-      throws Throwable {
+      throws Exception {
     Throwable lastErr = null;
     for (String cand : cands) {
       if (tok.cancelled) throw new CancelledException();

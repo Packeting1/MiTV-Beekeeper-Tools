@@ -4,7 +4,7 @@
 需要 keystone-engine（pip install -r requirements.txt）和对应系统的原版 MCU.bin：
   BEEKEEPER_MCU_ORIGINAL  /vendor/tvconfig/bsp/chip/ldm_xiaomi/ldm_otfcn1n/MCU.bin，sha256 c78ea17c…145d
 输入不匹配会拒绝构建。灯控库的补丁在 decorative_light/customize.sh 里，安装时在设备上生成。
-生成后用 python modules/magisk/build.py decorative_light 打包。APK 由 modules/lsposed/build.py decorative-light 生成，放进 decorative_light/app/DecorativeLight.apk。
+生成后用 python modules/magisk/build.py decorative_light 打包。APK 由 modules/xposed/build.py decorative-light 生成，放进 decorative_light/app/DecorativeLight.apk。
 """
 
 import hashlib

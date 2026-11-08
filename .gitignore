@@ -1,5 +1,5 @@
 app/out/
-app/bundled/aerial.apk
+app/bundled/
 /dist/
 *.keystore
 *.jks

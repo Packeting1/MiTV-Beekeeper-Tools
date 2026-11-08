@@ -4,8 +4,8 @@
 [ "$(getprop ro.build.version.incremental)" = "OS3.0.109.0.UFFMAMN" ] || abort "固件版本不匹配"
 lsp=/data/adb/modules/zygisk_vector
 [ -d "$lsp" ] || lsp=/data/adb/modules/zygisk_lsposed
-[ -d "$lsp" ] || abort "需要已安装的 LSPosed"
-[ ! -f "$lsp/disable" ] || abort "请先启用 LSPosed"
+[ -d "$lsp" ] || abort "需要已安装的 Xposed 框架"
+[ ! -f "$lsp/disable" ] || abort "请先启用 Xposed 框架"
 
 # 灯控库：模块不带厂商文件，用电视自带的原版库在设备上打补丁生成。
 # 模块已启用时 /vendor 里看到的就是补丁版，此时直接复制。
@@ -43,5 +43,5 @@ set_perm "$MODPATH/service.sh" 0 0 0755
 set_perm "$MODPATH/uninstall.sh" 0 0 0755
 set_perm_recursive "$MODPATH/bin" 0 0 0700 0700
 set_perm_recursive "$MODPATH/firmware" 0 0 0700 0600
-ui_print "- 请在 LSPosed 启用“DecorativeLight”及推荐作用域"
+ui_print "- 请在 Xposed 启用“DecorativeLight”及推荐作用域"
 ui_print "- 重启后，在系统装饰灯设置中选择“自定义颜色”"

@@ -108,7 +108,7 @@ final class ItemView extends LinearLayout {
     return t;
   }
 
-  /** tags：标题后的类型标签（Magisk / LSPosed）。 */
+  /** tags：标题后的类型标签（Magisk / Xposed）。 */
   void setInfo(String t, String d, String w, String s, int level, String... tags) {
     title.setText(t);
     titleRow.removeViews(1, titleRow.getChildCount() - 1);

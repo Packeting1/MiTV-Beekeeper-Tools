@@ -119,9 +119,9 @@ n=0
 while [ $n -lt 2 ]; do
   lsp_state
   _s=$?
-  [ $_s = 0 ] && { log "LSPosed 正常（lspd 在运行）"; exit 0; }
+  [ $_s = 0 ] && { log "Xposed 正常（lspd 在运行）"; exit 0; }
   n=$((n + 1))
-  log "LSPosed 状态异常($_s)，第 $n 次补救：确保 lspd 在运行后再重启一次 zygote"
+  log "Xposed 状态异常($_s)，第 $n 次补救：确保 lspd 在运行后再重启一次 zygote"
   lsp_start || { log "lspd 拉不起来，放弃"; exit 0; }
   sleep 5
   setprop ctl.restart zygote
@@ -129,4 +129,4 @@ while [ $n -lt 2 ]; do
 done
 
 lsp_state
-log "补救结束，LSPosed 状态码 $?"
+log "补救结束，Xposed 状态码 $?"

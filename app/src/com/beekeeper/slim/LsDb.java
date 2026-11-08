@@ -4,7 +4,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
 /*
- * 在 root 下由 app_process 运行：在 LSPosed 配置库里启用模块并写入作用域。用法：LsDb 模块包名 [作用域应用…]。
+ * 在 root 下由 app_process 运行：在 Xposed 配置库里启用模块并写入作用域。用法：LsDb 模块包名 [作用域应用…]。
  * 只处理旧 LSPosed 的库结构；要先于 pm install -r 执行，守护进程在包更新时才会重新读库。
  */
 public final class LsDb {
@@ -16,7 +16,7 @@ public final class LsDb {
     try {
       rc = seed(a);
     } catch (Throwable e) {
-      System.out.println("写入 LSPosed 配置失败：" + e);
+      System.out.println("写入 Xposed 配置失败：" + e);
     }
     // app_process 不会自己退出
     System.exit(rc);
@@ -31,7 +31,7 @@ public final class LsDb {
       boolean legacy = c.moveToFirst();
       c.close();
       if (!legacy) {
-        System.out.println("LSPosed 配置库结构不支持自动写入，请在 LSPosed 中手动启用 " + a[0]);
+        System.out.println("Xposed 配置库结构不支持自动写入，请在 Xposed 中手动启用 " + a[0]);
         return 2;
       }
       d.beginTransaction();
@@ -47,7 +47,7 @@ public final class LsDb {
       } finally {
         d.endTransaction();
       }
-      System.out.println("已在 LSPosed 启用 " + a[0]);
+      System.out.println("已在 Xposed 启用 " + a[0]);
       return 0;
     } finally {
       d.close();

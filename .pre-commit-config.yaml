@@ -4,7 +4,7 @@ exclude: |
     modules/magisk/src/4kui_switch/(original|system)/.*|
     modules/magisk/src/ldm_fix/common/.*\.ini|
     modules/magisk/src/.*\.(bin|patch|sha256)|
-    modules/(magisk|lsposed)/dist/.*
+    modules/(magisk|xposed)/dist/.*
   )$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

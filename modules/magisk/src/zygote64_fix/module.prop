@@ -3,4 +3,4 @@ name=Zygote64 Fix
 version=2026.11.5
 versionCode=20261105
 author=酷安@pkkka
-description=Fixes Zygisk Next missing zygote64 injection so LSPosed hooks work after boot.
+description=Fixes Zygisk Next missing zygote64 injection so Xposed hooks work after boot.

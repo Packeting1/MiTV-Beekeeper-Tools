@@ -51,9 +51,9 @@ SHARED = {
     "volume_balance": ("flag_mod",),
 }
 
-# 模块目录 -> {zip 内路径: modules/lsposed/dist 里的 APK}
+# 模块目录 -> {zip 内路径: modules/xposed/dist 里的 APK}
 EXTRA_APK = {
-    "decorative_light": {"app/DecorativeLight.apk": ROOT.parent / "lsposed" / "dist" / "DecorativeLight.apk"},
+    "decorative_light": {"app/DecorativeLight.apk": ROOT.parent / "xposed" / "dist" / "DecorativeLight.apk"},
 }
 
 
@@ -73,7 +73,7 @@ def collect(directory):
                 )
     for name, apk in EXTRA_APK.get(directory.name, {}).items():
         if not apk.is_file():
-            sys.exit("missing %s, build it first: python modules/lsposed/build.py" % apk)
+            sys.exit("missing %s, build it first: python modules/xposed/build.py" % apk)
         files[name] = apk.read_bytes()
     if "install.sh" in files or "customize.sh" in files:
         for path in sorted(META.rglob("*")):

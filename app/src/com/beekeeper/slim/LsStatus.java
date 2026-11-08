@@ -9,7 +9,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-/** LSPosed 的运行状态和模块启用/作用域读取。 */
+/** Xposed 框架的运行状态和模块启用/作用域读取。 */
 final class LsStatus extends Part {
 
   LsStatus(MainActivity a) {
@@ -84,18 +84,18 @@ final class LsStatus extends Part {
   }
 
   String lsActual(String pkg) {
-    if (!lsInstalled) return "实际：未检测到 LSPosed / Vector";
-    if (!lsKnown) return "实际：未能读取 LSPosed 的状态";
-    if (!lsRunning) return "实际：LSPosed 没有运行，模块不会生效";
-    if (lsEnabled == null) return "实际：未能读取 LSPosed 的配置";
+    if (!lsInstalled) return "实际：未检测到 Xposed 框架";
+    if (!lsKnown) return "实际：未能读取 Xposed 的状态";
+    if (!lsRunning) return "实际：Xposed 没有运行，模块不会生效";
+    if (lsEnabled == null) return "实际：未能读取 Xposed 的配置";
     Boolean e = lsEnabled.get(pkg);
-    if (e == null) return "实际：LSPosed 未登记此模块";
-    if (!e) return "实际：模块未在 LSPosed 中启用";
-    if (!lsServer) return "实际：LSPosed 已运行，但未注入系统，请重启后重试";
-    if (LS_SCOPES.get(pkg) == null) return "实际：已在 LSPosed 启用";
+    if (e == null) return "实际：Xposed 未登记此模块";
+    if (!e) return "实际：模块未在 Xposed 中启用";
+    if (!lsServer) return "实际：Xposed 已运行，但未注入系统，请重启后重试";
+    if (LS_SCOPES.get(pkg) == null) return "实际：已在 Xposed 启用";
     String miss = missingScope(pkg);
-    if (miss.length() > 0) return "实际：已在 LSPosed 启用，但作用域缺 " + miss;
-    return "实际：已在 LSPosed 启用，作用域齐全";
+    if (miss.length() > 0) return "实际：已在 Xposed 启用，但作用域缺 " + miss;
+    return "实际：已在 Xposed 启用，作用域齐全";
   }
 
   private String missingScope(String pkg) {

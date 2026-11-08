@@ -6,7 +6,7 @@ Configure with environment variables (see README.md):
   R8_JAR        r8.jar (stable R8 release)
   JAVA_HOME     JDK 8+ (optional if java/javac are on PATH)
   KEYSTORE, KS_PASS, KS_ALIAS   signing key. Updates only install over an older build signed with the same key.
-Extra inputs: modules/magisk/dist/*.zip, modules/lsposed/dist/*.apk, and app/bundled/aerial.apk (Aerial launcher, MIT, https://github.com/pengchujin/aerial-tv; downloaded and verified automatically if missing).
+Extra inputs: modules/magisk/dist/*.zip, modules/xposed/dist/*.apk, app/bundled/aerial.apk (Aerial launcher, MIT, https://github.com/pengchujin/aerial-tv) and app/bundled/vector.zip (Vector v2.2, GPL-3.0, https://github.com/JingMatrix/Vector) and app/bundled/neozygisk.zip (NeoZygisk v2.4, GPL-3.0, https://github.com/JingMatrix/NeoZygisk); all are downloaded and verified automatically if missing.
 """
 
 import os, re, shutil, subprocess, sys, zipfile
@@ -81,8 +81,18 @@ GH_MIRRORS = [
 ]
 
 
-def fetch_aerial():
-    """Download the latest Aerial release into app/bundled/ and verify it against the SHA-256 GitHub reports."""
+vector = ROOT / "bundled" / "vector.zip"
+VECTOR_REPO = "JingMatrix/Vector"
+VECTOR_TAG = "v2.2"
+VECTOR_ASSET = "Vector-v2.2-3080-Release.zip"
+neozygisk = ROOT / "bundled" / "neozygisk.zip"
+NEOZYGISK_REPO = "JingMatrix/NeoZygisk"
+NEOZYGISK_TAG = "v2.4"
+NEOZYGISK_ASSET = "NeoZygisk-v2.4-289-release.zip"
+
+
+def fetch_asset(dest, repo, asset_name, tag=None, sha256=None):
+    """Download a release asset into app/bundled/ (latest release unless tag is given) and verify its SHA-256 (GitHub's digest unless sha256 is given)."""
     import hashlib, json, urllib.request
 
     def get(url):
@@ -90,19 +100,19 @@ def fetch_aerial():
         with urllib.request.urlopen(req, timeout=60) as r:
             return r.read()
 
-    api = "https://api.github.com/repos/%s/releases/latest" % AERIAL_REPO
+    api = "https://api.github.com/repos/%s/releases/%s" % (repo, "tags/" + tag if tag else "latest")
     try:
         rel = json.loads(get(api))
-        asset = next(a for a in rel["assets"] if a["name"] == AERIAL_ASSET)
-        digest = asset["digest"].split(":", 1)[1].lower()
+        asset = next(a for a in rel["assets"] if a["name"] == asset_name)
+        digest = sha256 or asset["digest"].split(":", 1)[1].lower()
         url = asset["browser_download_url"]
     except Exception as e:
         sys.exit(
-            "could not query %s (%s); download %s from the Aerial releases page and put it at %s"
-            % (api, e, AERIAL_ASSET, aerial)
+            "could not query %s (%s); download %s from the %s releases page and put it at %s"
+            % (api, e, asset_name, repo, dest)
         )
-    print("Aerial", rel["tag_name"])
-    aerial.parent.mkdir(exist_ok=True)
+    print(repo, rel["tag_name"])
+    dest.parent.mkdir(exist_ok=True)
     last = None
     for cand in [url] + [m + url for m in GH_MIRRORS]:
         print("downloading", cand)
@@ -110,18 +120,22 @@ def fetch_aerial():
             data = get(cand)
             if hashlib.sha256(data).hexdigest() != digest:
                 raise ValueError("SHA-256 mismatch")
-            tmp = aerial.with_suffix(".part")
+            tmp = dest.with_suffix(".part")
             tmp.write_bytes(data)
-            tmp.replace(aerial)
+            tmp.replace(dest)
             return
         except Exception as e:
             last = e
             print("  failed:", e)
-    sys.exit("could not download Aerial (%s); download %s manually and put it at %s" % (last, url, aerial))
+    sys.exit("could not download %s (%s); download %s manually and put it at %s" % (repo, last, url, dest))
 
 
 if not aerial.exists():
-    fetch_aerial()
+    fetch_asset(aerial, AERIAL_REPO, AERIAL_ASSET)
+if not vector.exists():
+    fetch_asset(vector, VECTOR_REPO, VECTOR_ASSET, VECTOR_TAG)
+if not neozygisk.exists():
+    fetch_asset(neozygisk, NEOZYGISK_REPO, NEOZYGISK_ASSET, NEOZYGISK_TAG)
 
 if OUT.exists():
     shutil.rmtree(OUT)
@@ -193,6 +207,8 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DE
         zout.writestr(item, zin.read(item.filename))
     zout.write(dexdir / "classes.dex", "classes.dex")
     zout.write(aerial, "assets/aerial.apk", zipfile.ZIP_STORED)
+    zout.write(vector, "assets/mod_vector.zip", zipfile.ZIP_STORED)
+    zout.write(neozygisk, "assets/mod_neozygisk.zip", zipfile.ZIP_STORED)
     for name, apk in (
         ("tvplayerkeep", "TvPlayerKeep"),
         ("signalkeep", "SignalKeep"),
@@ -210,7 +226,7 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DE
         ("localdimmingmemory", "LocalDimmingMemory"),
     ):
         zout.write(
-            REPO / "modules" / "lsposed" / "dist" / (apk + ".apk"), "assets/apk_%s.apk" % name, zipfile.ZIP_STORED
+            REPO / "modules" / "xposed" / "dist" / (apk + ".apk"), "assets/apk_%s.apk" % name, zipfile.ZIP_STORED
         )
     for name, pattern in MODS.items():
         found = sorted((REPO / "modules" / "magisk" / "dist").glob(pattern))

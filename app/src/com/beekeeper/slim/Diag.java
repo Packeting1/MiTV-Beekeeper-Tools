@@ -72,7 +72,7 @@ final class Diag extends Part {
     new Dlg.Builder(a)
         .setTitle("上传诊断")
         .setMessage(
-            "我们将收集您设备的系统版本、模块状态、LSPosed 与模块日志、系统属性，并脱去序列号、MAC、IP 等敏感信息。"
+            "我们将收集您设备的系统版本、模块状态、Xposed 与模块日志、系统属性，并脱去序列号、MAC、IP 等敏感信息。"
                 + "\n\n在上传后，您将会得到一个 8 位的诊断码，有效期 14 天。反馈问题时请附上诊断码，开发者凭它排查。")
         .setPositiveButton(
             "上传",

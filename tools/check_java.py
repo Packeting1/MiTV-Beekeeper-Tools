@@ -1,4 +1,4 @@
-"""Compile every Java source tree (app and each LSPosed module) to catch errors before a real build.
+"""Compile every Java source tree (app and each Xposed module) to catch errors before a real build.
 
 Needs ANDROID_JAR (android.jar of API 28) and XPOSED_API (libxposed api-101.0.0.aar or its classes.jar), the same
 variables as the build scripts. Without them the check is skipped so contributors need no SDK locally; CI sets both.
@@ -37,7 +37,7 @@ def main():
                 sorted((ROOT / "app" / "src").rglob("*.java")),
             )
         ]
-        for mod in sorted((ROOT / "modules" / "lsposed" / "src").iterdir()):
+        for mod in sorted((ROOT / "modules" / "xposed" / "src").iterdir()):
             cp = android + os.pathsep + str(api)
             jobs.append((mod.name, common + ["--release", "17", "-cp", cp], sorted((mod / "src").rglob("*.java"))))
         failed = False

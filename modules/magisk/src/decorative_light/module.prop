@@ -3,4 +3,4 @@ name=Decorative Light
 version=2026.11.5
 versionCode=20261105
 author=Rin010
-description=Custom colors, DDP / sACN network control and optional 24-LED MCU firmware for the decorative light. Requires the DecorativeLight LSPosed module (installed with this module).
+description=Custom colors, DDP / sACN network control and optional 24-LED MCU firmware for the decorative light. Requires the DecorativeLight Xposed module (installed with this module).
