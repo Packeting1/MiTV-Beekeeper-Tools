@@ -77,15 +77,11 @@ final class VoiceKey extends Part {
 
   private void update() {
     syncVisible();
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < 3; i++) {
-      sb.append(i > 0 ? "\n" : "").append(NAMES[i]).append("：").append(label(act[i]));
-    }
     item.setInfo(
         "语音键动作",
         "设置单击、双击、长按各自执行的动作，改动将实时生效。",
         assistantEnabled(a) ? "语音助手没有禁用，语音键仍会唤醒小爱，自定义不会生效" : null,
-        sb.toString(),
+        null,
         ItemView.NEUTRAL);
   }
 

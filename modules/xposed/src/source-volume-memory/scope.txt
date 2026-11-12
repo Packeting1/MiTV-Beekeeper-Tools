@@ -1,0 +1,2 @@
+mitv.service
+com.xiaomi.mitv.settings

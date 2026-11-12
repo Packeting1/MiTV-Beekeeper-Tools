@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.beekeeper.slim"
-    android:versionCode="20261107"
-    android:versionName="2026.11.7">
+    android:versionCode="20261113"
+    android:versionName="2026.11.13">
 
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="28"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
 
     <application
         android:label="系统优化"
@@ -17,5 +20,6 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
             </intent-filter>
         </activity>
+        <service android:name=".MicService" android:exported="false"/>
     </application>
 </manifest>

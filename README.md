@@ -150,4 +150,5 @@ python app\build.py
 
 - [Aerial](https://github.com/pengchujin/aerial-tv)（MIT）：随应用附带的桌面
 - [Magisk](https://github.com/topjohnwu/Magisk)、[Vector](https://github.com/JingMatrix/Vector)、[NeoZygisk](https://github.com/JingMatrix/NeoZygisk)
+- [VB-CABLE](https://vb-audio.com/Cable/)（VB-Audio）：MiTvMic 使用的虚拟声卡驱动
 - 贡献者：[@Rin010](https://github.com/Rin010)（NoSignalAudioMode、Decorative Light）、[@Filey-Aaron](https://github.com/Filey-Aaron)（MediaBadge）、酷安 @伏犬（ADB Keeper、4K UI Switch）

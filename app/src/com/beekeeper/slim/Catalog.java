@@ -143,6 +143,12 @@ final class Catalog {
           null,
           "com.beekeeper.localdimmingmemory",
           "apk_localdimmingmemory.apk"),
+      Group.apk(
+          "信号源音量记忆",
+          "信号源和电视系统分别记住音量，切换时自动恢复，可在快捷设置的「专业功能」页开关。",
+          null,
+          "com.beekeeper.sourcevolumememory",
+          "apk_sourcevolumememory.apk"),
       new Group(KIND_MOD, "NeoZygisk", "Zygisk 环境，作为 Magisk 内置 Zygisk 的强大替代品，Xposed 框架都依赖它。", null)
           .mod("neozygisk", "mod_neozygisk.zip")
           .dir("zygisksu")
@@ -293,6 +299,9 @@ final class Catalog {
         new String[] {"com.xiaomi.mitv.tvplayer", "com.xiaomi.mitv.settings"});
     LS_SCOPES.put(
         "com.beekeeper.localdimmingmemory",
+        new String[] {"mitv.service", "com.xiaomi.mitv.settings"});
+    LS_SCOPES.put(
+        "com.beekeeper.sourcevolumememory",
         new String[] {"mitv.service", "com.xiaomi.mitv.settings"});
     LS_SCOPES.put("com.beekeeper.volumebalanceswitch", new String[] {"com.xiaomi.mitv.settings"});
     LS_SCOPES.put("com.beekeeper.voicekeymap", new String[] {"system"});

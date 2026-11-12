@@ -55,6 +55,7 @@ public class MainActivity extends Activity {
   final LsStatus ls = new LsStatus(this);
   final ApplyRunner applier = new ApplyRunner(this);
   LocalDimming ldm;
+  Mic mic;
   VoiceKey voiceKey;
   Group voiceKeyGroup;
   final Group[] GROUPS = Catalog.groups();
@@ -194,7 +195,13 @@ public class MainActivity extends Activity {
   LinearLayout[] pages;
 
   /** 页面序号，同时是 pages / navs 的下标。 */
-  static final int P_BASE = 0, P_APPS = 1, P_OPT = 2, P_FIX = 3, P_HIDDEN = 4, P_ABOUT = 5;
+  static final int P_BASE = 0,
+      P_APPS = 1,
+      P_OPT = 2,
+      P_FUNC = 3,
+      P_FIX = 4,
+      P_HIDDEN = 5,
+      P_ABOUT = 6;
 
   NavItem[] navs;
 
@@ -359,7 +366,7 @@ public class MainActivity extends Activity {
     ver.setPadding(dp(14), dp(2), 0, dp(16));
     side.addView(ver);
 
-    String[] names = {"基础", "应用类", "优化类", "修复类", "隐藏项", "关于"};
+    String[] names = {"基础类", "应用类", "优化类", "功能类", "修复类", "隐藏项", "关于"};
     navs = new NavItem[names.length];
     for (int i = 0; i < names.length; i++) {
       final int idx = i;
@@ -447,9 +454,10 @@ public class MainActivity extends Activity {
 
     pages =
         new LinearLayout[] {
-          newPage("基础", null, "其它模块依赖的基础组件。安装或更新后重启电视才生效。"),
+          newPage("基础类", null, "其它模块依赖的基础组件。安装或更新后重启电视才生效。"),
           newPage("应用类", null, "禁用后随时可以恢复。"),
           newPage("优化类", "Xposed 模块安装时会自动启用并勾选作用域。", "改动重启后生效。"),
+          newPage("功能类", null, "为电视增加的新功能。语音键自定义的改动重启后生效。"),
           newPage("修复类", null, "改动重启后生效。"),
           newPage("隐藏项", null, "以下是系统自带的页面，页面中的操作需注意。"),
           newPage("关于", null, null),
@@ -507,10 +515,12 @@ public class MainActivity extends Activity {
     ldm = new LocalDimming(this);
     addItem(pages[P_OPT], ldm.sw);
     addItem(pages[P_OPT], ldm.item);
+    mic = new Mic(this);
     voiceKey = new VoiceKey(this);
-    // 语音键自定义排在优化类第一项（标题和说明之后）
-    addItem(pages[P_OPT], voiceKeyGroup.box, 2);
-    addItem(pages[P_OPT], voiceKey.item, 3);
+    addItem(pages[P_FUNC], voiceKeyGroup.box);
+    addItem(pages[P_FUNC], voiceKey.item);
+    addItem(pages[P_FUNC], mic.sw);
+    addItem(pages[P_FUNC], mic.item);
 
     LinearLayout about = card();
     TextView aboutText = new TextView(this);
@@ -714,6 +724,7 @@ public class MainActivity extends Activity {
   void refresh() {
     render();
     ldm.load();
+    mic.load();
     voiceKey.load();
     // 查询线程共用缓存目录里的几个临时文件，同一时间只跑一个。
     if (refreshing) {

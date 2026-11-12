@@ -1,6 +1,7 @@
 app/out/
 app/bundled/
 /dist/
+/pc/dist/
 *.keystore
 *.jks
 *.idsig

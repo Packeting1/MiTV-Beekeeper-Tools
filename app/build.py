@@ -224,6 +224,7 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DE
         ("volumebalanceswitch", "VolumeBalanceSwitch"),
         ("voicekeymap", "VoiceKeyMap"),
         ("localdimmingmemory", "LocalDimmingMemory"),
+        ("sourcevolumememory", "SourceVolumeMemory"),
     ):
         zout.write(
             REPO / "modules" / "xposed" / "dist" / (apk + ".apk"), "assets/apk_%s.apk" % name, zipfile.ZIP_STORED
