@@ -7,7 +7,7 @@ final class Group {
   final String title, desc, warn;
   final String[] pkgs;
   final int kind;
-  String modId, dir, asset, confirm, confirmOff, requires, requiresMsg;
+  String modId, asset, confirm, confirmOff, requires, requiresMsg;
 
   /** Magisk 模块的配套 Xposed APK（资产名，包名即 pkgs[0]）：由应用随模块一起安装和卸载。 */
   String companion;
@@ -18,8 +18,8 @@ final class Group {
   /** 放在“基础”页；用内置版本安装，更新另外从 GitHub Releases 检测。 */
   boolean base;
 
-  /** 安装本项前要先删掉的另一个 Magisk 模块（目录名即 id）及其显示名。 */
-  String replaces, replacesName;
+  /** Magisk 自带的 Zygisk 开关：没有模块目录，状态存在 Magisk 数据库的 zygisk 设置里。 */
+  boolean zygisk;
 
   /** 更新来源：GitHub 仓库的最新 Release（repoAsset 以 * 开头按后缀匹配）。 */
   String repo, repoAsset;
@@ -67,16 +67,6 @@ final class Group {
     return this;
   }
 
-  /** 模块在 /data/adb/modules 下的真实目录名；和 modId 不同时才设置（NeoZygisk 与 Zygisk Next 都用 zygisksu）。 */
-  Group dir(String dir) {
-    this.dir = dir;
-    return this;
-  }
-
-  String dir() {
-    return dir != null ? dir : modId;
-  }
-
   /** 依赖另一个 Magisk 模块（按模块 id）：对方没勾选时本项锁定（点击提示 lockedMsg），本项勾选时也不能取消对方。 */
   Group requires(String modId, String lockedMsg) {
     this.requires = modId;
@@ -100,9 +90,8 @@ final class Group {
     return this;
   }
 
-  Group replaces(String modId, String name) {
-    this.replaces = modId;
-    this.replacesName = name;
+  Group zygisk() {
+    this.zygisk = true;
     return this;
   }
 

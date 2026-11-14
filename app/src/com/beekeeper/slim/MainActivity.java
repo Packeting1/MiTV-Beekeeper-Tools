@@ -43,7 +43,7 @@ import java.util.Set;
  * - 应用类：`pm disable-user` / `pm enable`，只能碰 GROUPS 里列出的可选后台应用，核心服务不在名单里。
  * - Aerial 桌面：装成系统应用 (Magisk 模块) 并设为默认桌面；系统只允许系统应用当默认桌面。
  * - 禁用系统桌面：只有Aerial已作为系统应用装好才能开启，禁用后如果默认桌面不是Aerial会自动回滚。
- * - Magisk 模块 (HGIG / LDM / Zygote64)：勾选 = `magisk --install-module`，取消 = 标记卸载 (重启时执行 uninstall.sh)。
+ * - Magisk 模块 (HGIG / LDM)：勾选 = `magisk --install-module`，取消 = 标记卸载 (重启时执行 uninstall.sh)。
  */
 public class MainActivity extends Activity {
 
@@ -54,10 +54,11 @@ public class MainActivity extends Activity {
   BaseMods baseMods;
   final LsStatus ls = new LsStatus(this);
   final ApplyRunner applier = new ApplyRunner(this);
+  final Migration migration = new Migration(this);
   LocalDimming ldm;
-  Mic mic;
   VoiceKey voiceKey;
-  Group voiceKeyGroup;
+  Group voiceKeyGroup, micGroup;
+  MicPairs micPairs;
   final Group[] GROUPS = Catalog.groups();
   final Hidden[] HIDDEN = Catalog.hidden();
 
@@ -128,12 +129,16 @@ public class MainActivity extends Activity {
         boolean keep = vk.box.isChecked() && g.box.isChecked();
         g.box.setLocked(keep, keep ? "已勾选“语音键自定义”，需先取消它才能启用语音助手" : null);
       }
+      if ((g.zygisk || "zygisk_vector".equals(g.modId)) && migration.needed()) {
+        g.box.setLocked(true, "检测到旧的 Zygisk / LSPosed 环境，请先完成迁移");
+      }
       if (fwMismatch(g) && !modInstalled(g)) {
         g.box.setChecked(false);
         g.box.setLocked(true, "仅适用于 " + FIRMWARE + "，当前固件为 " + Build.VERSION.INCREMENTAL);
       }
     }
     if (voiceKey != null) voiceKey.syncVisible();
+    if (micPairs != null) micPairs.syncVisible();
     updatePending();
   }
 
@@ -454,11 +459,11 @@ public class MainActivity extends Activity {
 
     pages =
         new LinearLayout[] {
-          newPage("基础类", null, "其它模块依赖的基础组件。安装或更新后重启电视才生效。"),
+          newPage("基础类", null, "其它模块依赖的基础组件。"),
           newPage("应用类", null, "禁用后随时可以恢复。"),
-          newPage("优化类", "Xposed 模块安装时会自动启用并勾选作用域。", "改动重启后生效。"),
-          newPage("功能类", null, "为电视增加的新功能。语音键自定义的改动重启后生效。"),
-          newPage("修复类", null, "改动重启后生效。"),
+          newPage("优化类", "Xposed 模块安装时会自动启用并勾选作用域。", ""),
+          newPage("功能类", null, "为电视增加的新功能。"),
+          newPage("修复类", null, null),
           newPage("隐藏项", null, "以下是系统自带的页面，页面中的操作需注意。"),
           newPage("关于", null, null),
         };
@@ -505,6 +510,10 @@ public class MainActivity extends Activity {
         voiceKeyGroup = g;
         continue;
       }
+      if (g.pkgs.length > 0 && MicPairs.MODULE.equals(g.pkgs[0])) {
+        micGroup = g;
+        continue;
+      }
       addItem(
           pages[
               g.base
@@ -515,12 +524,12 @@ public class MainActivity extends Activity {
     ldm = new LocalDimming(this);
     addItem(pages[P_OPT], ldm.sw);
     addItem(pages[P_OPT], ldm.item);
-    mic = new Mic(this);
     voiceKey = new VoiceKey(this);
     addItem(pages[P_FUNC], voiceKeyGroup.box);
     addItem(pages[P_FUNC], voiceKey.item);
-    addItem(pages[P_FUNC], mic.sw);
-    addItem(pages[P_FUNC], mic.item);
+    micPairs = new MicPairs(this);
+    addItem(pages[P_FUNC], micGroup.box);
+    addItem(pages[P_FUNC], micPairs.item);
 
     LinearLayout about = card();
     TextView aboutText = new TextView(this);
@@ -724,8 +733,8 @@ public class MainActivity extends Activity {
   void refresh() {
     render();
     ldm.load();
-    mic.load();
     voiceKey.load();
+    micPairs.load();
     // 查询线程共用缓存目录里的几个临时文件，同一时间只跑一个。
     if (refreshing) {
       refreshAgain = true;
@@ -794,6 +803,10 @@ public class MainActivity extends Activity {
                             + "for d in /data/adb/modules_update/*/; do [ -d \"$d\" ] || continue;"
                             + " d=${d%/}; id=${d##*/}; pv \"$d\"; [ \"$nm\" = NeoZygisk ] &&"
                             + " id=neozygisk; echo \"U:$id\"; echo \"X:$id|$code|$ver\"; done\n"
+                            // Magisk Zygisk 没有模块目录，开关在 Magisk 数据库里
+                            + "[ \"$(magisk --sqlite \"SELECT value FROM settings WHERE"
+                            + " key='zygisk'\" 2>/dev/null)\" = value=1 ] && echo"
+                            + " \"M:magisk_zygisk\"\n"
                             + "H=$(sha256sum /system/etc/mitv.config_product.xml 2>/dev/null | cut"
                             + " -d' ' -f1)\n"
                             + "M=$(sha256sum"
@@ -823,10 +836,8 @@ public class MainActivity extends Activity {
                             + " 2>/dev/null | cut -d' ' -f1) in"
                             + " 29adce40ed1a7a733d3f9799c55451b00903c5eb806ab2008d324dc94e389903|e48a381124833ee6173d83ca82b948edc3918a31795a250c09f9a395233f67fc)"
                             + " echo \"F:beekeeper_dp_audio\";; esac\n"
-                            + "for z in $(pidof zygote64); do grep -qE 'zygisk_(lsposed|vector)'"
-                            + " /proc/$z/maps 2>/dev/null && echo \"F:zygote64_fix\"; grep -q"
-                            + " modules/zygisksu/ /proc/$z/maps 2>/dev/null && echo \"F:zygisksu\";"
-                            + " done\n"
+                            + "for z in $(pidof zygote64); do grep -q /system/lib64/libzygisk.so"
+                            + " /proc/$z/maps 2>/dev/null && echo \"F:magisk_zygisk\"; done\n"
                             // 只有本模块会往这个路径 bind mount 补丁库
                             + "grep -q libmtkapp.so /proc/mounts && echo"
                             + " \"F:beekeeper_freesync_keep\"\n"
@@ -842,7 +853,8 @@ public class MainActivity extends Activity {
                             + "echo \"$S\" | grep -qE 'cannot connect|Socket file not found' &&"
                             + " echo \"L:dead\"\n"
                             // lspctl 直接报告；Vector 的 cli 不报告，改看系统进程里有没有加载 Zygisk 模块库。
-                            // NeoZygisk 加载的模块库在 maps 里没有路径，再看 Vector 日志有没有记录本次 system_server 的注入
+                            // Magisk Zygisk 下 maps 里没有 Vector 的库路径，再看 Vector 日志有没有记录本次
+                            // system_server 的注入
                             + "echo \"$S\" | grep -q 'System server: connected' && echo"
                             + " \"L:server\"\n"
                             + "LG=$(ls -t /data/adb/lspd/log/verbose_*.log 2>/dev/null | head -1)\n"
@@ -889,10 +901,6 @@ public class MainActivity extends Activity {
                     else if (line.equals("L:server")) lsS = true;
                   }
                 }
-                // 两个 Zygisk 实现共用 modules/zygisksu 目录，加载的是哪个由已安装的 id 决定
-                if (present.contains("neozygisk") && active.remove("zygisksu")) {
-                  active.add("neozygisk");
-                }
                 if (lsS) {
                   active.add("zygisk_vector");
                 }
@@ -933,6 +941,7 @@ public class MainActivity extends Activity {
                         modUp.updateBanner();
                         baseMods.autoCheck();
                         hideLoading();
+                        migration.offer();
                         refreshing = false;
                         if (refreshAgain) {
                           refreshAgain = false;
@@ -1018,15 +1027,16 @@ public class MainActivity extends Activity {
           String[] iv = modVer.get(g.modId);
           boolean off = modDisabled.contains(g.modId), on = modActive.contains(g.modId);
           String act = off ? "实际：在 Magisk 中被停用，未生效" : on ? "实际：已生效" : "实际：未生效（需重启）";
-          t = pend ? "当前：已安装，重启后生效" : "当前：已安装" + (iv == null ? "" : " " + iv[1]) + "\n" + act;
+          String has = g.zygisk ? "已开启" : "已安装";
+          t =
+              pend
+                  ? "当前：" + has + "，重启后生效"
+                  : "当前：" + has + (iv == null ? "" : " " + iv[1]) + "\n" + act;
           lv = pend || off || !on ? ItemView.WARN : ItemView.GOOD;
           String[] up = g.base && g.repo != null ? baseMods.update(g) : ups.get(g);
           if (up != null) t += "\n⬆ 有新版本：" + up[0] + " → " + up[1];
         } else {
-          t =
-              g.replaces != null && modPresent.contains(g.replaces)
-                  ? "当前：未安装（检测到 " + g.replacesName + "，安装时会先卸载它）"
-                  : "当前：未安装";
+          t = g.zygisk ? "当前：未开启" : "当前：未安装";
         }
         if (fwMismatch(g)) {
           t += "\n固件不匹配：仅适用于 " + FIRMWARE + "，当前为 " + Build.VERSION.INCREMENTAL;
@@ -1086,24 +1096,45 @@ public class MainActivity extends Activity {
         .show();
   }
 
+  /** 迁移完成：先给用户看结果，几秒后自动重启。 */
+  void showResultAutoReboot(String summary) {
+    if (isFinishing()) return;
+    new Dlg.Builder(this)
+        .setTitle("迁移完成")
+        .setMessage(Ui.tagged(summary + "\n\n电视即将重启……", GROUPS))
+        .setCancelable(false)
+        .show();
+    main.postDelayed(
+        new Runnable() {
+          public void run() {
+            rebootNow();
+          }
+        },
+        4000);
+  }
+
+  void rebootNow() {
+    new Thread(
+            new Runnable() {
+              public void run() {
+                final String out = suOut("reboot\n");
+                if (out == null)
+                  main.post(
+                      new Runnable() {
+                        public void run() {
+                          showResult("无法使用 root，没有重启。");
+                        }
+                      });
+              }
+            },
+            "slim-reboot")
+        .start();
+  }
+
   private final DialogInterface.OnClickListener rebootClick =
       new DialogInterface.OnClickListener() {
         public void onClick(DialogInterface d, int w) {
-          new Thread(
-                  new Runnable() {
-                    public void run() {
-                      final String out = suOut("reboot\n");
-                      if (out == null)
-                        main.post(
-                            new Runnable() {
-                              public void run() {
-                                showResult("无法使用 root，没有重启。");
-                              }
-                            });
-                    }
-                  },
-                  "slim-reboot")
-              .start();
+          rebootNow();
         }
       };
 

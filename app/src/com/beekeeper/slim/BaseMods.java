@@ -112,7 +112,7 @@ final class BaseMods extends Part {
     File f = new File(getCacheDir(), g.modId + ".zip");
     downloadFile(main, withMirrors(r.url), r.digest, f, p, tok);
     String[] prop = ModuleUpdater.readModProp(new FileInputStream(f));
-    if (prop == null || !g.dir().equals(prop[2])) {
+    if (prop == null || !g.modId.equals(prop[2])) {
       f.delete();
       throw new Exception("下载的不是 " + g.title + " 模块");
     }

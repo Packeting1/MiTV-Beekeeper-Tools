@@ -139,6 +139,9 @@ final class ApplyRunner extends Part {
 
   private int steps;
 
+  /** 本次 runSteps 成功后不再询问，直接重启（环境迁移用）。 */
+  boolean autoReboot;
+
   StringBuilder newScript() {
     steps = 0;
     return new StringBuilder(STEP);
@@ -230,6 +233,10 @@ final class ApplyRunner extends Part {
                     }
                     continue;
                   }
+                  if (g.zygisk) {
+                    step(script, g.title, "正在开启", "已开启，重启后生效", zygiskScript(1));
+                    continue;
+                  }
                   if (g.companion != null) {
                     try {
                       step(
@@ -243,22 +250,7 @@ final class ApplyRunner extends Part {
                     }
                   }
                   try {
-                    String zip = copyAsset(g.asset);
-                    StringBuilder b = new StringBuilder();
-                    // 直接删目录而不打移除标记：不运行它的卸载脚本（LSPosed 的会删掉与 Vector 共用的 /data/adb/lspd）
-                    if (g.replaces != null && a.modPresent.contains(g.replaces)) {
-                      b.append("rm -rf /data/adb/modules/")
-                          .append(g.replaces)
-                          .append(" /data/adb/modules_update/")
-                          .append(g.replaces)
-                          .append("\n");
-                    }
-                    b.append("if [ -d /data/adb/modules/").append(g.dir()).append(" ]; then\n");
-                    b.append("  rm -f /data/adb/modules/").append(g.dir()).append("/remove\n");
-                    b.append("  echo '@@MSG 已启用，重启后生效'\n");
-                    b.append("else magisk --install-module ").append(zip).append("; fi\n");
-                    b.append("rm -f ").append(zip).append("\n");
-                    step(script, g.title, "正在安装", "已安装，重启后生效", b.toString());
+                    step(script, g.title, "正在安装", "已安装，重启后生效", installModScript(g));
                   } catch (Exception e) {
                     err = (err == null ? "" : err) + "无法读取内置模块 " + g.asset + "：" + e + "\n";
                   }
@@ -274,6 +266,10 @@ final class ApplyRunner extends Part {
                     step(script, g.title, "正在卸载", "已卸载", b.toString());
                     continue;
                   }
+                  if (g.zygisk) {
+                    step(script, g.title, "正在关闭", "已关闭，重启后生效", zygiskScript(0));
+                    continue;
+                  }
                   if (g.companion != null) {
                     step(
                         script,
@@ -282,11 +278,11 @@ final class ApplyRunner extends Part {
                         "已卸载",
                         "pm uninstall " + g.pkgs[0] + "\n");
                   }
-                  b.append("if [ -d /data/adb/modules/").append(g.dir()).append(" ]; then\n");
-                  b.append("  touch /data/adb/modules/").append(g.dir()).append("/remove\n");
+                  b.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
+                  b.append("  touch /data/adb/modules/").append(g.modId).append("/remove\n");
                   b.append("  echo '@@MSG 已关闭，重启后生效'\n");
                   b.append("else rm -rf /data/adb/modules_update/")
-                      .append(g.dir())
+                      .append(g.modId)
                       .append("; echo '@@MSG 已移除'; fi\n");
                   step(script, g.title, "正在关闭", "已关闭", b.toString());
                 }
@@ -305,6 +301,22 @@ final class ApplyRunner extends Part {
             },
             "slim-apply")
         .start();
+  }
+
+  /** 模块已在 /data/adb/modules 里就只取消移除标记，否则用内置包安装。 */
+  String installModScript(Group g) throws Exception {
+    String zip = copyAsset(g.asset);
+    StringBuilder b = new StringBuilder();
+    b.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
+    b.append("  rm -f /data/adb/modules/").append(g.modId).append("/remove\n");
+    b.append("  echo '@@MSG 已启用，重启后生效'\n");
+    b.append("else magisk --install-module ").append(zip).append("; fi\n");
+    b.append("rm -f ").append(zip).append("\n");
+    return b.toString();
+  }
+
+  static String zygiskScript(int on) {
+    return "magisk --sqlite \"REPLACE INTO settings (key,value) VALUES('zygisk'," + on + ")\"\n";
   }
 
   private static String aerialScript(String apk) {
@@ -426,8 +438,10 @@ final class ApplyRunner extends Part {
         new Runnable() {
           public void run() {
             if (progress.isShowing()) progress.dismiss();
-            if (needReboot && ok) a.showResultReboot(text);
-            else showResult(text);
+            if (autoReboot && ok) a.showResultAutoReboot(text);
+            else if (needReboot && ok) a.showResultReboot(text);
+            else showResult(autoReboot ? "迁移失败" : "执行结果", text);
+            autoReboot = false;
             refresh();
           }
         });

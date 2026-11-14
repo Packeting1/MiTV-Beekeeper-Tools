@@ -6,7 +6,7 @@ Configure with environment variables (see README.md):
   R8_JAR        r8.jar (stable R8 release)
   JAVA_HOME     JDK 8+ (optional if java/javac are on PATH)
   KEYSTORE, KS_PASS, KS_ALIAS   signing key. Updates only install over an older build signed with the same key.
-Extra inputs: modules/magisk/dist/*.zip, modules/xposed/dist/*.apk, app/bundled/aerial.apk (Aerial launcher, MIT, https://github.com/pengchujin/aerial-tv) and app/bundled/vector.zip (Vector v2.2, GPL-3.0, https://github.com/JingMatrix/Vector) and app/bundled/neozygisk.zip (NeoZygisk v2.4, GPL-3.0, https://github.com/JingMatrix/NeoZygisk); all are downloaded and verified automatically if missing.
+Extra inputs: modules/magisk/dist/*.zip, modules/xposed/dist/*.apk, app/bundled/aerial.apk (Aerial launcher, MIT, https://github.com/pengchujin/aerial-tv) and app/bundled/vector.zip (Vector v2.2, GPL-3.0, https://github.com/JingMatrix/Vector); both are downloaded and verified automatically if missing.
 """
 
 import os, re, shutil, subprocess, sys, zipfile
@@ -58,7 +58,6 @@ version = re.search(r'versionName="([^"]+)"', manifest).group(1)
 MODS = {  # asset suffix -> module zip glob
     "hgig": "Beekeeper_HGIG_Fix_*.zip",
     "ldm": "Beekeeper_LDM_Fix_*.zip",
-    "zygote": "Zygote64_Fix_*.zip",
     "adbkeeper": "Beekeeper_ADB_Keeper_*.zip",
     "4kui": "Beekeeper_4KUI_Switch_*.zip",
     "hdr10plus": "Beekeeper_HDR10Plus_*.zip",
@@ -85,10 +84,6 @@ vector = ROOT / "bundled" / "vector.zip"
 VECTOR_REPO = "JingMatrix/Vector"
 VECTOR_TAG = "v2.2"
 VECTOR_ASSET = "Vector-v2.2-3080-Release.zip"
-neozygisk = ROOT / "bundled" / "neozygisk.zip"
-NEOZYGISK_REPO = "JingMatrix/NeoZygisk"
-NEOZYGISK_TAG = "v2.4"
-NEOZYGISK_ASSET = "NeoZygisk-v2.4-289-release.zip"
 
 
 def fetch_asset(dest, repo, asset_name, tag=None, sha256=None):
@@ -134,8 +129,6 @@ if not aerial.exists():
     fetch_asset(aerial, AERIAL_REPO, AERIAL_ASSET)
 if not vector.exists():
     fetch_asset(vector, VECTOR_REPO, VECTOR_ASSET, VECTOR_TAG)
-if not neozygisk.exists():
-    fetch_asset(neozygisk, NEOZYGISK_REPO, NEOZYGISK_ASSET, NEOZYGISK_TAG)
 
 if OUT.exists():
     shutil.rmtree(OUT)
@@ -208,7 +201,6 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DE
     zout.write(dexdir / "classes.dex", "classes.dex")
     zout.write(aerial, "assets/aerial.apk", zipfile.ZIP_STORED)
     zout.write(vector, "assets/mod_vector.zip", zipfile.ZIP_STORED)
-    zout.write(neozygisk, "assets/mod_neozygisk.zip", zipfile.ZIP_STORED)
     for name, apk in (
         ("tvplayerkeep", "TvPlayerKeep"),
         ("signalkeep", "SignalKeep"),
@@ -225,6 +217,7 @@ with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DE
         ("voicekeymap", "VoiceKeyMap"),
         ("localdimmingmemory", "LocalDimmingMemory"),
         ("sourcevolumememory", "SourceVolumeMemory"),
+        ("micstream", "MicStream"),
     ):
         zout.write(
             REPO / "modules" / "xposed" / "dist" / (apk + ".apk"), "assets/apk_%s.apk" % name, zipfile.ZIP_STORED

@@ -32,7 +32,6 @@ PLAIN = {
     "freesync_keep": "Beekeeper_FreeSyncKeep_v",
     "hgig_fix": "Beekeeper_HGIG_Fix_v",
     "ldm_fix": "Beekeeper_LDM_Fix_v",
-    "zygote64_fix": "Zygote64_Fix_v",
     "hdr10plus": "Beekeeper_HDR10Plus_v",
     "imax": "Beekeeper_IMAX_v",
     "aisr_level": "Beekeeper_AISR_Level_v",

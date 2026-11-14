@@ -149,13 +149,16 @@ final class Catalog {
           null,
           "com.beekeeper.sourcevolumememory",
           "apk_sourcevolumememory.apk"),
-      new Group(KIND_MOD, "NeoZygisk", "Zygisk 环境，作为 Magisk 内置 Zygisk 的强大替代品，Xposed 框架都依赖它。", null)
-          .mod("neozygisk", "mod_neozygisk.zip")
-          .dir("zygisksu")
-          .replaces("zygisksu", "Zygisk Next")
+      Group.apk(
+          "麦克风推流",
+          "把电视麦克风推给电脑端 MiTvMic。可在快捷设置的「专业功能」页开关。",
+          null,
+          "com.beekeeper.micstream",
+          "apk_micstream.apk"),
+      new Group(KIND_MOD, "Magisk Zygisk", "Zygisk 环境，Xposed 框架都依赖它。", null)
+          .mod("magisk_zygisk", null)
+          .zygisk()
           .base()
-          .source("JingMatrix/NeoZygisk", "*-release.zip")
-          .confirm("需关闭 Magisk 设置里自带的 Zygisk。\n已安装 Zygisk Next 时会将它卸载。")
           .confirmOff("关闭后 Vector 等基于 Zygisk 的模块都会失效。"),
       new Group(
               KIND_MOD,
@@ -165,9 +168,7 @@ final class Catalog {
           .mod("zygisk_vector", "mod_vector.zip")
           .base()
           .source("JingMatrix/Vector", "*-Release.zip")
-          .requires("neozygisk", "需先安装 NeoZygisk")
-          .replaces("zygisk_lsposed", "LSPosed")
-          .confirm("已安装 LSPosed 时会将它卸载。")
+          .requires("magisk_zygisk", "需先开启 Magisk Zygisk")
           .confirmOff("关闭后所有 Xposed 模块都会失效。"),
       new Group(
               KIND_MOD,
@@ -228,10 +229,6 @@ final class Catalog {
           .mod("beekeeper_ldm_fix", "mod_ldm.zip")
           .fix()
           .fwOnly(),
-      new Group(KIND_MOD, "Zygote64 修复", "修复 Xposed 模块在开机后未能稳定生效的问题。", null)
-          .mod("zygote64_fix", "mod_zygote.zip")
-          .confirmOff("关闭后 Xposed 模块可能不生效。")
-          .fix(),
     };
   }
 
@@ -303,6 +300,8 @@ final class Catalog {
     LS_SCOPES.put(
         "com.beekeeper.sourcevolumememory",
         new String[] {"mitv.service", "com.xiaomi.mitv.settings"});
+    LS_SCOPES.put(
+        "com.beekeeper.micstream", new String[] {"mitv.service", "com.xiaomi.mitv.settings"});
     LS_SCOPES.put("com.beekeeper.volumebalanceswitch", new String[] {"com.xiaomi.mitv.settings"});
     LS_SCOPES.put("com.beekeeper.voicekeymap", new String[] {"system"});
   }

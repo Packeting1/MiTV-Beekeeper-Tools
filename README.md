@@ -26,11 +26,10 @@
 
 ## 功能
 
-- **基础**：安装和更新 NeoZygisk、Vector。
+- **基础**：开启 Magisk Zygisk，安装和更新 Vector。
 - **禁用后台应用**：语音助手、统计诊断、云控中心、系统更新、屏保等。勾选即禁用，取消勾选即恢复。
 - **Aerial 桌面**：安装Aerial为系统应用并设为默认桌面，可选禁用系统桌面。
-- **体验优化**：语音键自定义、局部调光强度调节，以及PC杜比视界、图像设置、角标显示等增强。
-- **麦克风推流**：把电视的麦克风用作电脑麦克风，配套电脑端 [MiTvMic](#麦克风推流)。
+- **体验优化**：语音键自定义、电脑麦克风、局部调光强度调节，以及PC杜比视界、图像设置、角标显示等增强。
 - **模块管理**：勾选即安装 Magisk / Xposed 模块，取消勾选即移除。
 - **隐藏页面入口**：调试信息、色彩校准、开机视频、环绕声测试、MTK 工厂菜单等系统内置的隐藏页面。
 - **自动更新**：启动时在后台检查新版本；按顺序尝试多条下载线路，并校验 SHA-256、包名和签名后再安装。
@@ -40,7 +39,7 @@
 前提条件：
 
 - 已 root，并安装 [Magisk](https://github.com/topjohnwu/Magisk)；
-- 使用 Xposed 模块时，还需安装 Zygisk 和 Xposed 框架。
+- 使用 Xposed 模块时，还需开启 Zygisk 并安装 Xposed 框架（均可在应用的「基础类」完成）。
 
 ### 1. 安装应用
 
@@ -76,7 +75,6 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | :-- | :-- |
 | HGIG Fix | 补全缺失的 HGIG 支持标志，修复 HDR 色调映射菜单错位 |
 | LDM Fix | 将局部调光参数恢复为 OS2 的数值，减轻 HDR / 杜比视界过曝 |
-| Zygote64 Fix | 修复 Zygisk Next 遗漏注入 zygote64 的问题，使 Xposed 钩子在开机后生效 |
 | ADB Keeper | 保持 ADB 开关的开启状态 |
 | 4K UI Switch | 在「系统设置 > 通用设置」中显示「UI 显示模式」选项 |
 | Support HDR10+ | 上报 HDR10+ 能力（实际效果未验证） |
@@ -106,21 +104,13 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | VoiceKeyMap | 自定义遥控器语音键的单击、双击、长按动作：息屏（音响模式）、切换信号源、启动应用 |
 | VolumeBalanceSwitch | 在快捷设置的声音页新增「音量均衡」开关 |
 | LocalDimmingMemory | 按视频格式分别记忆精密光控档位，可在快捷设置的「专业功能」页开关 |
-
-## 麦克风推流
-
-电视的麦克风经局域网传到电脑，通过虚拟声卡 [VB-CABLE](https://vb-audio.com/Cable/) 作为电脑的麦克风使用。
-
-1. 在电视的应用中打开「功能类」页，开启「麦克风推流」。
-2. 在电脑上下载并安装 [MiTvMic](https://github.com/Packeting1/MiTV-Beekeeper-Tools/releases?q=mitvmic)（`MiTvMic-Installer-x64.exe`，仅支持 64 位 Windows），按提示安装 VB-CABLE 驱动。
-3. 在 MiTvMic 中扫描电视，选中后点击「配对」，并在电视上选择允许。
-4. 点击「设为默认麦克风」，或在需要的软件中选择 CABLE Output 作为麦克风。
-
-一台电视同一时间只接受一台电脑的连接。已配对的电脑可在电视「功能类」页的「已配对的电脑」中取消。
+| SourceVolumeMemory | 信号源和电视系统分别记住音量，切换时自动恢复，可在快捷设置的「专业功能」页开关 |
+| MicStream | 在电脑 [MiTvMic](https://github.com/Packeting1/MiTV-Beekeeper-Tools/releases?q=mitvmic) 上配对电视后，即可作为电脑的麦克风使用，可在快捷设置的「专业功能」页开关 |
 
 ## 常见问题
 
-- **Magisk 提示「Zygisk 未启用，此模块暂停加载」**：这是 Magisk 自身的提示文案，使用 NeoZygisk / Zygisk Next 时属于误报。请勿同时开启两个 Zygisk。
+- **只支持 Magisk Zygisk**：应用只适配 Magisk 自带的 Zygisk（「基础」页的「Magisk Zygisk」）和 Vector。NeoZygisk 只注入 64 位进程，电视播放器等 32 位应用里的 Xposed 模块不会生效，因此不再支持。
+- **启动时提示迁移环境**：检测到已安装 NeoZygisk、Zygisk Next、Zygote64 Fix 或 LSPosed 时，应用会建议迁移。确认后自动卸载它们，开启 Magisk Zygisk、安装 Vector，并重启电视。选择「暂不」则下次启动再提示，期间「基础」页的 Magisk Zygisk 和 Vector 保持锁定。
 - **系统升级之后**：FreeSync Keep Mode、LDM Fix 等依赖具体固件文件的模块会先校验文件，不匹配则自动跳过，不会写入分区。其他模块可能需要针对新版本重新适配。
 - **SignalKeep 的代价**：返回桌面时保留信号，内存多占用约 165 MB；在桌面停留超过 1 分钟后自动释放信号。保留期间桌面沿用信号的图像模式（例如信号为杜比视界时，桌面同样按杜比视界显示）。
 - **云端配置是否会覆盖开关类模块**：开关类模块将条目写入 `/data/system/mitv.config.xml`，并通过 `chattr +i` 锁定以防云端覆盖；卸载时解除锁定并还原。
@@ -147,7 +137,7 @@ python app\build.py
 
 - `XPOSED_API` 为 [libxposed API 101](https://github.com/libxposed/api)，可从 Maven Central 获取。
 - Xposed 模块输出到 `modules/xposed/dist/`。Magisk 模块从 `modules/magisk/src/` 打包为 `modules/magisk/dist/` 中的 zip，版本号见各模块的 `module.prop`。应用构建时从这两个 `dist` 目录取用，输出到 `dist/`。
-- 内置的 Aerial APK（[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT）若在 `app/bundled/aerial.apk` 不存在，构建时会自动下载最新 Release，并按 GitHub 提供的 SHA-256 校验。内置的 Vector v2.2（GPL-3.0，[JingMatrix/Vector](https://github.com/JingMatrix/Vector)）和 NeoZygisk v2.4（GPL-3.0，[JingMatrix/NeoZygisk](https://github.com/JingMatrix/NeoZygisk)）分别放在 `app/bundled/vector.zip`、`app/bundled/neozygisk.zip`，不存在时构建会下载并按 GitHub 提供的 SHA-256 校验。
+- 内置的 Aerial APK（[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT）若在 `app/bundled/aerial.apk` 不存在，构建时会自动下载最新 Release，并按 GitHub 提供的 SHA-256 校验。内置的 Vector v2.2（GPL-3.0，[JingMatrix/Vector](https://github.com/JingMatrix/Vector)）放在 `app/bundled/vector.zip`，不存在时构建会下载并按 GitHub 提供的 SHA-256 校验。
 - 使用自己的签名时替换 `KEYSTORE`。签名不同的应用无法覆盖安装。
 
 ## 贡献
@@ -161,6 +151,6 @@ python app\build.py
 ## 致谢
 
 - [Aerial](https://github.com/pengchujin/aerial-tv)（MIT）：随应用附带的桌面
-- [Magisk](https://github.com/topjohnwu/Magisk)、[Vector](https://github.com/JingMatrix/Vector)、[NeoZygisk](https://github.com/JingMatrix/NeoZygisk)
+- [Magisk](https://github.com/topjohnwu/Magisk)、[Vector](https://github.com/JingMatrix/Vector)
 - [VB-CABLE](https://vb-audio.com/Cable/)（VB-Audio）：MiTvMic 使用的虚拟声卡驱动
 - 贡献者：[@Rin010](https://github.com/Rin010)（NoSignalAudioMode、Decorative Light）、[@Filey-Aaron](https://github.com/Filey-Aaron)（MediaBadge）、酷安 @伏犬（ADB Keeper、4K UI Switch）
