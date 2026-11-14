@@ -841,11 +841,15 @@ public class MainActivity extends Activity {
                             + "[ -z \"$CTL\" ] && [ -d \"$LM\" ] && echo \"L:noctl\"\n"
                             + "echo \"$S\" | grep -qE 'cannot connect|Socket file not found' &&"
                             + " echo \"L:dead\"\n"
-                            // lspctl 直接报告；Vector 的 cli 不报告，改看系统进程里有没有加载 Zygisk 模块库
+                            // lspctl 直接报告；Vector 的 cli 不报告，改看系统进程里有没有加载 Zygisk 模块库。
+                            // NeoZygisk 加载的模块库在 maps 里没有路径，再看 Vector 日志有没有记录本次 system_server 的注入
                             + "echo \"$S\" | grep -q 'System server: connected' && echo"
                             + " \"L:server\"\n"
+                            + "LG=$(ls -t /data/adb/lspd/log/verbose_*.log 2>/dev/null | head -1)\n"
                             + "for p in $(pidof system_server); do grep -qE"
                             + " 'zygisk_(lsposed|vector)' /proc/$p/maps 2>/dev/null && echo"
+                            + " \"L:server\"; [ -n \"$LG\" ] && grep -qE \": *$p: *$p"
+                            + " I/VectorNative .*Injected Vector framework\" \"$LG\" && echo"
                             + " \"L:server\"; done\n"
                             + "for f in modules_config.db modules_config.db-wal; do rm -f"
                             + " \"$CD/lsp_$f\"; cp \"/data/adb/lspd/config/$f\" \"$CD/lsp_$f\""
