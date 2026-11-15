@@ -21,6 +21,7 @@
     <SolidColorBrush x:Key="TextPrimary" Color="#EDEFF4"/>
     <SolidColorBrush x:Key="TextSecondary" Color="#9AA4B5"/>
     <SolidColorBrush x:Key="Accent" Color="#4C8DFF"/>
+    <SolidColorBrush x:Key="Alert" Color="#F44336"/>
     <SolidColorBrush x:Key="AccentButton" Color="#3B82F6"/>
     <SolidColorBrush x:Key="CardFill" Color="#26282D"/>
     <SolidColorBrush x:Key="CardLine" Color="#34383E"/>
@@ -333,10 +334,17 @@
               <Grid>
                 <Border x:Name="Bar" Width="3" Height="16" CornerRadius="2" HorizontalAlignment="Left"
                         Margin="4,0,0,0" Background="{StaticResource Accent}" Visibility="Collapsed"/>
-                <ContentPresenter Margin="18,0,0,0" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Center">
+                  <ContentPresenter/>
+                  <Ellipse x:Name="UpdDot" Width="8" Height="8" Margin="5,3,0,0" VerticalAlignment="Top"
+                           Fill="{StaticResource Alert}" Visibility="Collapsed"/>
+                </StackPanel>
               </Grid>
             </Border>
             <ControlTemplate.Triggers>
+              <Trigger Property="Tag" Value="update">
+                <Setter TargetName="UpdDot" Property="Visibility" Value="Visible"/>
+              </Trigger>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Bd" Property="Background" Value="#1AFFFFFF"/>
               </Trigger>
@@ -497,7 +505,12 @@
           <TextBlock Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center">
             <Run Text="更新状态："/><Run x:Name="UpdateText" Text="尚未检查"/>
           </TextBlock>
-          <Button x:Name="UpdateBtn" Content="检查更新" Margin="14,0,0,0"/>
+          <Grid Margin="14,0,0,0">
+            <Button x:Name="UpdateBtn" Content="检查更新"/>
+            <Ellipse x:Name="UpdateDot" Width="10" Height="10" Margin="0,-4,-4,0" Fill="{StaticResource Alert}"
+                     HorizontalAlignment="Right" VerticalAlignment="Top" IsHitTestVisible="False"
+                     Visibility="Collapsed"/>
+          </Grid>
         </StackPanel>
         <TextBlock Foreground="{StaticResource TextSecondary}" LineHeight="24" TextWrapping="Wrap">
           <Run Text="配置和日志目录："/><Hyperlink x:Name="DirLink" Foreground="{StaticResource Accent}"

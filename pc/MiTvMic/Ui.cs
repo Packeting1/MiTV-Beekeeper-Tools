@@ -78,6 +78,7 @@ namespace MiTvMic
         readonly TextBlock aboutText;
         readonly System.Windows.Documents.Run updateText;
         readonly Button updateBtn;
+        readonly Ellipse updateDot;
         Update.Info found;
         bool checking;
         readonly TranslateTransform noticeShift = new TranslateTransform();
@@ -126,6 +127,7 @@ namespace MiTvMic
             aboutText = Get<TextBlock>("AboutText");
             updateText = Get<System.Windows.Documents.Run>("UpdateText");
             updateBtn = Get<Button>("UpdateBtn");
+            updateDot = Get<Ellipse>("UpdateDot");
             busyMask = Get<Border>("Busy");
             notice.RenderTransform = noticeShift;
             busyText = Get<TextBlock>("BusyText");
@@ -303,6 +305,8 @@ namespace MiTvMic
                         updateText.Text = "发现新版本 " + info.Version;
                         updateBtn.Content = "下载并更新";
                         updateBtn.Style = (Style)Window.FindResource("BtnAccent");
+                        updateDot.Visibility = Visibility.Visible;
+                        navAbout.Tag = "update";
                         ShowNotice("发现新版本 " + info.Version + "，可在「关于」页下载更新。", true);
                     }
                     else
