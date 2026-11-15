@@ -61,7 +61,7 @@ public final class HookEntry extends XposedModule {
   /** 停在桌面超过这个时间就拆除信号：保留着 4K160 信号时 HDMI RX/scaler 中断会多占约 16% CPU。 */
   private static final long HOME_HOLD_MS = 60000;
 
-  /* 看门狗每 100ms 判断一次桌面，默认桌面几乎不变，短时缓存避免反复查 PackageManager。 */
+  /** 看门狗每 100ms 判断一次桌面，默认桌面几乎不变，短时缓存避免反复查 PackageManager。 */
   private static final long HOME_PKG_TTL_MS = 5000;
 
   private volatile String homePkg;
@@ -243,7 +243,7 @@ public final class HookEntry extends XposedModule {
       if (m.getName().equals("setSessionSurface") && m.getParameterTypes().length == 1) {
         hook(m)
             .intercept(chain -> {
-              if (chain.getArgs().get(0) == null && !kept.isEmpty()) {
+              if (chain.getArg(0) == null && !kept.isEmpty()) {
                 log(Log.INFO, TAG, "TvView: null surface held back while signal is kept");
                 return null;
               }
@@ -282,6 +282,9 @@ public final class HookEntry extends XposedModule {
       log(Log.ERROR, TAG, "SearchingView hook failed", t);
     }
 
+    if (n == 0) {
+      log(Log.WARN, TAG, "TvView.setSessionSurface not found");
+    }
     log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + n);
   }
 
@@ -441,7 +444,7 @@ public final class HookEntry extends XposedModule {
     }
   }
 
-  /** 播放器被盖住期间每 100ms 查一次：仍在设置/桌面就继续保留，去了别的应用或息屏就补跑拆除。 fromPause 时顶层可能仍是播放器自己，最多宽限 1.5 秒。 */
+  /** 播放器被盖住期间每 100ms 查一次：仍在设置/桌面就继续保留，去了别的应用或息屏就补跑拆除。fromPause 时顶层可能仍是播放器自己，最多宽限 1.5 秒。 */
   private void startWatchdog(
       Activity a, XposedInterface.Invoker<?, Method> origPause, boolean fromPause) {
     Object token = new Object();

@@ -296,8 +296,8 @@ public final class HookEntry extends XposedModule {
             if (!SettingsSwitch.enabled(ctx, KEY_ENABLED)) {
               return chain.proceed(new Object[] {0, 0});
             }
-            int audioRes = (Integer) chain.getArgs().get(0);
-            int visionRes = (Integer) chain.getArgs().get(1);
+            int audioRes = (Integer) chain.getArg(0);
+            int visionRes = (Integer) chain.getArg(1);
             String audio = audioLabel(ctx, audioRes);
             if (audioRes != 0 && audio == null || !notifyBadge(ctx, visionRes != 0, audio)) {
               return chain.proceed();
@@ -472,15 +472,7 @@ public final class HookEntry extends XposedModule {
   // 原方法先判 IMAX 再判杜比，这里只拦杜比；读不到信息时不拦，保持原样
   private static boolean isPlainDolby(Object controller) {
     try {
-      Field f = null;
-      for (Class<?> k = controller.getClass(); f == null && k != null; k = k.getSuperclass()) {
-        try {
-          f = k.getDeclaredField("mVideoProxy");
-        } catch (NoSuchFieldException ignored) {
-        }
-      }
-      f.setAccessible(true);
-      Object proxy = f.get(controller);
+      Object proxy = field(controller.getClass(), "mVideoProxy").get(controller);
       Object info = proxy.getClass().getMethod("getVideoInfo").invoke(proxy);
       return info.getClass().getField("isDolbyVision").getBoolean(info)
           && !info.getClass().getField("isIMax").getBoolean(info);
@@ -631,8 +623,16 @@ public final class HookEntry extends XposedModule {
         lp.gravity = Gravity.TOP | Gravity.END;
         lp.y = Math.round(30 * dp);
         lp.x = Math.round(30 * dp);
-        fill(ctx, dp);
-        wm.addView(box, lp);
+        try {
+          fill(ctx, dp);
+          wm.addView(box, lp);
+        } catch (Throwable t) {
+          // 不能留下未挂到窗口的 box，否则之后都走原地更新分支，角标不再出现
+          box = null;
+          videoText = null;
+          audioText = null;
+          throw t;
+        }
       } else {
         box.animate().setListener(null).cancel();
         fading = false;

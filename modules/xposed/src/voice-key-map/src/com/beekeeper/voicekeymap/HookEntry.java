@@ -46,6 +46,8 @@ public final class HookEntry extends XposedModule {
 
   private static volatile boolean hooked;
 
+  private volatile boolean pressConsumed;
+
   private Handler worker;
   private Handler ui;
   private Method gotoXiaoAiMode;
@@ -80,10 +82,12 @@ public final class HookEntry extends XposedModule {
           .intercept(chain -> {
             KeyEvent e = (KeyEvent) chain.getArg(0);
             Context c = (Context) chain.getArg(3);
+            // 按下已被拦截时，松开也必须拦截，否则配置在按住期间被清空会让 held 无法复位。
             if (e.getKeyCode() == KeyEvent.KEYCODE_UNKNOWN
                 && e.getScanCode() == SCAN_CODE
-                && !config(c).isEmpty()) {
+                && (pressConsumed || !config(c).isEmpty())) {
               boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
+              pressConsumed = down;
               if (!down || e.getRepeatCount() == 0) {
                 worker.post(() -> onKey(c, down));
               }

@@ -109,7 +109,7 @@ final class Diag extends Part {
                     code = upload(text, endpoint());
                   }
                 } catch (Exception e) {
-                  msg = e.getMessage();
+                  msg = e.getMessage() != null ? e.getMessage() : e.toString();
                 }
                 final String t = title, m = msg, c = code;
                 main.post(

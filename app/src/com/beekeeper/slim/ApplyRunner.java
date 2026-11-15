@@ -88,19 +88,27 @@ final class ApplyRunner extends Part {
         .show();
   }
 
-  /** 先写 Xposed 库再安装：守护进程在包更新时重新读取，不用重启就能加载。 */
+  /** 安装后用 Vector 的 cli 启用模块并补全作用域，立即生效，不用重启。cli 对不存在的模块也报成功，所以最后再核对状态。 */
   String installApkScript(String pkg, String asset) throws Exception {
     String apk = copyAsset(asset);
     StringBuilder b = new StringBuilder();
-    b.append("CLASSPATH=")
-        .append(a.getPackageCodePath())
-        .append(" app_process /system/bin com.beekeeper.slim.LsDb ")
-        .append(pkg);
-    String[] scopes = LS_SCOPES.get(pkg);
-    if (scopes != null) for (String s : scopes) b.append(' ').append(s);
-    b.append("\n");
     b.append("pm install -r ").append(apk).append("\n");
     b.append("rm -f ").append(apk).append("\n");
+    b.append("C=\"timeout 15 sh /data/adb/modules/zygisk_vector/cli\"\n");
+    b.append("i=0\n");
+    b.append("until $C modules ls 2>/dev/null | grep -q \"^").append(pkg).append(" \"; do\n");
+    b.append("  i=$((i + 1)); [ $i -ge 10 ] && break; sleep 1\n");
+    b.append("done\n");
+    b.append("$C modules enable ").append(pkg).append(" >/dev/null 2>&1\n");
+    String[] scopes = LS_SCOPES.get(pkg);
+    if (scopes != null) {
+      b.append("$C scope add ").append(pkg);
+      for (String s : scopes) b.append(' ').append(s).append("/0");
+      b.append(" >/dev/null 2>&1\n");
+    }
+    b.append("$C modules ls 2>/dev/null | grep -q \"^")
+        .append(pkg)
+        .append(" .* enabled\" || echo \"Failure: 模块未能在 Xposed 中启用，请确认 Xposed 正在运行\"\n");
     return b.toString();
   }
 
@@ -129,6 +137,7 @@ final class ApplyRunner extends Part {
           + "  o=$(\"$4\" 2>&1)\n"
           + "  case \"$o\" in\n"
           + "    *Failure*|*Error*|*Exception*|*\"Installation failed\"*)\n"
+          + "      FAIL=1\n"
           + "      echo \"@@FAIL|$1|$(printf '%s' \"$o\" | grep -v '^$' | tail -n 2 | tr '\\n' '"
           + " ')\";;\n"
           + "    *)\n"
@@ -362,7 +371,7 @@ final class ApplyRunner extends Part {
   }
 
   private static String noHomeScript() {
-    // 先确认Aerial是系统应用；禁用后再确认默认桌面确实落到Aerial，否则立刻恢复系统桌面。
+    // 先确认 Aerial 是系统应用；禁用后再确认默认桌面确实落到 Aerial，否则立刻恢复系统桌面。
     StringBuilder b = new StringBuilder();
     b.append("if pm list packages -s | grep -q \"package:").append(DB_PKG).append("\\$\"; then\n");
     b.append("  pm disable-user --user 0 ").append(STOCK_HOME_PKG).append("\n");

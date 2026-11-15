@@ -103,16 +103,16 @@ final class LsStatus extends Part {
     if (need == null) return "";
     Set<String> have = lsScope == null ? null : lsScope.get(pkg);
     StringBuilder miss = new StringBuilder();
-    for (String a : need) {
-      if (have == null || !have.contains(a)) {
+    for (String s : need) {
+      if (have == null || !have.contains(s)) {
         if (miss.length() > 0) miss.append("、");
-        miss.append(a.startsWith("com.xiaomi.mitv.") ? a.substring(16) : a);
+        miss.append(s.startsWith("com.xiaomi.mitv.") ? s.substring(16) : s);
       }
     }
     return miss.toString();
   }
 
-  /** 已读到配置库，且模块没启用或作用域不全：点“应用”时由 LsDb 补上。 */
+  /** 已读到配置库，且模块没启用或作用域不全：点“应用”时由 Vector 的 cli 补上。 */
   boolean needsFix(String pkg) {
     if (!lsKnown || !lsRunning || lsEnabled == null) return false;
     return !Boolean.TRUE.equals(lsEnabled.get(pkg)) || missingScope(pkg).length() > 0;

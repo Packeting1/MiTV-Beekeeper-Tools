@@ -69,7 +69,7 @@ public final class HookEntry extends XposedModule {
     try {
       SessionKeeper.install(this, loader);
     } catch (Throwable error) {
-      log(Log.ERROR, TAG, "Session test unavailable", error);
+      log(Log.ERROR, TAG, "Session retention unavailable", error);
     }
     try {
       CountdownControls.install(this, loader);

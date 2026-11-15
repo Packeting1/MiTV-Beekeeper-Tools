@@ -1,4 +1,4 @@
-﻿// 版本号 = 日期 + 当天序号；
+﻿// 版本号手工维护，格式 年.月.日；同一天再次发布时追加第四位序号（Update.Format 仅在其大于 0 时显示）
 using System.Reflection;
 
 [assembly: AssemblyTitle("MiTvMic 电视麦克风")]

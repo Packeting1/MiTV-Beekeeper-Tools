@@ -4,7 +4,7 @@ import android.util.Log;
 import io.github.libxposed.api.XposedModule;
 
 /*
- * 麦克风推流整体放在这个模块里：mitv.service（系统常驻进程）里运行推流服务，快捷设置“专业功能”页里加开关和配对管理。
+ * 麦克风推流整体放在这个模块里：mitv.service（系统常驻进程）里运行推流服务，快捷设置“专业功能”页里加开关。
  * 修改后需要重启电视（或结束 xiaomi.tvservice 进程）才会重新加载服务。
  */
 public final class HookEntry extends XposedModule {

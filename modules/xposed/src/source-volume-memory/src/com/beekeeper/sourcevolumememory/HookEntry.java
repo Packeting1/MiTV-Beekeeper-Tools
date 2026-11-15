@@ -44,6 +44,7 @@ public final class HookEntry extends XposedModule {
   private Context ctx;
   private AudioManager audio;
   private String mode;
+  private boolean checkFailing;
 
   @Override
   public void onModuleLoaded(ModuleLoadedParam param) {
@@ -108,8 +109,12 @@ public final class HookEntry extends XposedModule {
   private void poll() {
     try {
       check();
+      checkFailing = false;
     } catch (Throwable t) {
-      log(Log.WARN, TAG, "check failed", t);
+      if (!checkFailing) {
+        checkFailing = true;
+        log(Log.WARN, TAG, "check failed", t);
+      }
     }
     worker.postDelayed(this::poll, POLL_MS);
   }

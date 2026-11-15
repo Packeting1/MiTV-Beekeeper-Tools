@@ -1,8 +1,8 @@
-"""Compile every Java source tree (app and each Xposed module) to catch errors before a real build.
+"""编译应用和每个 Xposed 模块的 Java 源码，在正式构建前发现错误。
 
-Needs ANDROID_JAR (android.jar of API 28) and XPOSED_API (libxposed api-101.0.0.aar or its classes.jar), the same
-variables as the build scripts. Without them the check is skipped so contributors need no SDK locally; CI sets both.
-JAVA_HOME is optional (javac on PATH is used otherwise).
+需要 ANDROID_JAR（API 28 的 android.jar）和 XPOSED_API（libxposed api-101.0.0.aar 或其 classes.jar），
+与构建脚本用的变量相同。未设置时跳过，本地贡献者无需安装 SDK，CI 会设置。
+JAVA_HOME 可选，未设置时用 PATH 里的 javac。
 """
 
 import os

@@ -28,7 +28,6 @@ public final class HookEntry extends XposedModule {
 
   private static final String ACTIVITY = "com.xiaomi.mitv.tvplayer.ExternalSourceActivity";
   private static final String MONITOR_UTILS = "com.xiaomi.mitv.tvplayer.monitor.MonitorUtils";
-  private static final int KEYCODE_MENU = 82;
 
   private static final Set<String> HOOKED = Collections.synchronizedSet(new HashSet<String>());
   private static final ThreadLocal<Boolean> IN_MENU_KEY = new ThreadLocal<>();
@@ -69,7 +68,7 @@ public final class HookEntry extends XposedModule {
 
     hook(esa.getDeclaredMethod("onKeyDown", int.class, KeyEvent.class))
         .intercept(chain -> {
-          if ((Integer) chain.getArg(0) != KEYCODE_MENU) {
+          if ((Integer) chain.getArg(0) != KeyEvent.KEYCODE_MENU) {
             return chain.proceed();
           }
           IN_MENU_KEY.set(Boolean.TRUE);
@@ -122,9 +121,14 @@ public final class HookEntry extends XposedModule {
           activity = new WeakReference<>((Activity) self);
           if (!receiverRegistered) {
             receiverRegistered = true;
-            ((Activity) self)
-                .getApplicationContext()
-                .registerReceiver(receiver, new IntentFilter(ACTION_FRONT_SIGHT));
+            try {
+              ((Activity) self)
+                  .getApplicationContext()
+                  .registerReceiver(receiver, new IntentFilter(ACTION_FRONT_SIGHT));
+            } catch (Throwable t) {
+              receiverRegistered = false;
+              log(Log.ERROR, TAG, "cannot register front sight receiver", t);
+            }
           }
           return chain.proceed();
         });

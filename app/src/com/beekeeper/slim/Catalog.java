@@ -96,7 +96,7 @@ final class Catalog {
       Group.apk(
           "信号源快速切换",
           "减少信号源和电视系统之间切换的黑屏时长。",
-          "代价：内存约占用165MB",
+          "代价：内存约占用 165MB",
           "com.beekeeper.signalkeep",
           "apk_signalkeep.apk"),
       Group.apk(
@@ -106,7 +106,11 @@ final class Catalog {
           "com.beekeeper.nosignalaudiomode",
           "apk_nosignalaudiomode.apk"),
       Group.apk(
-          "投屏小窗", "允许投屏内容以小窗叠加在信号源画面之上，并支持混音。", null, "com.beekeeper.castpip", "apk_castpip.apk"),
+          "投屏小窗",
+          "允许 AirPlay 和视频 App 投屏（DLNA）以小窗叠加在信号源画面之上，并支持混音。",
+          null,
+          "com.beekeeper.castpip",
+          "apk_castpip.apk"),
       Group.apk(
           "更多图像设置",
           "快捷设置的图像页新增「更多图像设置」，可直接进入图像参数。",
@@ -115,7 +119,7 @@ final class Catalog {
           "apk_moredisplaysettings.apk"),
       Group.apk(
           "游戏设置合并",
-          "游戏设置条的功能项合并到快捷设置的「游戏」页，并新增FPS 计数器、计时器、秒表。",
+          "游戏设置条的功能项合并到快捷设置的「游戏」页，并新增 FPS 计数器、计时器、秒表。",
           null,
           "com.beekeeper.gamemenu",
           "apk_gamemenu.apk"),
@@ -204,11 +208,11 @@ final class Catalog {
       new Group(
               KIND_MOD,
               "装饰灯",
-              "自定义装饰灯颜色，支持通过 DDP / sACN 网络控制灯光并提供 MCU 固件刷写功能。需先启用「ADB常开」。",
+              "自定义装饰灯颜色，支持通过 DDP / sACN 网络控制灯光并提供 MCU 固件刷写功能。需先启用「ADB 常开」。",
               "刷写 MCU 固件存在风险，卸载不会回滚 MCU 固件。",
               "com.beekeeper.decorativelight")
           .mod("beekeeper_decorative_light", "mod_decorative_light.zip")
-          .requires("mitv_adb_keeper", "为降低风险，安装此模块前需启用ADB常开")
+          .requires("mitv_adb_keeper", "为降低风险，安装此模块前需启用 ADB 常开")
           .confirm(
               "该模块会为系统灯控库打补丁，并提供 MCU 固件刷写功能。\n"
                   + "仅安装模块不会刷写 MCU 固件，卸载模块不会回滚已刷入的 MCU 固件。\n\n"
@@ -271,9 +275,7 @@ final class Catalog {
         new String[] {"com.xiaomi.mitv.tvplayer", "com.mediatek.tvinput"});
     LS_SCOPES.put(
         "com.beekeeper.castpip",
-        new String[] {
-          "com.xiaomi.mitv.smartshare", "com.xiaomi.mitv.tvplayer", "mitv.service", "system"
-        });
+        new String[] {"com.xiaomi.mitv.smartshare", "com.xiaomi.mitv.tvplayer", "mitv.service"});
     LS_SCOPES.put(
         "com.beekeeper.homeref",
         new String[] {"com.xiaomi.mitv.settings", "com.xiaomi.mitv.tvplayer", "mitv.service"});

@@ -244,7 +244,9 @@ namespace MiTvMic
         {
             lock (gate)
             {
-                fileLock.WaitOne();
+                // 持锁进程被杀时抛此异常，但锁已归当前线程所有，照常继续并在 finally 释放
+                try { fileLock.WaitOne(); }
+                catch (AbandonedMutexException) { }
                 try
                 {
                     Directory.CreateDirectory(Env.DataDir);

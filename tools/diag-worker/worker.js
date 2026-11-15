@@ -68,6 +68,7 @@ export default {
       if (!len || len > MAX_BYTES) return json({ error: "size" }, 413);
       const body = await req.arrayBuffer();
       if (body.byteLength > MAX_BYTES) return json({ error: "size" }, 413);
+      if (body.byteLength < 2) return json({ error: "format" }, 400);
       const m = new Uint8Array(body, 0, 2);
       if (m[0] !== 0x1f || m[1] !== 0x8b) return json({ error: "format" }, 400);
       const code = newCode();

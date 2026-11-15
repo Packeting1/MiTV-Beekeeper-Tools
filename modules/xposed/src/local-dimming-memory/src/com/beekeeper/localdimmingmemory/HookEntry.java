@@ -118,6 +118,17 @@ public final class HookEntry extends XposedModule {
                   onLevelChanged();
                 }
               });
+      // 开关由设置进程写入；开启后立即按当前格式恢复，否则下一次手动改档位会被当成格式变化而被覆盖。
+      ctx.getContentResolver()
+          .registerContentObserver(
+              Settings.Global.getUriFor(KEY_ENABLED),
+              false,
+              new ContentObserver(worker) {
+                @Override
+                public void onChange(boolean selfChange) {
+                  checkNow();
+                }
+              });
       checkNow();
     } catch (Throwable t) {
       log(Log.ERROR, TAG, "cannot register observer", t);

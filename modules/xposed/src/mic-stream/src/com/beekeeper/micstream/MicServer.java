@@ -29,6 +29,7 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 把电视麦克风通过局域网 TCP 推给电脑端 MiTvMic，运行在系统常驻的 mitv.service 进程里。
@@ -50,6 +51,9 @@ final class MicServer {
   private final Handler ui = new Handler(Looper.getMainLooper());
   private final Object statusLock = new Object();
 
+  /** 增益读写要调用外部进程，单独加锁，避免挡住配对和连接状态所用的 this 锁。 */
+  private final Object gainLock = new Object();
+
   private Context ctx;
   private ContentResolver cr;
   private Pairs pairs;
@@ -62,10 +66,10 @@ final class MicServer {
   private String clientToken;
   private int origGain = -1;
 
-  /** 正在弹窗询问的电脑 IP；允许后 60 秒内该 IP 的下一次配对请求拿到口令。 */
+  /** 正在弹窗询问的电脑 IP；允许后 60 秒内该 IP 的下一次配对请求拿到口令，拒绝同理。 */
   private String asking, allowed, denied;
 
-  private long allowedUntil;
+  private long allowedUntil, deniedUntil;
   private AlertDialog dialog;
 
   private final Runnable idleCheck =
@@ -163,16 +167,34 @@ final class MicServer {
   }
 
   private void listen() throws IOException {
-    final ServerSocket s = new ServerSocket();
-    s.setReuseAddress(true);
-    s.bind(new InetSocketAddress(Keys.PORT));
-    final DatagramSocket d = new DatagramSocket(null);
-    d.setReuseAddress(true);
-    d.bind(new InetSocketAddress(Keys.PORT));
-    server = s;
-    disco = d;
-    new Thread(() -> serve(s), "mic-accept").start();
-    new Thread(() -> discover(d), "mic-discover").start();
+    ServerSocket s = null;
+    DatagramSocket d = null;
+    boolean ok = false;
+    try {
+      s = new ServerSocket();
+      s.setReuseAddress(true);
+      s.bind(new InetSocketAddress(Keys.PORT));
+      d = new DatagramSocket(null);
+      d.setReuseAddress(true);
+      d.bind(new InetSocketAddress(Keys.PORT));
+      ok = true;
+    } finally {
+      // 只绑定成功了一半时必须释放，否则残留的 TCP 监听会让之后每次重新开启都绑定失败
+      if (!ok) {
+        try {
+          if (s != null) s.close();
+        } catch (IOException e) {
+          // 已关闭
+        }
+        if (d != null) d.close();
+      }
+    }
+    final ServerSocket accepting = s;
+    final DatagramSocket discovering = d;
+    server = accepting;
+    disco = discovering;
+    new Thread(() -> serve(accepting), "mic-accept").start();
+    new Thread(() -> discover(discovering), "mic-discover").start();
   }
 
   private void unlisten() {
@@ -262,13 +284,15 @@ final class MicServer {
   /** 允许、拒绝（含超时）的结果各被取走一次；都没有时开始询问。 */
   private String pairState(String ip, String name) {
     synchronized (this) {
-      if (ip.equals(allowed) && SystemClock.elapsedRealtime() <= allowedUntil) {
+      long now = SystemClock.elapsedRealtime();
+      // 电脑端不再轮询时结果会残留，超过有效期的结果丢弃，否则下一次配对会直接拿到旧结果
+      if (ip.equals(allowed)) {
         allowed = null;
-        return "TOKEN";
+        if (now <= allowedUntil) return "TOKEN";
       }
       if (ip.equals(denied)) {
         denied = null;
-        return "DENY";
+        if (now <= deniedUntil) return "DENY";
       }
       if (asking != null) return "WAIT";
       asking = ip;
@@ -312,11 +336,15 @@ final class MicServer {
 
   private synchronized void finishAsk(String ip, boolean allow) {
     asking = null;
+    long until = SystemClock.elapsedRealtime() + ALLOW_MS;
     if (allow) {
       allowed = ip;
-      allowedUntil = SystemClock.elapsedRealtime() + ALLOW_MS;
+      allowedUntil = until;
+      if (ip.equals(denied)) denied = null;
     } else {
       denied = ip;
+      deniedUntil = until;
+      if (ip.equals(allowed)) allowed = null;
     }
   }
 
@@ -429,44 +457,52 @@ final class MicServer {
 
   /** value 为 null 时读取增益，返回 tinymix 输出的第一行；否则设置增益。失败返回 null。 */
   private static String gain(String card, String value) {
+    Process p = null;
     try {
-      Process p =
+      p =
           new ProcessBuilder(
                   value == null
                       ? new String[] {"tinymix", "-D", card, GAIN_CONTROL}
                       : new String[] {"tinymix", "-D", card, GAIN_CONTROL, value})
               .redirectErrorStream(true)
               .start();
+      p.getOutputStream().close();
+      // 输出只有几行，先等进程结束再读，tinymix 卡住时靠超时放弃
+      if (!p.waitFor(3, TimeUnit.SECONDS)) return null;
       try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
         return r.readLine();
-      } finally {
-        p.waitFor();
       }
     } catch (IOException | InterruptedException e) {
       return null;
+    } finally {
+      if (p != null) p.destroyForcibly();
     }
   }
 
   /** 麦克风模拟增益默认在 0 档，录到的声音很小；推流期间调到 GAIN_STEP（0~480），结束后还原。必须在开始录音之后设置， 录音打开时系统会把它重置回 0。 */
-  private synchronized void raiseGain() {
-    String card = findCard();
-    if (card == null) return;
-    String cur = gain(card, null);
-    gain(card, String.valueOf(GAIN_STEP));
-    if (origGain >= 0 || cur == null) return;
-    int i = cur.indexOf(": ");
-    if (i < 0) return;
-    try {
-      origGain = Integer.parseInt(cur.substring(i + 2).trim().split("\\s")[0]);
-    } catch (NumberFormatException e) {
-      // 读不到原值就不还原
+  private void raiseGain() {
+    synchronized (gainLock) {
+      String card = findCard();
+      if (card == null) return;
+      String cur = gain(card, null);
+      gain(card, String.valueOf(GAIN_STEP));
+      if (origGain >= 0 || cur == null) return;
+      int i = cur.indexOf(": ");
+      if (i < 0) return;
+      try {
+        origGain = Integer.parseInt(cur.substring(i + 2).trim().split("\\s")[0]);
+      } catch (NumberFormatException e) {
+        // 读不到原值就不还原
+      }
     }
   }
 
-  private synchronized void restoreGain() {
-    String card = origGain < 0 ? null : findCard();
-    if (card != null) gain(card, String.valueOf(origGain));
-    origGain = -1;
+  private void restoreGain() {
+    synchronized (gainLock) {
+      String card = origGain < 0 ? null : findCard();
+      if (card != null) gain(card, String.valueOf(origGain));
+      origGain = -1;
+    }
   }
 
   private static void close(Socket s) {

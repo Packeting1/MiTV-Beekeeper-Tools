@@ -64,13 +64,16 @@ final class Migration extends Part {
 
   private static String removeScript(String[] l) {
     String dir = l[2];
+    // 前面的步骤失败就不卸载旧环境，避免留下没有框架的状态
+    String guard = "[ -n \"$FAIL\" ] && { echo \"Failure: 安装未成功，已跳过卸载\"; return; }\n";
     // 暂存的更新要一并删掉：重启时 Magisk 会先用它覆盖旧目录，移除标记随之丢失
     String staged = "rm -rf /data/adb/modules_update/" + dir + "\n";
     if (l[0].equals("zygisk_lsposed")) {
       // 直接删目录而不打移除标记：LSPosed 的卸载脚本会删掉与 Vector 共用的 /data/adb/lspd
-      return "rm -rf /data/adb/modules/" + dir + "\n" + staged;
+      return guard + "rm -rf /data/adb/modules/" + dir + "\n" + staged;
     }
-    return "[ -d /data/adb/modules/"
+    return guard
+        + "[ -d /data/adb/modules/"
         + dir
         + " ] && touch /data/adb/modules/"
         + dir

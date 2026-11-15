@@ -160,6 +160,7 @@ namespace MiTvMic
                 return Outcome.Fail(e.NativeErrorCode == ErrorCancelled
                     ? "已取消：未授予管理员权限。" : "请求管理员权限失败：" + e.Message);
             }
+            if (p == null) return Outcome.Fail("请求管理员权限失败：未能启动提权进程。");
             // runas 在用户点了「是」才返回，说明子进程已经在干活了
             Say(status, Working(op));
             p.WaitForExit();

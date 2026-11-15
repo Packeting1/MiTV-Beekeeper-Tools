@@ -730,7 +730,7 @@ namespace MiTvMic
                 ShowNotice("配对失败：" + error + "。可再次点击「配对」重试。", false);
                 return;
             }
-            Write(delegate { Pairings.Add(row.Ip, row.Name, token); });
+            if (!Write(delegate { Pairings.Add(row.Ip, row.Name, token); })) return;
             ShowNotice("已与 " + row.Ip + " 配对。请在「选择电视」页右键该电视，选择「启用」。", true);
             SyncLists();
         }

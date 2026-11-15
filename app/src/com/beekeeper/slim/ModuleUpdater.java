@@ -2,7 +2,6 @@ package com.beekeeper.slim;
 
 import static com.beekeeper.slim.Catalog.*;
 import static com.beekeeper.slim.Net.*;
-import static com.beekeeper.slim.Shell.*;
 
 import android.content.DialogInterface;
 import android.content.pm.PackageInfo;

@@ -115,11 +115,4 @@ final class Pairs {
     }
     return hit;
   }
-
-  synchronized Pair find(String token) {
-    for (Pair x : list()) {
-      if (x.token.equals(token)) return x;
-    }
-    return null;
-  }
 }

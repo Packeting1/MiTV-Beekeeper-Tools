@@ -127,16 +127,16 @@ final class AerialUpdater extends Part {
   boolean sameAerialSigner(String apkPath) {
     try {
       PackageManager pm = getPackageManager();
-      PackageInfo a = pm.getPackageArchiveInfo(apkPath, PackageManager.GET_SIGNATURES);
-      PackageInfo i = pm.getPackageInfo(DB_PKG, PackageManager.GET_SIGNATURES);
-      if (a == null
-          || a.signatures == null
-          || a.signatures.length == 0
-          || i.signatures == null
-          || i.signatures.length == 0) return true;
+      PackageInfo neu = pm.getPackageArchiveInfo(apkPath, PackageManager.GET_SIGNATURES);
+      PackageInfo old = pm.getPackageInfo(DB_PKG, PackageManager.GET_SIGNATURES);
+      if (neu == null
+          || neu.signatures == null
+          || neu.signatures.length == 0
+          || old.signatures == null
+          || old.signatures.length == 0) return true;
       Set<String> x = new HashSet<String>(), y = new HashSet<String>();
-      for (Signature s : a.signatures) x.add(s.toCharsString());
-      for (Signature s : i.signatures) y.add(s.toCharsString());
+      for (Signature s : neu.signatures) x.add(s.toCharsString());
+      for (Signature s : old.signatures) y.add(s.toCharsString());
       return x.equals(y);
     } catch (Exception e) {
       return true;
@@ -174,7 +174,6 @@ final class AerialUpdater extends Part {
                   return;
                 }
                 showInstalling(progress, p, "正在安装……");
-                String ver = tag.replaceFirst("^[vV]", "");
                 String md = "/data/adb/modules/" + DB_MODULE;
                 StringBuilder s = new StringBuilder();
                 s.append("PKG=").append(DB_PKG).append("\n");
@@ -191,11 +190,7 @@ final class AerialUpdater extends Part {
                 s.append("    mkdir -p $D/lib/arm64; rm -f $D/lib/arm64/*.so\n");
                 s.append("    cp $X/lib/arm64-v8a/*.so $D/lib/arm64/\n");
                 s.append("    chmod -R a+rX ").append(md).append("\n");
-                s.append("    sed -i \"s/Aerial [0-9][0-9.]* as a system app/Aerial ")
-                    .append(ver)
-                    .append(" as a system app/\" ")
-                    .append(md)
-                    .append("/module.prop\n");
+
                 s.append("    echo MODULE_OK\n");
                 s.append("  else rm -f $D/Aerial.apk.new; echo MODULE_FAIL; fi\n");
                 s.append("  rm -rf $X\n");

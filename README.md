@@ -39,7 +39,6 @@
 前提条件：
 
 - 已 root，并安装 [Magisk](https://github.com/topjohnwu/Magisk)；
-- 使用 Xposed 模块时，还需开启 Zygisk 并安装 Xposed 框架（均可在应用的「基础类」完成）。
 
 ### 1. 安装应用
 
@@ -57,15 +56,7 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 在电视应用列表中打开「系统优化」，首次启动时授予 root 权限。勾选所需项目后，点击底部的「应用」。
 
 - **Magisk 模块**：安装后需重启电视。以条目下方显示「实际：已生效」为准。
-- **Xposed 模块**：安装并自动勾选作用域。条目下方的「实际」会提示缺少哪一步。
-
-### 升级
-
-有新版本时，应用顶部会显示提示，点击「更新」即可，原有设置保留。Magisk 模块与 Aerial 的新版本同样会提示。
-
-### 还原
-
-取消勾选对应条目并点击「应用」，重启后生效。Magisk 模块也可直接在 Magisk 中移除。被禁用的应用取消勾选即可恢复。
+- **Xposed 模块**：安装并自动勾选作用域。以条目下方显示「实际：已在 Xposed 启用，作用域齐全」为准。
 
 ## 模块
 
@@ -92,12 +83,12 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 | :-- | :-- |
 | TvPlayerKeep | 从信号源进入系统设置时不黑屏 |
 | SignalKeep | 缩短信号源与电视系统之间切换的黑屏时间 |
-| CastPip | 允许投屏内容以小窗叠加在信号源画面之上 |
+| CastPip | 允许 AirPlay 和视频 App 投屏（DLNA）以小窗叠加在信号源画面之上 |
 | HomeRef | 默认桌面不是系统桌面时，使系统的「返回桌面」判断和跳转指向当前默认桌面 |
 | InstallUnlock | 解除小米包安装器依据云端黑名单对部分应用的安装拦截 |
 | NoSignalAudioMode | 信号源在无信号倒计时结束后进入音响模式，信号恢复时自动亮屏 |
 | MoreDisplaySettings | 快捷设置的图像页新增「更多图像设置」入口 |
-| GameMenu | 游戏设置条的功能项合并到快捷设置中的「游戏」页，并新增FPS 计数器、计时器、秒表 |
+| GameMenu | 游戏设置条的功能项合并到快捷设置中的「游戏」页，并新增 FPS 计数器、计时器、秒表 |
 | DolbyVisionTitle | 在杜比视界模式时，快捷设置的标题显示 Dolby Vision |
 | MediaBadge | 根据播放内容显示 HDR10 / HLG / Dolby / DTS 等角标，可在快捷设置的「专业功能」页开关显示 |
 | SignalInfoBadge | 简化信号源信息角标，可在快捷设置的「专业功能」页开关显示 |
@@ -109,13 +100,11 @@ adb install -r MiTV-Beekeeper-Tools-vX.Y.Z.apk
 
 ## 常见问题
 
-- **只支持 Magisk Zygisk**：应用只适配 Magisk 自带的 Zygisk（「基础」页的「Magisk Zygisk」）和 Vector。NeoZygisk 只注入 64 位进程，电视播放器等 32 位应用里的 Xposed 模块不会生效，因此不再支持。
+- **只支持 Magisk Zygisk**：应用只适配 Magisk 自带的 Zygisk 和 Vector。
 - **启动时提示迁移环境**：检测到已安装 NeoZygisk、Zygisk Next、Zygote64 Fix 或 LSPosed 时，应用会建议迁移。确认后自动卸载它们，开启 Magisk Zygisk、安装 Vector，并重启电视。选择「暂不」则下次启动再提示，期间「基础」页的 Magisk Zygisk 和 Vector 保持锁定。
 - **系统升级之后**：FreeSync Keep Mode、LDM Fix 等依赖具体固件文件的模块会先校验文件，不匹配则自动跳过，不会写入分区。其他模块可能需要针对新版本重新适配。
 - **SignalKeep 的代价**：返回桌面时保留信号，内存多占用约 165 MB；在桌面停留超过 1 分钟后自动释放信号。保留期间桌面沿用信号的图像模式（例如信号为杜比视界时，桌面同样按杜比视界显示）。
 - **云端配置是否会覆盖开关类模块**：开关类模块将条目写入 `/data/system/mitv.config.xml`，并通过 `chattr +i` 锁定以防云端覆盖；卸载时解除锁定并还原。
-- **如何还原**：取消勾选对应条目并重启电视。Magisk 模块也可以在 Magisk 中直接移除。
-
 
 ## 自行构建
 

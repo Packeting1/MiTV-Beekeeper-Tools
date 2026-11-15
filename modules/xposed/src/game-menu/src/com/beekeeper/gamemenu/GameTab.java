@@ -40,6 +40,7 @@ final class GameTab {
   private static final String PICTURE = "mitv.display.PictureSettingsManager";
   private static final String FRONT_SIGHT_KEY = "front_sight_index";
   private static final int INDEX = 6;
+  // settings 应用内的资源 ID（dimen / id），随系统版本变化，升级后需重新核对
   private static final int THIRD_ITEM_WIDTH = 0x7f0702e8;
   private static final int VALUE_ID = 0x7f0a034f;
   private static final String[] PRESET_NAMES = {"个人设定", "FPS", "RPG", "RTS", "MOBA", "SPT"};
@@ -551,7 +552,7 @@ final class GameTab {
     return null;
   }
 
-  /* 失败返回 -1：不是合法选项下标，界面上表现为“没有选中项”，而不是误显示成第 0 项。 */
+  /** 失败返回 -1：不是合法选项下标，界面上表现为“没有选中项”，而不是误显示成第 0 项。 */
   private Object call(Method m, Object target, Object... args) {
     try {
       return m.invoke(target, args);

@@ -9,7 +9,7 @@ using System.Threading;
 
 namespace MiTvMic
 {
-    // 和电视的协议（电视端见 MicService.java）：
+    // 和电视的协议（电视端见 MicServer.java）：
     //   UDP 9777  "MITVMIC?" 扫描，回 "MITVMIC 名称"；"MITVMIC-PAIR? 电脑名" 配对，回 MITVMIC-WAIT / MITVMIC-TOKEN 口令 / MITVMIC-DENY
     //   TCP 9777  发 16 字节口令，回 "TVMC"+采样率(int)+声道(byte)+位数(byte) 后是 PCM；口令不对回 "TVNO"
     static class Protocol
@@ -45,15 +45,20 @@ namespace MiTvMic
                         byte[] m = ua.IPv4Mask.GetAddressBytes();
                         byte[] bc = new byte[4];
                         for (int i = 0; i < 4; i++) bc[i] = (byte)(a[i] | ~m[i]);
+                        Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
                         try
                         {
-                            Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-                            socks.Add(s);
                             s.EnableBroadcast = true;
                             s.Bind(new IPEndPoint(ua.Address, 0));
-                            targets.Add(new IPEndPoint(new IPAddress(bc), Env.Port));
                         }
-                        catch (SocketException) { }
+                        catch (SocketException)
+                        {
+                            s.Close();
+                            continue;
+                        }
+                        // socks 与 targets 按下标一一对应，必须成对加入
+                        socks.Add(s);
+                        targets.Add(new IPEndPoint(new IPAddress(bc), Env.Port));
                     }
                 }
                 IPAddress manual;

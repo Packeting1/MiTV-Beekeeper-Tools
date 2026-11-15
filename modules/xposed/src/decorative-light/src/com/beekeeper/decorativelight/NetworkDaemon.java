@@ -37,6 +37,7 @@ public final class NetworkDaemon {
   private static final String INIT_PARAMS = "3 0x50 0x81 0 0\n";
   private static final long FRAME_TIMEOUT_MS = 3000;
   private static final long SOURCE_TTL_MS = 2500;
+  private static final long OUTPUT_RETRY_MS = 200;
 
   private final Object mutex = new Object();
   private final Map<String, Source> sources = new HashMap<>();
@@ -63,6 +64,8 @@ public final class NetworkDaemon {
   private int ddpSequence;
   private String ddpPeer = "";
   private long ddpAt;
+  private long retryAt;
+  private boolean outputFailing;
   private boolean ownsDriver;
   private String previousEnable = "1";
   private Object hidl;
@@ -199,6 +202,8 @@ public final class NetworkDaemon {
             mcu.poll(request);
             current = settingsSnapshot;
           }
+          // applyConfig 抛异常（如端口被占用）时保持 1 秒的间隔，不要每个循环都重试
+          pollAt = SystemClock.elapsedRealtime() + 1000;
           applyConfig(new Config(current));
           pollAt = SystemClock.elapsedRealtime() + 100;
         }
@@ -231,8 +236,11 @@ public final class NetworkDaemon {
       // 新数据包会唤醒空闲的渲染线程；已有待输出的帧则等到下一个限速时刻。
       synchronized (mutex) {
         long delay = 50_000_000L;
-        if (active() && serial != rendered && pending != null)
+        if (active() && serial != rendered && pending != null) {
           delay = Math.max(1_000_000L, Math.min(delay, pacer.delay(System.nanoTime())));
+          long backoff = retryAt - SystemClock.elapsedRealtime();
+          if (backoff > 0) delay = Math.max(delay, backoff * 1_000_000L);
+        }
         mutex.wait(delay / 1_000_000L, (int) (delay % 1_000_000L));
       }
     }
@@ -286,9 +294,26 @@ public final class NetworkDaemon {
     if (!active()) return;
     long now = SystemClock.elapsedRealtime();
     if (frame != null && now - at < FRAME_TIMEOUT_MS) {
-      takeOver();
-      pacer.sent(System.nanoTime());
-      output.send(frame);
+      if (now < retryAt) return;
+      try {
+        takeOver();
+        pacer.sent(System.nanoTime());
+        output.send(frame);
+      } catch (Exception e) {
+        // 失败时 pacer 一直处于到期状态，不退避会空转并逐帧刷同一条日志
+        retryAt = now + OUTPUT_RETRY_MS;
+        error = e.getClass().getSimpleName() + ": " + e.getMessage();
+        if (!outputFailing) {
+          outputFailing = true;
+          System.err.println(error);
+        }
+        try {
+          release();
+        } catch (Exception ignored) {
+        }
+        return;
+      }
+      outputFailing = false;
       outputFrames++;
       rendered = id;
       error = "";
@@ -343,19 +368,26 @@ public final class NetworkDaemon {
       if (c.sacn) {
         acquireMulticast();
         MulticastSocket socket = new MulticastSocket(null);
-        socket.setReuseAddress(false);
-        socket.bind(new InetSocketAddress(5568));
-        socket.setSoTimeout(1000);
-        InetAddress group =
-            InetAddress.getByName("239.255." + (c.universe >> 8) + "." + (c.universe & 255));
         int joined = 0;
-        for (NetworkInterface iface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-          if (!iface.isUp() || iface.isLoopback() || !iface.supportsMulticast()) continue;
-          try {
-            socket.joinGroup(new InetSocketAddress(group, 5568), iface);
-            joined++;
-          } catch (IOException ignored) {
+        boolean ok = false;
+        try {
+          socket.setReuseAddress(false);
+          socket.bind(new InetSocketAddress(5568));
+          socket.setSoTimeout(1000);
+          InetAddress group =
+              InetAddress.getByName("239.255." + (c.universe >> 8) + "." + (c.universe & 255));
+          for (NetworkInterface iface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+            if (!iface.isUp() || iface.isLoopback() || !iface.supportsMulticast()) continue;
+            try {
+              socket.joinGroup(new InetSocketAddress(group, 5568), iface);
+              joined++;
+            } catch (IOException ignored) {
+            }
           }
+          ok = true;
+        } finally {
+          // 尚未赋给 sacnSocket，closePorts 关不到它
+          if (!ok) socket.close();
         }
         sacnSocket = socket;
         System.out.println(

@@ -15,7 +15,7 @@ final class Group {
   /** 放在“修复类”页的 Magisk 模块。 */
   boolean fix;
 
-  /** 放在“基础”页；用内置版本安装，更新另外从 GitHub Releases 检测。 */
+  /** 放在“基础类”页；用内置版本安装，更新另外从 GitHub Releases 检测。 */
   boolean base;
 
   /** Magisk 自带的 Zygisk 开关：没有模块目录，状态存在 Magisk 数据库的 zygisk 设置里。 */

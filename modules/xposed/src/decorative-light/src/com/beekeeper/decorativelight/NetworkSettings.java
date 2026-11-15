@@ -32,7 +32,7 @@ public final class NetworkSettings {
     Settings.Global.putInt(ctx.getContentResolver(), "beekeeper_net_" + key, value);
   }
 
-  /** 自定义颜色和刷写会占用灯控，先退出网络接管。 */
+  /** 自定义颜色会占用灯控，先退出网络接管。 */
   public static void pause(Context ctx) {
     if (get(ctx, "enabled", 0) == 1) put(ctx, "enabled", 0);
   }

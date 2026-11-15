@@ -79,6 +79,7 @@ namespace MiTvMic
                 return i > 0 ? WaveName.Substring(0, i) : WaveName;
             }
         }
+
         // 声卡不可用时该怎么办（Ready 时为空）
         public string Hint(string device)
         {

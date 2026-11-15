@@ -102,8 +102,7 @@ public final class HookEntry extends XposedModule {
         .intercept(chain -> {
           Object r = chain.proceed();
           try {
-            Object pkgArg = chain.getArgs().get(0);
-            if (PLAYER.equals(pkgArg)) {
+            if (PLAYER.equals(chain.getArg(0))) {
               String st = (String) sysGet.invoke(null, "sys.cast.state", "0");
               Object mgr = patchF.get(chain.getThisObject());
               if (!"0".equals(st) && mgr != null) {
@@ -160,7 +159,7 @@ public final class HookEntry extends XposedModule {
       Method mute = svc.getDeclaredMethod("J0", String.class, boolean.class);
       hook(mute)
           .intercept(chain -> {
-            if (Boolean.TRUE.equals(chain.getArgs().get(1))) {
+            if (Boolean.TRUE.equals(chain.getArg(1))) {
               log(Log.INFO, TAG, "cast audio: mute on pip skipped");
               return null;
             }
@@ -173,8 +172,8 @@ public final class HookEntry extends XposedModule {
     Class<?> base = cl.loadClass(BASE_PIP_CAST);
     Method pipEntry = base.getDeclaredMethod("m", float.class);
     pipEntry.setAccessible(true);
-    XposedInterface.Hooker autoPip =
-        chain -> {
+    hook(base.getDeclaredMethod("onResume"))
+        .intercept(chain -> {
           Object r = chain.proceed();
           try {
             Activity a = (Activity) chain.getThisObject();
@@ -185,8 +184,7 @@ public final class HookEntry extends XposedModule {
             log(Log.ERROR, TAG, "auto pip schedule failed", t);
           }
           return r;
-        };
-    hook(base.getDeclaredMethod("onResume")).intercept(autoPip);
+        });
     log(Log.INFO, TAG, "cast hooks installed: launch=" + n + " autoPip=" + pipEntry.getName());
   }
 
@@ -346,7 +344,7 @@ public final class HookEntry extends XposedModule {
       if (m.getName().equals("setSessionSurface") && m.getParameterTypes().length == 1) {
         hook(m)
             .intercept(chain -> {
-              if (chain.getArgs().get(0) == null && !kept.isEmpty()) {
+              if (chain.getArg(0) == null && !kept.isEmpty()) {
                 log(Log.INFO, TAG, "TvView: null surface held back while cast active");
                 return null;
               }
@@ -397,6 +395,9 @@ public final class HookEntry extends XposedModule {
       log(Log.WARN, TAG, "SourceManagerImpl.isMiraCastMutualExclusion hook failed", t);
     }
 
+    if (n == 0) {
+      log(Log.WARN, TAG, "TvView.setSessionSurface not found");
+    }
     log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + n);
   }
 

@@ -103,6 +103,9 @@ public final class HookEntry extends XposedModule {
         n++;
       }
     }
+    if (n == 0) {
+      log(Log.WARN, TAG, "smartpanel settings launchers not found");
+    }
     log(Log.INFO, TAG, "panel hooks installed: " + n);
   }
 
@@ -255,7 +258,7 @@ public final class HookEntry extends XposedModule {
       if (m.getName().equals("setSessionSurface") && m.getParameterTypes().length == 1) {
         hook(m)
             .intercept(chain -> {
-              if (chain.getArgs().get(0) == null && !kept.isEmpty()) {
+              if (chain.getArg(0) == null && !kept.isEmpty()) {
                 log(Log.INFO, TAG, "TvView: null surface held back while settings active");
                 return null;
               }
@@ -265,6 +268,9 @@ public final class HookEntry extends XposedModule {
       }
     }
 
+    if (n == 0) {
+      log(Log.WARN, TAG, "TvView.setSessionSurface not found");
+    }
     log(Log.INFO, TAG, "player hooks installed, tvview hooks=" + n);
   }
 

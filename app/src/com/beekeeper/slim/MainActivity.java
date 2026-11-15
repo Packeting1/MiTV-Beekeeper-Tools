@@ -42,8 +42,9 @@ import java.util.Set;
  *
  * - 应用类：`pm disable-user` / `pm enable`，只能碰 GROUPS 里列出的可选后台应用，核心服务不在名单里。
  * - Aerial 桌面：装成系统应用 (Magisk 模块) 并设为默认桌面；系统只允许系统应用当默认桌面。
- * - 禁用系统桌面：只有Aerial已作为系统应用装好才能开启，禁用后如果默认桌面不是Aerial会自动回滚。
- * - Magisk 模块 (HGIG / LDM)：勾选 = `magisk --install-module`，取消 = 标记卸载 (重启时执行 uninstall.sh)。
+ * - 禁用系统桌面：只有 Aerial 已作为系统应用装好才能开启，禁用后如果默认桌面不是 Aerial 会自动回滚。
+ * - Magisk 模块：勾选 = `magisk --install-module`，取消 = 标记卸载 (重启时执行 uninstall.sh)。
+ * - Xposed 模块 (APK)：勾选 = `pm install` 内置 APK 并在 Xposed 里启用、补全作用域，取消 = `pm uninstall`。
  */
 public class MainActivity extends Activity {
 
@@ -251,14 +252,9 @@ public class MainActivity extends Activity {
   }
 
   void addItem(LinearLayout page, View item) {
-    addItem(page, item, -1);
-  }
-
-  /** index 为 -1 时加到末尾。 */
-  void addItem(LinearLayout page, View item, int index) {
     LinearLayout.LayoutParams lp = Ui.lp();
     lp.topMargin = dp(6);
-    page.addView(item, index, lp);
+    page.addView(item, lp);
   }
 
   LinearLayout card() {
@@ -920,32 +916,36 @@ public class MainActivity extends Activity {
                 main.post(
                     new Runnable() {
                       public void run() {
-                        if (!bm.isEmpty() || !ba.isEmpty()) {
-                          bundledMod = bm;
-                          bundledApk = ba;
-                        }
-                        modVer = vInst;
-                        modUpVer = vUp;
-                        modPresent = ok ? present : null;
-                        modRemoving = ok ? removing : null;
-                        modPending = ok ? pending : null;
-                        modDisabled = disabled;
-                        modActive = active;
-                        ls.lsInstalled = lsInst;
-                        ls.lsKnown = lsKnown;
-                        ls.lsRunning = lsRun;
-                        ls.lsServer = lsSrv;
-                        ls.lsEnabled = dbRead ? lsEn : null;
-                        ls.lsScope = dbRead ? lsSc : null;
-                        render();
-                        modUp.updateBanner();
-                        baseMods.autoCheck();
-                        hideLoading();
-                        migration.offer();
-                        refreshing = false;
-                        if (refreshAgain) {
-                          refreshAgain = false;
-                          refresh();
+                        try {
+                          if (!bm.isEmpty() || !ba.isEmpty()) {
+                            bundledMod = bm;
+                            bundledApk = ba;
+                          }
+                          modVer = vInst;
+                          modUpVer = vUp;
+                          modPresent = ok ? present : null;
+                          modRemoving = ok ? removing : null;
+                          modPending = ok ? pending : null;
+                          modDisabled = disabled;
+                          modActive = active;
+                          ls.lsInstalled = lsInst;
+                          ls.lsKnown = lsKnown;
+                          ls.lsRunning = lsRun;
+                          ls.lsServer = lsSrv;
+                          ls.lsEnabled = dbRead ? lsEn : null;
+                          ls.lsScope = dbRead ? lsSc : null;
+                          render();
+                          modUp.updateBanner();
+                          baseMods.autoCheck();
+                          hideLoading();
+                          migration.offer();
+                        } finally {
+                          hideLoading();
+                          refreshing = false;
+                          if (refreshAgain) {
+                            refreshAgain = false;
+                            refresh();
+                          }
                         }
                       }
                     });
