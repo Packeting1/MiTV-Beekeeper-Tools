@@ -15,7 +15,6 @@ src/<package path>/HookEntry.java (the entry class; other .java files under src/
 """
 
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +25,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
+
+sys.path.insert(0, str(ROOT.parent.parent))
+from modules.catalog import load
 
 
 def need(name):
@@ -57,19 +59,30 @@ def java(name):
 
 
 def run(cmd):
-    print(">", " ".join(str(c) for c in cmd))
-    r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True)
-    print(r.stdout[-2000:], r.stderr[-3000:])
+    cmd = [str(c) for c in cmd]
+    logged = cmd.copy()
+    secrets = [KS_PASS]
+    for i, arg in enumerate(cmd[:-1]):
+        if arg in ("--ks-pass", "--key-pass"):
+            logged[i + 1] = "<redacted>"
+            if cmd[i + 1].startswith("pass:"):
+                secrets.append(cmd[i + 1][5:])
+    print(">", " ".join(logged))
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    stdout, stderr = r.stdout, r.stderr
+    for secret in secrets:
+        if secret:
+            stdout = stdout.replace(secret, "<redacted>")
+            stderr = stderr.replace(secret, "<redacted>")
+    print(stdout[-2000:] + "\n" + stderr[-3000:])
     if r.returncode:
         sys.exit("FAILED rc=%d" % r.returncode)
 
 
-def build(mod):
+def build(module):
+    mod = module["source"]
     manifest_path = mod / "AndroidManifest.xml"
-    manifest = manifest_path.read_text(encoding="utf-8")
-    pkg = re.search(r'package="([^"]+)"', manifest).group(1)
-    label = re.search(r'android:label="([^"]+)"', manifest).group(1)
-    scope = [s.strip() for s in (mod / "scope.txt").read_text(encoding="utf-8").splitlines() if s.strip()]
+    pkg, label, scope = module["package"], module["label"], module["scopes"]
     entry = mod / "src" / Path(*pkg.split(".")) / "HookEntry.java"
     if not entry.exists():
         sys.exit("missing entry class source: %s" % entry)
@@ -175,7 +188,7 @@ def compile_and_sign(mod, out, manifest_path, pkg, label, scope):
             "--ks",
             KS,
             "--ks-pass",
-            "pass:" + KS_PASS,
+            "env:KS_PASS",
             "--ks-key-alias",
             KS_ALIAS,
             "--v1-signing-enabled",
@@ -193,6 +206,15 @@ def compile_and_sign(mod, out, manifest_path, pkg, label, scope):
     print("OK", final, final.stat().st_size)
 
 
-mods = [SRC / m for m in sys.argv[1:]] or sorted(p for p in SRC.iterdir() if (p / "AndroidManifest.xml").exists())
-for m in mods:
-    build(m)
+def main(names=None):
+    modules = {entry["key"]: entry for entry in load() if entry["kind"] == "xposed"}
+    wanted = sys.argv[1:] if names is None else names
+    unknown = set(wanted) - set(modules)
+    if unknown:
+        sys.exit("unknown module: " + ", ".join(sorted(unknown)))
+    for key in wanted or sorted(modules):
+        build(modules[key])
+
+
+if __name__ == "__main__":
+    main()

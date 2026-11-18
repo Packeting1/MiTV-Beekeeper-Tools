@@ -13,9 +13,13 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from modules.catalog import load, write_java
 
 
 def main():
+    entries = load()
+    print("ok   metadata (%d records)" % len(entries))
     android = os.environ.get("ANDROID_JAR")
     xposed = os.environ.get("XPOSED_API")
     if not (android and xposed):
@@ -34,10 +38,11 @@ def main():
             (
                 "app",
                 common + ["-source", "8", "-target", "8", "-bootclasspath", android],
-                sorted((ROOT / "app" / "src").rglob("*.java")),
+                sorted((ROOT / "app" / "src").rglob("*.java")) + [write_java(Path(tmp) / "generated", entries)],
             )
         ]
-        for mod in sorted((ROOT / "modules" / "xposed" / "src").iterdir()):
+        for entry in sorted((e for e in entries if e["kind"] == "xposed"), key=lambda e: e["key"]):
+            mod = entry["source"]
             cp = android + os.pathsep + str(api)
             jobs.append((mod.name, common + ["--release", "17", "-cp", cp], sorted((mod / "src").rglob("*.java"))))
         failed = False

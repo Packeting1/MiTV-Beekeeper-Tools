@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Win32;
 
@@ -51,6 +52,24 @@ namespace MiTvMic
             }
         }
 
+        static bool SameFile(string a, string b)
+        {
+            try
+            {
+                if (new FileInfo(a).Length != new FileInfo(b).Length) return false;
+                using (SHA256 sha = SHA256.Create())
+                using (FileStream x = File.OpenRead(a))
+                using (FileStream y = File.OpenRead(b))
+                {
+                    byte[] hx = sha.ComputeHash(x), hy = sha.ComputeHash(y);
+                    for (int i = 0; i < hx.Length; i++) if (hx[i] != hy[i]) return false;
+                    return true;
+                }
+            }
+            catch (IOException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
+        }
+
         // 只有安装目录里的副本能运行界面。其他位置的副本只能安装/更新或转交给已安装的副本。
         // 返回 false 表示当前就是已安装的副本，继续运行；返回 true 表示当前进程应当退出
         public static bool Offer()
@@ -58,7 +77,8 @@ namespace MiTvMic
             if (IsInstalledCopy) return false;
             Version mine = Update.Current;
             Version installed = InstalledVersion();
-            if (installed != null && installed >= mine)
+            bool sameVersion = installed != null && installed == mine;
+            if (installed != null && (installed > mine || sameVersion && SameFile(Exe, Env.SelfExe)))
             {
                 Launch();
                 return true;
@@ -67,8 +87,11 @@ namespace MiTvMic
             bool fresh = installed == null;
             string text = fresh
                 ? "MiTvMic 需要安装后才能使用。\n安装位置：" + Dir + "\n安装后会创建桌面和开始菜单快捷方式。"
-                : "已安装 MiTvMic " + Update.Format(installed) + "，是否更新到 " + Update.Format(mine) + "？";
-            if (!Dialog.Ask(null, fresh ? "安装 MiTvMic" : "更新 MiTvMic", text, fresh ? "安装" : "更新", "取消"))
+                : sameVersion
+                    ? "检测到同版本的不同安装包，是否重新安装 MiTvMic " + Update.Format(mine) + "？\n配置和配对记录会保留。"
+                    : "已安装 MiTvMic " + Update.Format(installed) + "，是否更新到 " + Update.Format(mine) + "？";
+            string action = fresh ? "安装" : sameVersion ? "修复" : "更新";
+            if (!Dialog.Ask(null, action + " MiTvMic", text, action, "取消"))
                 return true;
             try
             {

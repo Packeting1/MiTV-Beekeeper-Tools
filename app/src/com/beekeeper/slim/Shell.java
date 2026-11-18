@@ -14,23 +14,49 @@ final class Shell {
     void line(String l);
   }
 
+  static final class Result {
+    final String out;
+    final int rc;
+
+    Result(String out, int rc) {
+      this.out = out;
+      this.rc = rc;
+    }
+  }
+
   /** 跑脚本，返回逐行读到的输出；退出码写入 rc[0]。 */
   private static String exec(String script, int[] rc, Lines cb) throws Exception {
     Process p = new ProcessBuilder("su").redirectErrorStream(true).start();
-    OutputStream os = p.getOutputStream();
-    os.write(script.getBytes("UTF-8"));
-    os.write("exit\n".getBytes("UTF-8"));
-    os.flush();
-    os.close();
-    BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), "UTF-8"));
-    StringBuilder sb = new StringBuilder();
-    String line;
-    while ((line = r.readLine()) != null) {
-      sb.append(line).append("\n");
-      if (cb != null) cb.line(line);
+    try {
+      try (OutputStream os = p.getOutputStream()) {
+        os.write(script.getBytes("UTF-8"));
+        os.write("exit\n".getBytes("UTF-8"));
+        os.flush();
+      }
+      StringBuilder sb = new StringBuilder();
+      try (BufferedReader r =
+          new BufferedReader(new InputStreamReader(p.getInputStream(), "UTF-8"))) {
+        String line;
+        while ((line = r.readLine()) != null) {
+          sb.append(line).append("\n");
+          if (cb != null) cb.line(line);
+        }
+      }
+      rc[0] = p.waitFor();
+      return sb.toString();
+    } finally {
+      p.destroy();
     }
-    rc[0] = p.waitFor();
-    return sb.toString();
+  }
+
+  static Result suResult(String script, Lines cb) {
+    try {
+      int[] rc = new int[1];
+      String out = exec(script, rc, cb);
+      return new Result(out, rc[0]);
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   /** 跑 su 脚本并原样返回输出；没有 root 或出错（退出码非 0 且没有任何输出）返回 null。 */
@@ -64,7 +90,8 @@ final class Shell {
     try {
       int[] rc = new int[1];
       String out = exec(script, rc, null);
-      if (rc[0] != 0 && out.length() == 0) return "su 返回 " + rc[0] + "，可能没有授予 root。\n";
+      if (rc[0] != 0)
+        return out + "执行失败，su 返回 " + rc[0] + (out.length() == 0 ? "，可能没有授予 root。\n" : "。\n");
       return out + "完成。\n";
     } catch (Exception e) {
       return "无法使用 root：" + e + "\n";

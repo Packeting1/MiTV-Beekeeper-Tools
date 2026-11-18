@@ -65,7 +65,7 @@ final class Migration extends Part {
   private static String removeScript(String[] l) {
     String dir = l[2];
     // 前面的步骤失败就不卸载旧环境，避免留下没有框架的状态
-    String guard = "[ -n \"$FAIL\" ] && { echo \"Failure: 安装未成功，已跳过卸载\"; return; }\n";
+    String guard = "[ -n \"$FAIL\" ] && { echo \"Failure: 安装未成功，已跳过卸载\"; return 1; }\n";
     // 暂存的更新要一并删掉：重启时 Magisk 会先用它覆盖旧目录，移除标记随之丢失
     String staged = "rm -rf /data/adb/modules_update/" + dir + "\n";
     if (l[0].equals("zygisk_lsposed")) {
@@ -89,7 +89,8 @@ final class Migration extends Part {
   private void run(final List<String[]> found) {
     final Progress pg = new Progress(a);
     pg.waiting("正在执行……");
-    final Dlg progress = new Dlg.Builder(a).setTitle("正在执行").setView(pg.box).show();
+    final Dlg progress =
+        new Dlg.Builder(a).setTitle("正在执行").setView(pg.box).setCancelable(false).show();
     new Thread(
             new Runnable() {
               public void run() {

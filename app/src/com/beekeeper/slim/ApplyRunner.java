@@ -14,6 +14,15 @@ final class ApplyRunner extends Part {
     super(a);
   }
 
+  boolean needsRepair(Group g) {
+    if (!g.box.isChecked()) return false;
+    if (g.kind == KIND_DB) return dbState() == DB_SYSTEM;
+    if (g.kind == KIND_APK) return state(g.pkgs[0]) == DISABLED || a.ls.needsFix(g.pkgs[0]);
+    if (g.kind != KIND_MOD || !modInstalled(g)) return false;
+    return a.modDisabled.contains(g.modId)
+        || g.companion != null && (state(g.pkgs[0]) != ENABLED || a.ls.needsFix(g.pkgs[0]));
+  }
+
   void confirmApply() {
     final List<String> toDisable = new ArrayList<String>();
     final List<String> toEnable = new ArrayList<String>();
@@ -38,13 +47,13 @@ final class ApplyRunner extends Part {
     for (Group g : a.GROUPS) {
       if (g.kind == KIND_APK) {
         boolean inst = state(g.pkgs[0]) != MISSING;
-        if (g.box.isChecked() && (!inst || a.ls.needsFix(g.pkgs[0]))) modOn.add(g);
+        if (g.box.isChecked() && (!inst || needsRepair(g))) modOn.add(g);
         if (!g.box.isChecked() && inst) modOff.add(g);
         continue;
       }
       if (g.kind != KIND_MOD || a.modPresent == null) continue;
       boolean want = g.box.isChecked(), cur = modInstalled(g);
-      if (want && !cur) modOn.add(g);
+      if (want && (!cur || needsRepair(g))) modOn.add(g);
       if (!want && cur) modOff.add(g);
     }
     if (toDisable.isEmpty()
@@ -92,11 +101,13 @@ final class ApplyRunner extends Part {
   String installApkScript(String pkg, String asset) throws Exception {
     String apk = copyAsset(asset);
     StringBuilder b = new StringBuilder();
-    b.append("pm install -r ").append(apk).append("\n");
-    b.append("rm -f ").append(apk).append("\n");
+    b.append(cleanupFile(apk));
+    b.append("pm install -r ").append(quote(apk)).append("\n");
+    b.append("pm enable ").append(pkg).append("\n");
     b.append("C=\"timeout 15 sh /data/adb/modules/zygisk_vector/cli\"\n");
     b.append("i=0\n");
-    b.append("until $C modules ls 2>/dev/null | grep -q \"^").append(pkg).append(" \"; do\n");
+    String pattern = pkg.replace(".", "\\.");
+    b.append("until $C modules ls 2>/dev/null | grep -q '^").append(pattern).append(" '; do\n");
     b.append("  i=$((i + 1)); [ $i -ge 10 ] && break; sleep 1\n");
     b.append("done\n");
     b.append("$C modules enable ").append(pkg).append(" >/dev/null 2>&1\n");
@@ -106,10 +117,29 @@ final class ApplyRunner extends Part {
       for (String s : scopes) b.append(' ').append(s).append("/0");
       b.append(" >/dev/null 2>&1\n");
     }
-    b.append("$C modules ls 2>/dev/null | grep -q \"^")
-        .append(pkg)
-        .append(" .* enabled\" || echo \"Failure: 模块未能在 Xposed 中启用，请确认 Xposed 正在运行\"\n");
+    b.append("L=$($C modules ls)\n");
+    b.append("echo \"$L\" | grep -q '^")
+        .append(pattern)
+        .append(" .* enabled' || { echo 'Failure: 模块未能在 Xposed 中启用'; return 1; }\n");
+    if (scopes != null) {
+      b.append("S=$($C scope ls ").append(pkg).append(")\n");
+      for (String s : scopes) {
+        b.append("echo \"$S\" | grep -qE '(^|[^[:alnum:]_.])")
+            .append(s.replace(".", "\\."))
+            .append("(/0|[^[:alnum:]_.]|$)' || { echo 'Failure: Xposed 作用域缺 ")
+            .append(s)
+            .append("'; return 1; }\n");
+      }
+    }
     return b.toString();
+  }
+
+  static String quote(String value) {
+    return "'" + value.replace("'", "'\\''") + "'";
+  }
+
+  static String cleanupFile(String file) {
+    return "trap " + quote("rm -f " + quote(file)) + " EXIT\n";
   }
 
   /** Xposed 模块的作用域含常驻进程（系统进程、保持后台的播放器）：这些进程只有重启电视才会重新加载。 */
@@ -132,18 +162,22 @@ final class ApplyRunner extends Part {
 
   /** 每个步骤在 root 脚本里的包装：先报“正在…”，结束后只输出一行成功或失败，原始输出不外泄。 */
   private static final String STEP =
-      "step() {\n"
+      "FAIL=\n"
+          + "step() {\n"
           + "  echo \"@@RUN|$1 $2\"\n"
-          + "  o=$(\"$4\" 2>&1)\n"
+          + "  o=$(set -e; \"$4\" 2>&1)\n"
+          + "  rc=$?\n"
           + "  case \"$o\" in\n"
-          + "    *Failure*|*Error*|*Exception*|*\"Installation failed\"*)\n"
-          + "      FAIL=1\n"
-          + "      echo \"@@FAIL|$1|$(printf '%s' \"$o\" | grep -v '^$' | tail -n 2 | tr '\\n' '"
-          + " ')\";;\n"
-          + "    *)\n"
-          + "      m=$(printf '%s\\n' \"$o\" | sed -n 's/^@@MSG //p' | tail -n 1)\n"
-          + "      echo \"@@OK|$1|${m:-$3}\";;\n"
+          + "    *Failure*|*Error*|*Exception*|*\"Installation failed\"*) rc=1;;\n"
           + "  esac\n"
+          + "  if [ \"$rc\" -ne 0 ]; then\n"
+          + "    FAIL=1\n"
+          + "    m=$(printf '%s' \"$o\" | grep -v '^$' | tail -n 2 | tr '\\n' ' ')\n"
+          + "    echo \"@@FAIL|$1|${m:-退出码 $rc}\"\n"
+          + "  else\n"
+          + "      m=$(printf '%s\\n' \"$o\" | sed -n 's/^@@MSG //p' | tail -n 1)\n"
+          + "      echo \"@@OK|$1|${m:-$3}\"\n"
+          + "  fi\n"
           + "}\n";
 
   private int steps;
@@ -182,7 +216,8 @@ final class ApplyRunner extends Part {
       final List<Group> modOff) {
     final Progress pg = new Progress(a);
     pg.waiting("正在执行……");
-    final Dlg progress = new Dlg.Builder(a).setTitle("正在执行").setView(pg.box).show();
+    final Dlg progress =
+        new Dlg.Builder(a).setTitle("正在执行").setView(pg.box).setCancelable(false).show();
     new Thread(
             new Runnable() {
               public void run() {
@@ -287,13 +322,7 @@ final class ApplyRunner extends Part {
                         "已卸载",
                         "pm uninstall " + g.pkgs[0] + "\n");
                   }
-                  b.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
-                  b.append("  touch /data/adb/modules/").append(g.modId).append("/remove\n");
-                  b.append("  echo '@@MSG 已关闭，重启后生效'\n");
-                  b.append("else rm -rf /data/adb/modules_update/")
-                      .append(g.modId)
-                      .append("; echo '@@MSG 已移除'; fi\n");
-                  step(script, g.title, "正在关闭", "已关闭", b.toString());
+                  step(script, g.title, "正在关闭", "已关闭", removeModScript(g.modId));
                 }
                 boolean modReboot = false, apkOn = false;
                 for (Group g : modOn) {
@@ -312,24 +341,46 @@ final class ApplyRunner extends Part {
         .start();
   }
 
-  /** 模块已在 /data/adb/modules 里就只取消移除标记，否则用内置包安装。 */
+  static String removeModScript(String id) {
+    return "rm -rf /data/adb/modules_update/"
+        + id
+        + "\nif [ -d /data/adb/modules/"
+        + id
+        + " ]; then\n  touch /data/adb/modules/"
+        + id
+        + "/remove\n  echo '@@MSG 已关闭，重启后生效'\n"
+        + "else echo '@@MSG 已移除'; fi\n";
+  }
+
+  /** 清除已安装及暂存更新的停用、移除标记；保留暂存更新的内容。 */
   String installModScript(Group g) throws Exception {
     String zip = copyAsset(g.asset);
     StringBuilder b = new StringBuilder();
+    b.append(cleanupFile(zip));
     b.append("if [ -d /data/adb/modules/").append(g.modId).append(" ]; then\n");
-    b.append("  rm -f /data/adb/modules/").append(g.modId).append("/remove\n");
     b.append("  echo '@@MSG 已启用，重启后生效'\n");
-    b.append("else magisk --install-module ").append(zip).append("; fi\n");
-    b.append("rm -f ").append(zip).append("\n");
+    b.append("else magisk --install-module ").append(quote(zip)).append("; fi\n");
+    for (String dir : new String[] {"/data/adb/modules/", "/data/adb/modules_update/"}) {
+      b.append("rm -f ").append(dir).append(g.modId).append("/remove ");
+      b.append(dir).append(g.modId).append("/disable\n");
+    }
+    b.append("[ -f /data/adb/modules/").append(g.modId).append("/module.prop ] || ");
+    b.append("[ -f /data/adb/modules_update/").append(g.modId).append("/module.prop ]\n");
     return b.toString();
   }
 
   static String zygiskScript(int on) {
-    return "magisk --sqlite \"REPLACE INTO settings (key,value) VALUES('zygisk'," + on + ")\"\n";
+    return "magisk --sqlite \"REPLACE INTO settings (key,value) VALUES('zygisk',"
+        + on
+        + ")\"\nZ=$(magisk --sqlite \"SELECT value FROM settings WHERE key='zygisk'\")\n"
+        + "[ \"$Z\" = value="
+        + on
+        + " ] || { echo 'Failure: Magisk Zygisk 设置未生效'; return 1; }\n";
   }
 
   private static String aerialScript(String apk) {
     StringBuilder b = new StringBuilder();
+    b.append(cleanupFile(apk));
     // 系统拒绝把非系统应用设为默认桌面：用 Magisk 模块把 Aerial 放进 /system/app，重启后生效
     b.append("rm -rf /data/adb/modules/").append(OLD_DB_MODULE).append("\n");
     b.append("PKG=").append(DB_PKG).append("\n");
@@ -363,10 +414,10 @@ final class ApplyRunner extends Part {
     b.append("cmd package set-home-activity --user 0 ").append(DB_COMP).append("\n");
     b.append("SVCEOF\n");
     b.append("  chmod -R a+rX $MD; chmod 755 $MD/service.sh\n");
-    b.append("  pm uninstall $PKG >/dev/null 2>&1\n");
+    b.append(
+        "  if pm list packages -3 | grep -q \"package:$PKG\\$\"; then pm uninstall $PKG; fi\n");
     b.append("  echo '@@MSG 已安装，重启后设为默认桌面'\n");
     b.append("fi\n");
-    b.append("rm -f ").append(apk).append("\n");
     return b.toString();
   }
 
@@ -386,10 +437,21 @@ final class ApplyRunner extends Part {
         .append("; echo '@@MSG 已禁用';;\n");
     b.append("    *) pm enable ")
         .append(STOCK_HOME_PKG)
-        .append("; echo '@@MSG 默认桌面不是 Aerial，已自动恢复系统桌面';;\n");
+        .append("; echo 'Failure: 默认桌面不是 Aerial，已自动恢复系统桌面'; return 1;;\n");
     b.append("  esac\n");
-    b.append("else echo '@@MSG Aerial 桌面还不是系统应用，已跳过'; fi\n");
+    b.append("else echo 'Failure: Aerial 桌面还不是系统应用，已跳过'; return 1; fi\n");
     return b.toString();
+  }
+
+  static boolean stepsComplete(String out, int total) {
+    if (out == null || total == 0) return false;
+    int ran = 0, finished = 0, ended = 0;
+    for (String l : out.split("\n")) {
+      if (l.startsWith("@@RUN|")) ran++;
+      if (l.startsWith("@@OK|") || l.startsWith("@@FAIL|")) finished++;
+      if (l.equals("@@END|" + total)) ended++;
+    }
+    return ran == total && finished == total && ended == 1;
   }
 
   /** 在工作线程里执行步骤脚本，实时刷新进度，结束后弹出每项一行的结果（需要重启时带重启按钮）。 */
@@ -402,8 +464,9 @@ final class ApplyRunner extends Part {
       boolean lateLoad) {
     final int total = steps;
     final int[] done = {0};
-    final String out =
-        suOut(
+    script.append("echo '@@END|").append(total).append("'\n[ -z \"$FAIL\" ]\n");
+    final Shell.Result result =
+        suResult(
             script.toString(),
             new Shell.Lines() {
               public void line(String l) {
@@ -419,8 +482,9 @@ final class ApplyRunner extends Part {
                     });
               }
             });
+    final String out = result == null ? null : result.out;
     final StringBuilder sum = new StringBuilder(err == null ? "" : err);
-    boolean good = err == null;
+    boolean good = err == null && result != null && result.rc == 0;
     if (out == null) {
       sum.append("无法使用 root，可能没有授予 root。\n");
       good = false;
@@ -438,6 +502,12 @@ final class ApplyRunner extends Part {
           sum.append(detail.isEmpty() ? "完成" : detail);
         }
         sum.append("\n");
+      }
+      if (!stepsComplete(out, total)) {
+        sum.append("执行未完整结束，部分步骤可能已执行，请刷新状态后重试。\n");
+        good = false;
+      } else if (result.rc != 0 && !out.contains("@@FAIL|")) {
+        sum.append("执行失败，脚本返回 ").append(result.rc).append("。\n");
       }
     }
     if (lateLoad && good) sum.append("\nXposed 模块将在目标应用下次启动时生效。");

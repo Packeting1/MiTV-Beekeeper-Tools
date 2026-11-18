@@ -153,6 +153,13 @@ final class ItemView extends LinearLayout {
     pending.setVisibility(GONE);
   }
 
+  /** 刷新实际状态时保留未应用的选择；实际状态已追上选择时自动清掉待应用。 */
+  void setActual(boolean on) {
+    boolean dirty = changed();
+    base = on;
+    setChecked(dirty ? checked : on);
+  }
+
   boolean changed() {
     return toggle != null && checked != base;
   }

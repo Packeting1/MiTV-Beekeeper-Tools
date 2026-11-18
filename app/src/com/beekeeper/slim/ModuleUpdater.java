@@ -162,7 +162,8 @@ final class ModuleUpdater extends Part {
   void runUpdate(final List<Group> list) {
     final Progress pg = new Progress(a);
     pg.waiting("正在执行……");
-    final Dlg progress = new Dlg.Builder(a).setTitle("正在执行").setView(pg.box).show();
+    final Dlg progress =
+        new Dlg.Builder(a).setTitle("正在执行").setView(pg.box).setCancelable(false).show();
     new Thread(
             new Runnable() {
               public void run() {
@@ -183,7 +184,10 @@ final class ModuleUpdater extends Part {
                           g.title,
                           "正在更新",
                           "已更新，重启后生效",
-                          "magisk --install-module " + f + "\nrm -f " + f + "\n");
+                          ApplyRunner.cleanupFile(f)
+                              + "magisk --install-module "
+                              + ApplyRunner.quote(f)
+                              + "\n");
                     }
                     if (g.companion != null) {
                       ap.step(

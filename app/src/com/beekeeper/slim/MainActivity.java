@@ -6,11 +6,6 @@ import static com.beekeeper.slim.Shell.*;
 
 import android.app.Activity;
 import android.content.DialogInterface;
-import android.content.Intent;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.content.res.ColorStateList;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -33,22 +28,14 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-/*
- * beekeeper 电视的系统精简工具 (需要 Magisk root)。
- *
- * - 应用类：`pm disable-user` / `pm enable`，只能碰 GROUPS 里列出的可选后台应用，核心服务不在名单里。
- * - Aerial 桌面：装成系统应用 (Magisk 模块) 并设为默认桌面；系统只允许系统应用当默认桌面。
- * - 禁用系统桌面：只有 Aerial 已作为系统应用装好才能开启，禁用后如果默认桌面不是 Aerial 会自动回滚。
- * - Magisk 模块：勾选 = `magisk --install-module`，取消 = 标记卸载 (重启时执行 uninstall.sh)。
- * - Xposed 模块 (APK)：勾选 = `pm install` 内置 APK 并在 Xposed 里启用、补全作用域，取消 = `pm uninstall`。
- */
 public class MainActivity extends Activity {
 
   final Handler main = new Handler(Looper.getMainLooper());
+  final GroupStatus groupStatus = new GroupStatus(this);
+  final ModuleQuery moduleQuery = new ModuleQuery(this);
   final SelfUpdater self = new SelfUpdater(this);
   final AerialUpdater aerial = new AerialUpdater(this);
   final ModuleUpdater modUp = new ModuleUpdater(this);
@@ -100,84 +87,20 @@ public class MainActivity extends Activity {
         .show();
   }
 
-  /** 有依赖的模块：被依赖项没勾选时锁定且不能勾选（已装的仍可取消）；有依赖它的模块勾选着时，被依赖项也锁定。 */
   void updateDependents() {
-    for (Group r : GROUPS) {
-      boolean has = false, used = false;
-      for (Group g : GROUPS) {
-        if (g.requires == null || !g.requires.equals(r.modId)) continue;
-        has = true;
-        boolean unmet = !r.box.isChecked() && !modInstalled(g);
-        g.box.setLocked(modPresent == null || unmet, unmet ? g.requiresMsg : null);
-        if (unmet) g.box.setChecked(false);
-        used |= g.box.isChecked();
-      }
-      boolean keep = used && r.box.isChecked();
-      if (has) r.box.setLocked(modPresent == null || keep, keep ? "需先取消依赖它的模块" : null);
-    }
-    Group vk = voiceKeyGroup;
-    for (Group g : GROUPS) {
-      if (g.kind == KIND_APK) {
-        g.box.setLocked(!ls.lsInstalled, ls.lsInstalled ? null : "未检测到 Xposed 框架，请先安装");
-        if (!ls.lsInstalled) continue;
-      }
-      // 语音助手没禁用时语音键拦不住：未安装的语音键自定义不能勾选；勾选着它时，语音助手要保持禁用
-      if (g == vk) {
-        boolean unmet = VoiceKey.assistantEnabled(this) && state(VoiceKey.MODULE) == MISSING;
-        g.box.setLocked(unmet, unmet ? "请先在「应用类」禁用「语音助手」并点“应用”" : null);
-        if (unmet) g.box.setChecked(false);
-      } else if (g.kind == KIND_PKGS && g.pkgs[0].equals(VoiceKey.ASSISTANT[0])) {
-        boolean keep = vk.box.isChecked() && g.box.isChecked();
-        g.box.setLocked(keep, keep ? "已勾选“语音键自定义”，需先取消它才能启用语音助手" : null);
-      }
-      if ((g.zygisk || "zygisk_vector".equals(g.modId)) && migration.needed()) {
-        g.box.setLocked(true, "检测到旧的 Zygisk / LSPosed 环境，请先完成迁移");
-      }
-      if (fwMismatch(g) && !modInstalled(g)) {
-        g.box.setChecked(false);
-        g.box.setLocked(true, "仅适用于 " + FIRMWARE + "，当前固件为 " + Build.VERSION.INCREMENTAL);
-      }
-    }
-    if (voiceKey != null) voiceKey.syncVisible();
-    if (micPairs != null) micPairs.syncVisible();
-    updatePending();
+    groupStatus.updateDependents();
   }
 
-  /** 固件相关的模块在其它固件上：未安装的不能勾选，已安装的仍可取消。 */
   boolean fwMismatch(Group g) {
-    return g.fwOnly && !FIRMWARE.equals(Build.VERSION.INCREMENTAL);
+    return groupStatus.fwMismatch(g);
   }
 
   void confirmEnable(final Group g) {
-    new Dlg.Builder(this)
-        .setTitle(g.title)
-        .setMessage(g.confirm + "\n\n确定开启吗？")
-        .setPositiveButton(
-            "开启",
-            new DialogInterface.OnClickListener() {
-              public void onClick(DialogInterface d, int w) {
-                g.box.setChecked(true);
-                updateDependents();
-              }
-            })
-        .setNegativeButton("取消", null)
-        .show();
+    groupStatus.confirmEnable(g);
   }
 
   void confirmDisable(final Group g) {
-    new Dlg.Builder(this)
-        .setTitle(g.title)
-        .setMessage(g.confirmOff + "\n\n确定关闭吗？")
-        .setPositiveButton(
-            "关闭",
-            new DialogInterface.OnClickListener() {
-              public void onClick(DialogInterface d, int w) {
-                g.box.setChecked(false);
-                updateDependents();
-              }
-            })
-        .setNegativeButton("取消", null)
-        .show();
+    groupStatus.confirmDisable(g);
   }
 
   TextView log;
@@ -211,17 +134,14 @@ public class MainActivity extends Activity {
 
   NavItem[] navs;
 
-  /** 当前显示的页；-1 = 还没选。 */
+  /** -1 = 还没选。 */
   int cur = -1;
 
   ScrollView scroll;
 
   Button applyBtn;
 
-  /** 刷新是否正在跑；跑的时候又来请求就记下来，跑完再来一次。 */
-  boolean refreshing, refreshAgain;
-
-  /** 一页内容：大标题 + 一行说明，条目由调用方继续往里加。emphasis 是说明开头用醒目颜色显示的部分。 */
+  /** emphasis 是说明开头用醒目颜色显示的部分。 */
   LinearLayout newPage(String title, String emphasis, String hintText) {
     LinearLayout page = new LinearLayout(this);
     page.setOrientation(LinearLayout.VERTICAL);
@@ -285,7 +205,6 @@ public class MainActivity extends Activity {
     return bar;
   }
 
-  /** 页面里第一个能聚焦的控件。 */
   static View firstFocusable(View v) {
     if (v.getVisibility() != View.VISIBLE) return null;
     if (v.isFocusable()) return v;
@@ -324,7 +243,7 @@ public class MainActivity extends Activity {
 
   void updatePending() {
     int n = 0;
-    for (Group g : GROUPS) if (g.box.changed()) n++;
+    for (Group g : GROUPS) if (g.box.changed() || applier.needsRepair(g)) n++;
     applyBtn.setText("应用（" + n + "）");
     applyBtn.setVisibility(n > 0 ? View.VISIBLE : View.GONE);
   }
@@ -342,7 +261,6 @@ public class MainActivity extends Activity {
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.HORIZONTAL);
 
-    // 左侧：标题、导航、操作按钮
     LinearLayout side = new LinearLayout(this);
     side.setOrientation(LinearLayout.VERTICAL);
     side.setBackgroundColor(Ui.PANEL);
@@ -360,7 +278,6 @@ public class MainActivity extends Activity {
     try {
       ver.setText("v" + getPackageManager().getPackageInfo(getPackageName(), 0).versionName);
     } catch (Exception e) {
-      // 读不到版本号就留空
     }
     ver.setTextSize(12);
     ver.setTextColor(Ui.SUB);
@@ -412,7 +329,6 @@ public class MainActivity extends Activity {
     rlp.topMargin = dp(6);
     side.addView(reboot, rlp);
 
-    // 右侧：更新提示条 + 当前页
     LinearLayout content = new LinearLayout(this);
     content.setOrientation(LinearLayout.VERTICAL);
     content.setPadding(dp(24), dp(16), dp(24), dp(4));
@@ -656,25 +572,7 @@ public class MainActivity extends Activity {
   }
 
   int state(String pkg) {
-    PackageManager pm = getPackageManager();
-    int s;
-    try {
-      s = pm.getApplicationEnabledSetting(pkg);
-    } catch (Exception e) {
-      return MISSING;
-    }
-    boolean off =
-        s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-            || s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER;
-    if (!off) {
-      // 有些版本上被禁用的应用查不到 ApplicationInfo，这时只按启用设置判断。
-      try {
-        off = !pm.getApplicationInfo(pkg, 0).enabled;
-      } catch (Exception e) {
-        /* 按设置值 */
-      }
-    }
-    return off ? DISABLED : ENABLED;
+    return groupStatus.packageState(pkg);
   }
 
   Group groupOfKind(int kind) {
@@ -683,47 +581,23 @@ public class MainActivity extends Activity {
   }
 
   String homePackage() {
-    try {
-      Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
-      ResolveInfo ri = getPackageManager().resolveActivity(i, 0);
-      return ri == null || ri.activityInfo == null ? "" : ri.activityInfo.packageName;
-    } catch (Exception e) {
-      return "";
-    }
+    return groupStatus.homePackage();
   }
 
   int dbState() {
-    boolean pending = modPresent != null && modPresent.contains(DB_MODULE);
-    try {
-      ApplicationInfo ai = getPackageManager().getApplicationInfo(DB_PKG, 0);
-      boolean sys = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
-      // 模块目录已被移除但Aerial还在系统分区里：重启后才会消失。
-      if (sys && modPresent != null && !pending) return DB_REMOVING;
-      if (sys) return DB_PKG.equals(homePackage()) ? DB_ACTIVE : DB_SYSTEM;
-      return pending ? DB_PENDING : DB_USERAPP;
-    } catch (Exception e) {
-      return pending ? DB_PENDING : DB_NONE;
-    }
+    return groupStatus.dbState();
   }
 
   boolean noHomeReady() {
-    return dbState() == DB_ACTIVE && state("com.beekeeper.homeref") != MISSING;
+    return groupStatus.noHomeReady();
   }
 
-  /** 系统桌面开关：Aerial已装成系统应用且已是默认桌面、Aerial开关开着才能开；已经禁用时总能点，方便恢复。 */
   void updateNoHomeBox() {
-    Group nh = groupOfKind(KIND_NOHOME);
-    boolean alreadyOff = state(STOCK_HOME_PKG) == DISABLED;
-    boolean allowed = noHomeReady() && groupOfKind(KIND_DB).box.isChecked();
-    nh.box.setLocked(!allowed && !alreadyOff);
-    if (!allowed && !alreadyOff) nh.box.setChecked(false);
-    updatePending();
+    groupStatus.updateNoHomeBox();
   }
 
   boolean modInstalled(Group g) {
-    return modPresent != null
-        && modPresent.contains(g.modId)
-        && !(modRemoving != null && modRemoving.contains(g.modId));
+    return groupStatus.modInstalled(g);
   }
 
   void refresh() {
@@ -731,349 +605,11 @@ public class MainActivity extends Activity {
     ldm.load();
     voiceKey.load();
     micPairs.load();
-    // 查询线程共用缓存目录里的几个临时文件，同一时间只跑一个。
-    if (refreshing) {
-      refreshAgain = true;
-      return;
-    }
-    refreshing = true;
-    new Thread(
-            new Runnable() {
-              public void run() {
-                // 读内置模块的版本（解压、解析安装包）和 su 脚本并行，各自耗时不叠加。
-                final Map<String, String[]> bm = new HashMap<String, String[]>(),
-                    ba = new HashMap<String, String[]>();
-                Thread bundledReader = null;
-                if (bundledMod.isEmpty() && bundledApk.isEmpty()) {
-                  bundledReader =
-                      new Thread(
-                          new Runnable() {
-                            public void run() {
-                              for (Group g : GROUPS) {
-                                String[] v = null;
-                                if (g.kind == KIND_MOD) {
-                                  v = modUp.readBundledMod(g.asset);
-                                  if (v != null) bm.put(g.modId, v);
-                                  if (g.companion != null) {
-                                    v = modUp.readBundledApk(g.companion);
-                                    if (v != null) ba.put(g.pkgs[0], v);
-                                  }
-                                } else if (g.kind == KIND_APK) {
-                                  v = modUp.readBundledApk(g.asset);
-                                  if (v != null) ba.put(g.pkgs[0], v);
-                                }
-                              }
-                            }
-                          },
-                          "slim-bundled");
-                  bundledReader.start();
-                }
-                String out =
-                    suOut(
-                        "CD="
-                            + getCacheDir().getAbsolutePath()
-                            + "\n"
-                            // LSPosed 和 Vector 的模块目录不同（zygisk_lsposed / zygisk_vector）；前者用
-                            // lspctl，后者用 cli；部分 LSPosed 构建两者都没有，只能靠系统进程注入判断。
-                            // 状态命令最慢（约 2 秒），放后台和其余检测并行
-                            + "LM=/data/adb/modules/zygisk_lsposed; [ -d"
-                            + " /data/adb/modules/zygisk_vector ] &&"
-                            + " LM=/data/adb/modules/zygisk_vector\n"
-                            + "CTL=; [ -f \"$LM/lspctl\" ] && CTL=lspctl\n"
-                            + "[ -z \"$CTL\" ] && [ -f \"$LM/cli\" ] && CTL=cli\n"
-                            + "if [ -n \"$CTL\" ]; then ( timeout 15 sh \"$LM/$CTL\" status >"
-                            + " \"$CD/lsp_status\" 2>&1; echo $? > \"$CD/lsp_rc\" ) < /dev/null &"
-                            + " fi\n"
-                            // 只用 shell 内建命令读 module.prop，避免每个模块起多个子进程
-                            + "pv() { code=; ver=; nm=; [ -r \"$1/module.prop\" ] || return; while"
-                            + " IFS= read -r l || [ -n \"$l\" ]; do case $l in versionCode=*) [ -z"
-                            + " \"$code\" ] && code=${l#versionCode=};; version=*) [ -z \"$ver\" ]"
-                            + " && ver=${l#version=};; name=*) [ -z \"$nm\" ] && nm=${l#name=};;"
-                            + " esac; done < \"$1/module.prop\"; }\n"
-                            // NeoZygisk 和 Zygisk Next 的模块 id 都是 zygisksu，按名字区分，改报 neozygisk
-                            + "for d in /data/adb/modules/*/; do [ -d \"$d\" ] || continue;"
-                            + " d=${d%/}; id=${d##*/}; pv \"$d\"; [ \"$nm\" = NeoZygisk ] &&"
-                            + " id=neozygisk; echo \"M:$id\"; [ -e \"$d/remove\" ] && echo"
-                            + " \"R:$id\"; [ -e \"$d/disable\" ] && echo \"D:$id\"; echo"
-                            + " \"V:$id|$code|$ver\"; done\n"
-                            + "for d in /data/adb/modules_update/*/; do [ -d \"$d\" ] || continue;"
-                            + " d=${d%/}; id=${d##*/}; pv \"$d\"; [ \"$nm\" = NeoZygisk ] &&"
-                            + " id=neozygisk; echo \"U:$id\"; echo \"X:$id|$code|$ver\"; done\n"
-                            // Magisk Zygisk 没有模块目录，开关在 Magisk 数据库里
-                            + "[ \"$(magisk --sqlite \"SELECT value FROM settings WHERE"
-                            + " key='zygisk'\" 2>/dev/null)\" = value=1 ] && echo"
-                            + " \"M:magisk_zygisk\"\n"
-                            + "H=$(sha256sum /system/etc/mitv.config_product.xml 2>/dev/null | cut"
-                            + " -d' ' -f1)\n"
-                            + "M=$(sha256sum"
-                            + " /data/adb/modules/mitv_4kui_switch/system/etc/mitv.config_product.xml"
-                            + " 2>/dev/null | cut -d' ' -f1)\n"
-                            + "[ -n \"$H\" ] && [ \"$H\" = \"$M\" ] && echo"
-                            + " \"F:mitv_4kui_switch\"\n"
-                            + "grep -la \"[m]itv_adb_keeper/keeper.sh\" /proc/[0-9]*/cmdline"
-                            + " >/dev/null 2>&1 && echo \"F:mitv_adb_keeper\"\n"
-                            + "service call TvService 82 s16 support_hdr_game_hgig 2>/dev/null |"
-                            + " grep -q 'Y.E.S' && echo \"F:beekeeper_hgig_fix\"\n"
-                            + "L=$(sha256sum"
-                            + " /vendor/tvconfig/bsp/chip/ldm_xiaomi/ldm_otfcn1n/ldm.ini"
-                            + " 2>/dev/null | cut -d' ' -f1)\n"
-                            + "[ \"$L\" ="
-                            + " 282d2ad2991845cd79660bb13111cba1da82e8116f1519e2b395606b27eb6dcf ]"
-                            + " && echo \"F:beekeeper_ldm_fix\"\n"
-                            + "E=$(sha256sum"
-                            + " /vendor/tvconfig/bsp/common/EDID_BIN/GPro_HDMI1_FreeSync_ver6.0.bin"
-                            + " 2>/dev/null | cut -d' ' -f1)\n"
-                            + "[ \"$E\" ="
-                            + " 04d48a32abcb0fe7e8a25cac683c09b9f6dbd00dd81b8d0ab170b3d5534237fc ]"
-                            + " && echo \"F:beekeeper_dv_edid\"\n"
-                            // DP 的 Enhanced EDID 已是带音频格式的版本（仅音频 / 音频+LLDV）
-                            + "case $(sha256sum"
-                            + " /vendor/tvconfig/bsp/common/EDID_BIN/GPro_DP_Enhanced_ver6.0.bin"
-                            + " 2>/dev/null | cut -d' ' -f1) in"
-                            + " 29adce40ed1a7a733d3f9799c55451b00903c5eb806ab2008d324dc94e389903|e48a381124833ee6173d83ca82b948edc3918a31795a250c09f9a395233f67fc)"
-                            + " echo \"F:beekeeper_dp_audio\";; esac\n"
-                            + "for z in $(pidof zygote64); do grep -q /system/lib64/libzygisk.so"
-                            + " /proc/$z/maps 2>/dev/null && echo \"F:magisk_zygisk\"; done\n"
-                            // 只有本模块会往这个路径 bind mount 补丁库
-                            + "grep -q libmtkapp.so /proc/mounts && echo"
-                            + " \"F:beekeeper_freesync_keep\"\n"
-                            + "[ \"$(getprop sys.beekeeper_rgb.native)\" = 1 ] && echo"
-                            + " \"F:beekeeper_decorative_light\"\n"
-                            + "wait\n"
-                            + "S=$(cat \"$CD/lsp_status\" 2>/dev/null); rc=$(cat \"$CD/lsp_rc\""
-                            + " 2>/dev/null); rm -f \"$CD/lsp_status\" \"$CD/lsp_rc\"\n"
-                            + "[ -d /data/adb/modules/zygisk_lsposed ] || [ -d"
-                            + " /data/adb/modules/zygisk_vector ] && echo \"L:installed\"\n"
-                            + "[ \"$rc\" = 0 ] && echo \"L:run\"\n"
-                            + "[ -z \"$CTL\" ] && [ -d \"$LM\" ] && echo \"L:noctl\"\n"
-                            + "echo \"$S\" | grep -qE 'cannot connect|Socket file not found' &&"
-                            + " echo \"L:dead\"\n"
-                            // lspctl 直接报告；Vector 的 cli 不报告，改看系统进程里有没有加载 Zygisk 模块库。
-                            // Magisk Zygisk 下 maps 里没有 Vector 的库路径，再看 Vector 日志有没有记录本次
-                            // system_server 的注入
-                            + "echo \"$S\" | grep -q 'System server: connected' && echo"
-                            + " \"L:server\"\n"
-                            + "LG=$(ls -t /data/adb/lspd/log/verbose_*.log 2>/dev/null | head -1)\n"
-                            + "for p in $(pidof system_server); do grep -qE"
-                            + " 'zygisk_(lsposed|vector)' /proc/$p/maps 2>/dev/null && echo"
-                            + " \"L:server\"; [ -n \"$LG\" ] && grep -qE \": *$p: *$p"
-                            + " I/VectorNative .*Injected Vector framework\" \"$LG\" && echo"
-                            + " \"L:server\"; done\n"
-                            + "for f in modules_config.db modules_config.db-wal; do rm -f"
-                            + " \"$CD/lsp_$f\"; cp \"/data/adb/lspd/config/$f\" \"$CD/lsp_$f\""
-                            + " 2>/dev/null && chmod 666 \"$CD/lsp_$f\" && chown $(stat -c %u:%g"
-                            + " \"$CD\") \"$CD/lsp_$f\"; done\n"
-                            + flagQuery()
-                            + "echo __Q_OK__\n");
-                final Set<String> present = new HashSet<String>(),
-                    removing = new HashSet<String>(),
-                    pending = new HashSet<String>(),
-                    disabled = new HashSet<String>(),
-                    active = new HashSet<String>();
-                boolean lsR = false, lsDead = false, lsS = false, lsI = false, lsNoCtl = false;
-                boolean ok = out != null && out.contains("__Q_OK__");
-                final Map<String, String[]> vInst = new HashMap<String, String[]>(),
-                    vUp = new HashMap<String, String[]>();
-                if (ok) {
-                  for (String line : out.split("\n")) {
-                    line = line.trim();
-                    if (line.startsWith("V:") || line.startsWith("X:")) {
-                      String[] p = line.substring(2).split("\\|", 3);
-                      if (p.length == 3 && p[1].length() > 0) {
-                        (line.startsWith("V:") ? vInst : vUp)
-                            .put(p[0], new String[] {p[1], p[2].length() > 0 ? p[2] : p[1]});
-                      }
-                    } else if (line.startsWith("M:")) present.add(line.substring(2));
-                    else if (line.startsWith("R:")) removing.add(line.substring(2));
-                    else if (line.startsWith("U:")) {
-                      present.add(line.substring(2));
-                      pending.add(line.substring(2));
-                    } else if (line.startsWith("D:")) disabled.add(line.substring(2));
-                    else if (line.startsWith("F:")) active.add(line.substring(2));
-                    else if (line.equals("L:installed")) lsI = true;
-                    else if (line.equals("L:run")) lsR = true;
-                    else if (line.equals("L:dead")) lsDead = true;
-                    else if (line.equals("L:noctl")) lsNoCtl = true;
-                    else if (line.equals("L:server")) lsS = true;
-                  }
-                }
-                if (lsS) {
-                  active.add("zygisk_vector");
-                }
-                final boolean lsRun = lsR || lsNoCtl && lsS,
-                    lsSrv = lsS,
-                    lsKnown = ok && (lsR || lsDead || lsNoCtl);
-                final boolean lsInst = !ok || lsI;
-                final Map<String, Boolean> lsEn = new HashMap<String, Boolean>();
-                final Map<String, Set<String>> lsSc = new HashMap<String, Set<String>>();
-                final boolean dbRead = ok && ls.readLsDb(lsEn, lsSc);
-                if (bundledReader != null) {
-                  try {
-                    bundledReader.join();
-                  } catch (InterruptedException ignore) {
-                  }
-                }
-                main.post(
-                    new Runnable() {
-                      public void run() {
-                        try {
-                          if (!bm.isEmpty() || !ba.isEmpty()) {
-                            bundledMod = bm;
-                            bundledApk = ba;
-                          }
-                          modVer = vInst;
-                          modUpVer = vUp;
-                          modPresent = ok ? present : null;
-                          modRemoving = ok ? removing : null;
-                          modPending = ok ? pending : null;
-                          modDisabled = disabled;
-                          modActive = active;
-                          ls.lsInstalled = lsInst;
-                          ls.lsKnown = lsKnown;
-                          ls.lsRunning = lsRun;
-                          ls.lsServer = lsSrv;
-                          ls.lsEnabled = dbRead ? lsEn : null;
-                          ls.lsScope = dbRead ? lsSc : null;
-                          render();
-                          modUp.updateBanner();
-                          baseMods.autoCheck();
-                          hideLoading();
-                          migration.offer();
-                        } finally {
-                          hideLoading();
-                          refreshing = false;
-                          if (refreshAgain) {
-                            refreshAgain = false;
-                            refresh();
-                          }
-                        }
-                      }
-                    });
-              }
-            },
-            "slim-query")
-        .start();
-  }
-
-  String flagQuery() {
-    StringBuilder sb = new StringBuilder();
-    for (Map.Entry<String, String> e : FLAG_MODS.entrySet()) {
-      sb.append("service call TvService 82 s16 ")
-          .append(e.getValue())
-          .append(" 2>/dev/null | grep -q 'Y.E.S' && echo \"F:")
-          .append(e.getKey())
-          .append("\"\n");
-    }
-    return sb.toString();
+    moduleQuery.refresh();
   }
 
   void render() {
-    LinkedHashMap<Group, String[]> ups = modUp.pendingUpdates();
-    for (Group g : GROUPS) {
-      String t;
-      int lv = ItemView.NEUTRAL;
-      if (g.kind == KIND_DB) {
-        int st = dbState();
-        t =
-            st == DB_ACTIVE
-                ? "当前：已是默认桌面"
-                : st == DB_SYSTEM
-                    ? "当前：已安装，尚未设为默认桌面（请再次点击“应用”）"
-                    : st == DB_PENDING
-                        ? "当前：已安装，重启电视后生效"
-                        : st == DB_REMOVING
-                            ? "当前：已移除，重启电视后 Aerial 消失"
-                            : st == DB_USERAPP ? "当前：已装成普通应用，不能设为默认桌面（勾选并应用后可改正）" : "当前：未安装";
-        lv = st == DB_ACTIVE ? ItemView.GOOD : st == DB_NONE ? ItemView.NEUTRAL : ItemView.WARN;
-        String av = aerial.aerialVersion();
-        if (av != null && aerial.aerialInstalledOk()) t += "\n版本：" + av;
-        g.box.setChecked(st == DB_ACTIVE || st == DB_SYSTEM || st == DB_PENDING);
-      } else if (g.kind == KIND_NOHOME) {
-        boolean off = state(STOCK_HOME_PKG) == DISABLED;
-        t = off ? "当前：已禁用" : "当前：启用中";
-        lv = off ? ItemView.GOOD : ItemView.NEUTRAL;
-        if (!noHomeReady() && !off) {
-          t += "（需先启用「默认桌面引用」和「Aerial 桌面」并设为默认桌面）";
-          lv = ItemView.WARN;
-        }
-        g.box.setChecked(off);
-      } else if (g.kind == KIND_APK) {
-        boolean inst = state(g.pkgs[0]) != MISSING;
-        String apkVer = "";
-        if (inst) {
-          try {
-            PackageInfo pi = getPackageManager().getPackageInfo(g.pkgs[0], 0);
-            apkVer = pi.versionName != null ? " " + pi.versionName : " （没有版本号的旧版）";
-          } catch (Exception e) {
-            // 读不到版本就不显示
-          }
-        }
-        t = inst ? "当前：已安装" + apkVer : "当前：未安装";
-        if (ups.containsKey(g)) t += "\n⬆ 有新版本：" + ups.get(g)[0] + " → " + ups.get(g)[1];
-        if (inst) {
-          String act = ls.lsActual(g.pkgs[0]);
-          t += "\n" + act + (ls.needsFix(g.pkgs[0]) ? "（点“应用”自动启用）" : "");
-          lv = act.startsWith("实际：已在") && !act.contains("缺") ? ItemView.GOOD : ItemView.WARN;
-        }
-        g.box.setChecked(inst);
-      } else if (g.kind == KIND_MOD) {
-        if (modPresent == null) {
-          t = "当前：正在读取状态（需要 root 授权）";
-        } else if (modPresent.contains(g.modId) && modRemoving.contains(g.modId)) {
-          t = "当前：已关闭，重启后生效（再勾选可取消）";
-          lv = ItemView.WARN;
-        } else if (modPresent.contains(g.modId)) {
-          boolean pend = modPending != null && modPending.contains(g.modId);
-          String[] iv = modVer.get(g.modId);
-          boolean off = modDisabled.contains(g.modId), on = modActive.contains(g.modId);
-          String act = off ? "实际：在 Magisk 中被停用，未生效" : on ? "实际：已生效" : "实际：未生效（需重启）";
-          String has = g.zygisk ? "已开启" : "已安装";
-          t =
-              pend
-                  ? "当前：" + has + "，重启后生效"
-                  : "当前：" + has + (iv == null ? "" : " " + iv[1]) + "\n" + act;
-          lv = pend || off || !on ? ItemView.WARN : ItemView.GOOD;
-          String[] up = g.base && g.repo != null ? baseMods.update(g) : ups.get(g);
-          if (up != null) t += "\n⬆ 有新版本：" + up[0] + " → " + up[1];
-        } else {
-          t = g.zygisk ? "当前：未开启" : "当前：未安装";
-        }
-        if (fwMismatch(g)) {
-          t += "\n固件不匹配：仅适用于 " + FIRMWARE + "，当前为 " + Build.VERSION.INCREMENTAL;
-          lv = ItemView.WARN;
-        }
-        g.box.setChecked(modInstalled(g));
-        g.box.setLocked(modPresent == null);
-        // 带配套 APK 的 Magisk 模块同时显示 Xposed 启用及作用域状态。
-        if (modInstalled(g) && g.pkgs.length > 0) {
-          String companion =
-              state(g.pkgs[0]) == MISSING
-                  ? "实际：配套 APK 未安装"
-                  : state(g.pkgs[0]) == DISABLED ? "实际：配套 APK 已停用" : ls.lsActual(g.pkgs[0]);
-          t += "\n" + companion;
-          if (!companion.startsWith("实际：已在") || companion.contains("缺")) lv = ItemView.WARN;
-        }
-      } else {
-        int dis = 0, en = 0, miss = 0;
-        for (String p : g.pkgs) {
-          int s = state(p);
-          if (s == DISABLED) dis++;
-          else if (s == ENABLED) en++;
-          else miss++;
-        }
-        t = dis == 0 ? "当前：启用中" : (en == 0 ? "当前：已禁用" : "当前：部分已禁用");
-        if (miss > 0 && dis == 0 && en == 0) t = "当前：本机没有这些应用";
-        lv = dis > 0 && en == 0 ? ItemView.GOOD : dis > 0 ? ItemView.WARN : ItemView.NEUTRAL;
-        g.shown = dis > 0 && en == 0;
-        g.box.setChecked(g.shown);
-      }
-      g.box.setInfo(g.title, g.desc, g.warn, t, lv, g.tags());
-      g.box.markBase();
-    }
-    updateNoHomeBox();
-    updateDependents();
-    aerial.updateAerialUi();
-    baseMods.updateUi();
+    groupStatus.render();
   }
 
   void confirmReboot() {
@@ -1085,7 +621,6 @@ public class MainActivity extends Activity {
         .show();
   }
 
-  /** 应用成功后询问是否重启电视让改动生效。 */
   void showResultReboot(String summary) {
     if (isFinishing()) return;
     new Dlg.Builder(this)
@@ -1117,8 +652,8 @@ public class MainActivity extends Activity {
     new Thread(
             new Runnable() {
               public void run() {
-                final String out = suOut("reboot\n");
-                if (out == null)
+                final Shell.Result result = suResult("reboot\n", null);
+                if (result == null || result.rc != 0)
                   main.post(
                       new Runnable() {
                         public void run() {

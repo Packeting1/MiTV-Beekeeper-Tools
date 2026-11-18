@@ -5,8 +5,7 @@
 
 - 版本号在各模块 module.prop 的 version / versionCode，zip 文件名跟着它走，旧版本的同名前缀 zip 会被删掉。
 - 有 install.sh（legacy）或 customize.sh 的模块会自动加上共用的 META-INF（modules/magisk/src/_shared/META-INF）。
-- SHARED 表里的模块自动加上 src/_shared 下对应目录的文件（install.sh、uninstall.sh 放 zip 根，其余放 common/）：
-  EDID 类（dv_edid、dp_audio）用 edid_mod 和 edid，配置开关类（hgig_fix 等五个）用 flag_mod。
+- 共用文件和内置 APK 的关系见 modules/catalog.json。
 - 打出来的 zip 内容固定（排序、固定时间戳、固定为 Unix 属性），源码不变则 zip 不变。
 """
 
@@ -23,54 +22,30 @@ STAMP = (1980, 1, 1, 0, 0, 0)
 SKIP_DIRS = {"original"}  # 只在重新生成覆盖文件时用，不进 zip
 TEXT_SUFFIXES = (".sh", ".prop", ".conf", "update-binary")
 
-# 源码目录 -> zip 文件名前缀（后面接版本号）
-PLAIN = {
-    "adb_keeper": "Beekeeper_ADB_Keeper_v",
-    "4kui_switch": "Beekeeper_4KUI_Switch_v",
-    "dv_edid": "Beekeeper_LLDV_v",
-    "dp_audio": "Beekeeper_DPAudio_v",
-    "freesync_keep": "Beekeeper_FreeSyncKeep_v",
-    "hgig_fix": "Beekeeper_HGIG_Fix_v",
-    "ldm_fix": "Beekeeper_LDM_Fix_v",
-    "hdr10plus": "Beekeeper_HDR10Plus_v",
-    "imax": "Beekeeper_IMAX_v",
-    "aisr_level": "Beekeeper_AISR_Level_v",
-    "volume_balance": "Beekeeper_VolumeBalance_v",
-    "decorative_light": "Beekeeper_DecorativeLight_v",
-}
+sys.path.insert(0, str(ROOT.parent.parent))
+from modules.catalog import load
 
-# 模块目录 -> 共用的 src/_shared 子目录
-SHARED = {
-    "dv_edid": ("edid_mod", "edid"),
-    "dp_audio": ("edid_mod", "edid"),
-    "hgig_fix": ("flag_mod",),
-    "hdr10plus": ("flag_mod",),
-    "imax": ("flag_mod",),
-    "aisr_level": ("flag_mod",),
-    "volume_balance": ("flag_mod",),
-}
-
-# 模块目录 -> {zip 内路径: modules/xposed/dist 里的 APK}
-EXTRA_APK = {
-    "decorative_light": {"app/DecorativeLight.apk": ROOT.parent / "xposed" / "dist" / "DecorativeLight.apk"},
-}
+MODULES = {entry["key"]: entry for entry in load()}
+XPOSED_DIST = ROOT.parent / "xposed" / "dist"
 
 
 def collect(directory):
     """目录里要打进 zip 的文件：{zip 内路径: 字节}。"""
     files = {}
+    module = MODULES[directory.name]
     for path in sorted(directory.rglob("*")):
         rel = path.relative_to(directory)
         if not path.is_file() or path.suffix == ".py" or "__pycache__" in rel.parts or SKIP_DIRS & set(rel.parts):
             continue
         files[rel.as_posix()] = path.read_bytes()
-    for shared in SHARED.get(directory.name, ()):
+    for shared in module.get("shared", ()):
         for path in sorted((SRC / "_shared" / shared).iterdir()):
             if path.is_file() and path.suffix != ".py":
                 files[("" if path.name in ("install.sh", "uninstall.sh") else "common/") + path.name] = (
                     path.read_bytes()
                 )
-    for name, apk in EXTRA_APK.get(directory.name, {}).items():
+    for name, key in module.get("embed", {}).items():
+        apk = XPOSED_DIST / (MODULES[key]["label"] + ".apk")
         if not apk.is_file():
             sys.exit("missing %s, build it first: python modules/xposed/build.py" % apk)
         files[name] = apk.read_bytes()
@@ -101,14 +76,15 @@ def pack(prefix, files):
     print("OK", out, out.stat().st_size)
 
 
-def main():
-    wanted = set(sys.argv[1:])
-    unknown = wanted - set(PLAIN)
+def main(names=None):
+    wanted = set(sys.argv[1:] if names is None else names)
+    modules = {key: entry for key, entry in MODULES.items() if entry["kind"] == "magisk"}
+    unknown = wanted - set(modules)
     if unknown:
-        sys.exit("unknown module: %s (available: %s)" % (", ".join(sorted(unknown)), ", ".join(PLAIN)))
-    for directory, prefix in PLAIN.items():
+        sys.exit("unknown module: %s (available: %s)" % (", ".join(sorted(unknown)), ", ".join(modules)))
+    for directory, entry in modules.items():
         if not wanted or directory in wanted:
-            pack(prefix, collect(SRC / directory))
+            pack(entry["archive_prefix"], collect(SRC / directory))
 
 
 if __name__ == "__main__":

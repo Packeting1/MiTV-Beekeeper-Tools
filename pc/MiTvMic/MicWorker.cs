@@ -102,8 +102,8 @@ namespace MiTvMic
                 Protocol.Format f = Protocol.Open(s, ip, token);
                 if (f == null)
                 {
-                    Pairings.Remove(ip.ToString());
-                    Note("电视拒绝了该口令，已移除配对，请重新配对");
+                    bool removed = Pairings.Remove(ip.ToString(), token);
+                    Note(removed ? "电视拒绝了该口令，已移除配对，请重新配对" : "旧口令已失效，正在读取新的配对");
                     return;
                 }
                 string name = "";

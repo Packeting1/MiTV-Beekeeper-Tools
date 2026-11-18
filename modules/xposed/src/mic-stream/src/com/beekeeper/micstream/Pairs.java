@@ -107,6 +107,12 @@ final class Pairs {
     return gone;
   }
 
+  /** 认证后再次确认口令未被取消或替换。 */
+  synchronized boolean contains(String token) {
+    for (Pair x : list()) if (x.token.equals(token)) return true;
+    return false;
+  }
+
   /** 返回与客户端口令匹配的已配对口令，没有匹配返回 null。 */
   synchronized String match(byte[] got) {
     String hit = null;

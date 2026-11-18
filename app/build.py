@@ -15,6 +15,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
 OUT = ROOT / "out"
+DIST = REPO / "dist"
+BUNDLED = ROOT / "bundled"
+XPOSED_DIST = REPO / "modules/xposed/dist"
+MAGISK_DIST = REPO / "modules/magisk/dist"
+
+sys.path.insert(0, str(REPO))
+from modules.catalog import app_assets, load, write_java
 
 
 def need(name):
@@ -45,31 +52,26 @@ def java(name):
 
 
 def run(cmd):
-    print(">", " ".join(str(c) for c in cmd))
-    r = subprocess.run([str(c) for c in cmd], capture_output=True, text=True)
-    print(r.stdout[-2000:], r.stderr[-3000:])
+    cmd = [str(c) for c in cmd]
+    logged = cmd.copy()
+    secrets = [KS_PASS]
+    for i, arg in enumerate(cmd[:-1]):
+        if arg in ("--ks-pass", "--key-pass"):
+            logged[i + 1] = "<redacted>"
+            if cmd[i + 1].startswith("pass:"):
+                secrets.append(cmd[i + 1][5:])
+    print(">", " ".join(logged))
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    stdout, stderr = r.stdout, r.stderr
+    for secret in secrets:
+        if secret:
+            stdout = stdout.replace(secret, "<redacted>")
+            stderr = stderr.replace(secret, "<redacted>")
+    print(stdout[-2000:] + "\n" + stderr[-3000:])
     if r.returncode:
         sys.exit("FAILED rc=%d" % r.returncode)
 
 
-manifest = (ROOT / "AndroidManifest.xml").read_text(encoding="utf-8")
-version = re.search(r'versionName="([^"]+)"', manifest).group(1)
-
-MODS = {  # asset suffix -> module zip glob
-    "hgig": "Beekeeper_HGIG_Fix_*.zip",
-    "ldm": "Beekeeper_LDM_Fix_*.zip",
-    "adbkeeper": "Beekeeper_ADB_Keeper_*.zip",
-    "4kui": "Beekeeper_4KUI_Switch_*.zip",
-    "hdr10plus": "Beekeeper_HDR10Plus_*.zip",
-    "imax": "Beekeeper_IMAX_*.zip",
-    "aisr": "Beekeeper_AISR_Level_*.zip",
-    "volbalance": "Beekeeper_VolumeBalance_*.zip",
-    "dvedid": "Beekeeper_LLDV_*.zip",
-    "dpaudio": "Beekeeper_DPAudio_*.zip",
-    "freesynckeep": "Beekeeper_FreeSyncKeep_*.zip",
-    "decorative_light": "Beekeeper_DecorativeLight_v*.zip",
-}
-aerial = ROOT / "bundled" / "aerial.apk"
 AERIAL_REPO = "pengchujin/aerial-tv"
 AERIAL_ASSET = "aerial-standard.apk"
 GH_MIRRORS = [
@@ -78,12 +80,6 @@ GH_MIRRORS = [
     "https://gh-proxy.com/",
     "https://ghproxy.net/",
 ]
-
-
-vector = ROOT / "bundled" / "vector.zip"
-VECTOR_REPO = "JingMatrix/Vector"
-VECTOR_TAG = "v2.2"
-VECTOR_ASSET = "Vector-v2.2-3080-Release.zip"
 
 
 def fetch_asset(dest, repo, asset_name, tag=None, sha256=None):
@@ -125,134 +121,123 @@ def fetch_asset(dest, repo, asset_name, tag=None, sha256=None):
     sys.exit("could not download %s (%s); download %s manually and put it at %s" % (repo, last, url, dest))
 
 
-if not aerial.exists():
-    fetch_asset(aerial, AERIAL_REPO, AERIAL_ASSET)
-if not vector.exists():
-    fetch_asset(vector, VECTOR_REPO, VECTOR_ASSET, VECTOR_TAG)
+def main():
+    entries = load()
+    aerial = BUNDLED / "aerial.apk"
+    if not aerial.exists():
+        fetch_asset(aerial, AERIAL_REPO, AERIAL_ASSET)
+    for entry in entries:
+        if entry.get("download"):
+            dest = BUNDLED / entry["bundled"]
+            if not dest.exists():
+                fetch_asset(dest, entry["download"]["repo"], entry["download"]["asset"], entry["download"].get("tag"))
+    assets = app_assets(entries, XPOSED_DIST, MAGISK_DIST, BUNDLED)
+    manifest = (ROOT / "AndroidManifest.xml").read_text(encoding="utf-8")
+    version = re.search(r'versionName="([^"]+)"', manifest).group(1)
 
-if OUT.exists():
-    shutil.rmtree(OUT)
-cls = OUT / "classes"
-cls.mkdir(parents=True)
-run(
-    [
-        java("javac"),
-        "-source",
-        "8",
-        "-target",
-        "8",
-        "-encoding",
-        "UTF-8",
-        "-Xlint:-options",
-        "-bootclasspath",
-        ANDROID_JAR,
-        "-d",
-        cls,
-        *sorted((ROOT / "src" / "com" / "beekeeper" / "slim").glob("*.java")),
-    ]
-)
+    if OUT.exists():
+        shutil.rmtree(OUT)
+    cls = OUT / "classes"
+    cls.mkdir(parents=True)
+    generated = write_java(OUT / "generated", entries)
+    run(
+        [
+            java("javac"),
+            "-source",
+            "8",
+            "-target",
+            "8",
+            "-encoding",
+            "UTF-8",
+            "-Xlint:-options",
+            "-bootclasspath",
+            ANDROID_JAR,
+            "-d",
+            cls,
+            *sorted((ROOT / "src" / "com" / "beekeeper" / "slim").glob("*.java")),
+            generated,
+        ]
+    )
 
-jar = OUT / "classes.jar"
-with zipfile.ZipFile(jar, "w", zipfile.ZIP_DEFLATED) as z:
-    for p in cls.rglob("*.class"):
-        z.write(p, p.relative_to(cls).as_posix())
+    jar = OUT / "classes.jar"
+    with zipfile.ZipFile(jar, "w", zipfile.ZIP_DEFLATED) as z:
+        for p in cls.rglob("*.class"):
+            z.write(p, p.relative_to(cls).as_posix())
 
-dexdir = OUT / "dex"
-dexdir.mkdir()
-run(
-    [
-        java("java"),
-        "-cp",
-        R8,
-        "com.android.tools.r8.D8",
-        "--release",
-        "--min-api",
-        "21",
-        "--lib",
-        ANDROID_JAR,
-        "--output",
-        dexdir,
-        jar,
-    ]
-)
+    dexdir = OUT / "dex"
+    dexdir.mkdir()
+    run(
+        [
+            java("java"),
+            "-cp",
+            R8,
+            "com.android.tools.r8.D8",
+            "--release",
+            "--min-api",
+            "21",
+            "--lib",
+            ANDROID_JAR,
+            "--output",
+            dexdir,
+            jar,
+        ]
+    )
 
-base = OUT / "base.apk"
-run(
-    [
-        exe(BT, "aapt2"),
-        "link",
-        "-o",
-        base,
-        "-I",
-        ANDROID_JAR,
-        "--manifest",
-        ROOT / "AndroidManifest.xml",
-        "--min-sdk-version",
-        "21",
-        "--target-sdk-version",
-        "28",
-    ]
-)
+    base = OUT / "base.apk"
+    run(
+        [
+            exe(BT, "aapt2"),
+            "link",
+            "-o",
+            base,
+            "-I",
+            ANDROID_JAR,
+            "--manifest",
+            ROOT / "AndroidManifest.xml",
+            "--min-sdk-version",
+            "21",
+            "--target-sdk-version",
+            "28",
+        ]
+    )
 
-unsigned = OUT / "unsigned.apk"
-with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DEFLATED) as zout:
-    for item in zin.infolist():
-        zout.writestr(item, zin.read(item.filename))
-    zout.write(dexdir / "classes.dex", "classes.dex")
-    zout.write(aerial, "assets/aerial.apk", zipfile.ZIP_STORED)
-    zout.write(vector, "assets/mod_vector.zip", zipfile.ZIP_STORED)
-    for name, apk in (
-        ("tvplayerkeep", "TvPlayerKeep"),
-        ("signalkeep", "SignalKeep"),
-        ("castpip", "CastPip"),
-        ("homeref", "HomeRef"),
-        ("installunlock", "InstallUnlock"),
-        ("nosignalaudiomode", "NoSignalAudioMode"),
-        ("moredisplaysettings", "MoreDisplaySettings"),
-        ("gamemenu", "GameMenu"),
-        ("dolbyvisiontitle", "DolbyVisionTitle"),
-        ("mediabadge", "MediaBadge"),
-        ("signalinfobadge", "SignalInfoBadge"),
-        ("volumebalanceswitch", "VolumeBalanceSwitch"),
-        ("voicekeymap", "VoiceKeyMap"),
-        ("localdimmingmemory", "LocalDimmingMemory"),
-        ("sourcevolumememory", "SourceVolumeMemory"),
-        ("micstream", "MicStream"),
-    ):
-        zout.write(
-            REPO / "modules" / "xposed" / "dist" / (apk + ".apk"), "assets/apk_%s.apk" % name, zipfile.ZIP_STORED
-        )
-    for name, pattern in MODS.items():
-        found = sorted((REPO / "modules" / "magisk" / "dist").glob(pattern))
-        if len(found) != 1:
-            sys.exit("expected exactly one module zip for %s, found %d" % (pattern, len(found)))
-        zout.write(found[0], "assets/mod_%s.zip" % name, zipfile.ZIP_STORED)
+    unsigned = OUT / "unsigned.apk"
+    with zipfile.ZipFile(base) as zin, zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            zout.writestr(item, zin.read(item.filename))
+        zout.write(dexdir / "classes.dex", "classes.dex")
+        zout.write(aerial, "assets/aerial.apk", zipfile.ZIP_STORED)
+        for path, asset in assets:
+            zout.write(path, "assets/" + asset, zipfile.ZIP_STORED)
 
-aligned = OUT / "aligned.apk"
-run([exe(BT, "zipalign"), "-f", "4", unsigned, aligned])
-dist = REPO / "dist"
-dist.mkdir(exist_ok=True)
-final = dist / ("MiTV-Beekeeper-Tools-v%s.apk" % version)
-run(
-    [
-        java("java"),
-        "-jar",
-        BT / "lib" / "apksigner.jar",
-        "sign",
-        "--ks",
-        KS,
-        "--ks-pass",
-        "pass:" + KS_PASS,
-        "--ks-key-alias",
-        KS_ALIAS,
-        "--v1-signing-enabled",
-        "true",
-        "--v2-signing-enabled",
-        "true",
-        "--out",
-        final,
-        aligned,
-    ]
-)
-run([java("java"), "-jar", BT / "lib" / "apksigner.jar", "verify", "-v", final])
-print("OK", final, final.stat().st_size)
+    aligned = OUT / "aligned.apk"
+    run([exe(BT, "zipalign"), "-f", "4", unsigned, aligned])
+    DIST.mkdir(exist_ok=True)
+    final = DIST / ("MiTV-Beekeeper-Tools-v%s.apk" % version)
+    run(
+        [
+            java("java"),
+            "-jar",
+            BT / "lib" / "apksigner.jar",
+            "sign",
+            "--ks",
+            KS,
+            "--ks-pass",
+            "env:KS_PASS",
+            "--ks-key-alias",
+            KS_ALIAS,
+            "--v1-signing-enabled",
+            "true",
+            "--v2-signing-enabled",
+            "true",
+            "--out",
+            final,
+            aligned,
+        ]
+    )
+    run([java("java"), "-jar", BT / "lib" / "apksigner.jar", "verify", "-v", final])
+    print("OK", final, final.stat().st_size)
+
+
+if __name__ == "__main__":
+    main()

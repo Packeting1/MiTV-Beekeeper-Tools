@@ -45,9 +45,15 @@ repos:
         args: [--autofix, --google-java-formatter-version=2.0.0]
   - repo: local
     hooks:
+      - id: module-catalog
+        name: module metadata
+        entry: python tools/check_catalog.py
+        language: system
+        files: ^modules/catalog\.(json|py)$|^tools/check_catalog\.py$
+        pass_filenames: false
       - id: java-compile
         name: java compile
         entry: python tools/check_java.py
         language: system
-        files: \.java$
+        files: \.java$|^modules/catalog\.(json|py)$|^modules/(magisk|xposed)/src/.*/(module\.prop|scope\.txt|AndroidManifest\.xml|common/flag\.conf)$
         pass_filenames: false

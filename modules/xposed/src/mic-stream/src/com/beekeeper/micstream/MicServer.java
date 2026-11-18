@@ -29,6 +29,8 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,6 +45,7 @@ final class MicServer {
   private static final long ASK_TIMEOUT_MS = 45000;
   private static final long IDLE_MS = 10 * 60 * 1000;
   private static final int RATE = 48000;
+  private static final int MAX_CONNECTIONS = 8;
   private static final int GAIN_STEP = 180;
   private static final String GAIN_CONTROL = "Mic Gain Step";
 
@@ -54,6 +57,9 @@ final class MicServer {
   /** 增益读写要调用外部进程，单独加锁，避免挡住配对和连接状态所用的 this 锁。 */
   private final Object gainLock = new Object();
 
+  private final Object audioLock = new Object();
+  private final Set<Socket> connections = new HashSet<>();
+
   private Context ctx;
   private ContentResolver cr;
   private Pairs pairs;
@@ -64,6 +70,8 @@ final class MicServer {
   private DatagramSocket disco;
   private Socket client;
   private String clientToken;
+  private AudioRecord recording;
+  private long generation;
   private int origGain = -1;
 
   /** 正在弹窗询问的电脑 IP；允许后 60 秒内该 IP 的下一次配对请求拿到口令，拒绝同理。 */
@@ -137,7 +145,9 @@ final class MicServer {
     try {
       String un = Settings.Global.getString(cr, Keys.UNPAIR);
       if (un != null && un.length() > 0) {
-        for (String token : pairs.remove(un)) kick(token);
+        synchronized (this) {
+          for (String token : pairs.remove(un)) kick(token);
+        }
         Settings.Global.putString(cr, Keys.UNPAIR, "");
         publish();
       }
@@ -145,11 +155,9 @@ final class MicServer {
       if (on && !running) {
         if (!boot) prefs.edit().putLong("deadline", System.currentTimeMillis() + IDLE_MS).apply();
         listen();
-        running = true;
         publish();
         scheduleIdle();
       } else if (!on && running) {
-        running = false;
         h.removeCallbacks(idleCheck);
         prefs.edit().putLong("deadline", 0).apply();
         unlisten();
@@ -191,23 +199,36 @@ final class MicServer {
     }
     final ServerSocket accepting = s;
     final DatagramSocket discovering = d;
-    server = accepting;
-    disco = discovering;
-    new Thread(() -> serve(accepting), "mic-accept").start();
+    final long session;
+    synchronized (this) {
+      server = accepting;
+      disco = discovering;
+      running = true;
+      session = ++generation;
+    }
+    new Thread(() -> serve(accepting, session), "mic-accept").start();
     new Thread(() -> discover(discovering), "mic-discover").start();
   }
 
   private void unlisten() {
-    try {
-      if (server != null) server.close();
-    } catch (IOException e) {
-      // 已关闭
-    }
-    if (disco != null) disco.close();
-    server = null;
-    disco = null;
     synchronized (this) {
+      running = false;
+      generation++;
+      try {
+        if (server != null) server.close();
+      } catch (IOException e) {
+        // 已关闭
+      }
+      if (disco != null) disco.close();
+      server = null;
+      disco = null;
+      for (Socket s : connections) close(s);
+      connections.clear();
       close(client);
+      stopRecording(recording);
+      client = null;
+      clientToken = null;
+      asking = allowed = denied = null;
     }
     ui.post(() -> {
       if (dialog != null && dialog.isShowing()) dialog.dismiss();
@@ -215,7 +236,10 @@ final class MicServer {
   }
 
   private synchronized void kick(String token) {
-    if (client != null && token.equals(clientToken)) close(client);
+    if (client != null && token.equals(clientToken)) {
+      close(client);
+      stopRecording(recording);
+    }
   }
 
   /** 把连接状态（“未连接”或“已连接：电脑名（IP）”）和已配对列表写入 Settings.Global；加锁保证最后写入的是最新状态。 */
@@ -263,14 +287,18 @@ final class MicServer {
           String ip = ((InetSocketAddress) p.getSocketAddress()).getAddress().getHostAddress();
           String pc = req.substring("MITVMIC-PAIR?".length()).replaceAll("[\\t\\r\\n]", " ").trim();
           if (pc.length() == 0) pc = ip;
-          String r = pairState(ip, pc);
-          if (r.equals("TOKEN")) {
-            String token = pairs.add(ip, pc);
-            publish();
-            reply = ("MITVMIC-TOKEN " + token).getBytes("US-ASCII");
-          } else {
-            reply = ("MITVMIC-" + r).getBytes("US-ASCII");
+          synchronized (this) {
+            if (!running || disco != sock) break;
+            String r = pairState(ip, pc);
+            if (r.equals("TOKEN")) {
+              String token = pairs.add(ip, pc);
+              if (clientToken != null && !pairs.contains(clientToken)) kick(clientToken);
+              reply = ("MITVMIC-TOKEN " + token).getBytes("US-ASCII");
+            } else {
+              reply = ("MITVMIC-" + r).getBytes("US-ASCII");
+            }
           }
+          publish();
         } else if (req.startsWith("MITVMIC?")) {
           reply = hello;
         }
@@ -283,6 +311,7 @@ final class MicServer {
 
   /** 允许、拒绝（含超时）的结果各被取走一次；都没有时开始询问。 */
   private String pairState(String ip, String name) {
+    final long session;
     synchronized (this) {
       long now = SystemClock.elapsedRealtime();
       // 电脑端不再轮询时结果会残留，超过有效期的结果丢弃，否则下一次配对会直接拿到旧结果
@@ -296,13 +325,17 @@ final class MicServer {
       }
       if (asking != null) return "WAIT";
       asking = ip;
+      session = generation;
     }
-    ui.post(() -> showAsk(ip, name));
+    ui.post(() -> showAsk(ip, name, session));
     return "WAIT";
   }
 
   /** 悬浮窗形式的询问框：不切走当前画面（PC 信号），遥控器确定键即可操作。 */
-  private void showAsk(final String ip, String name) {
+  private void showAsk(final String ip, String name, long session) {
+    synchronized (this) {
+      if (!running || generation != session || !ip.equals(asking)) return;
+    }
     try {
       final boolean[] done = new boolean[1];
       final AlertDialog d =
@@ -314,7 +347,7 @@ final class MicServer {
               .setNegativeButton("拒绝", null)
               .create();
       d.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
-      d.setOnDismissListener(x -> finishAsk(ip, done[0]));
+      d.setOnDismissListener(x -> finishAsk(ip, done[0], session));
       d.show();
       dialog = d;
       d.getButton(AlertDialog.BUTTON_POSITIVE)
@@ -330,11 +363,12 @@ final class MicServer {
           ASK_TIMEOUT_MS);
     } catch (Throwable t) {
       mod.log(Log.ERROR, HookEntry.TAG, "cannot show pairing dialog", t);
-      finishAsk(ip, false);
+      finishAsk(ip, false, session);
     }
   }
 
-  private synchronized void finishAsk(String ip, boolean allow) {
+  private synchronized void finishAsk(String ip, boolean allow, long session) {
+    if (!running || generation != session || !ip.equals(asking)) return;
     asking = null;
     long until = SystemClock.elapsedRealtime() + ALLOW_MS;
     if (allow) {
@@ -348,11 +382,21 @@ final class MicServer {
     }
   }
 
-  private void serve(ServerSocket s) {
+  private void serve(ServerSocket s, long session) {
     try {
       while (true) {
         final Socket c = s.accept();
-        new Thread(() -> stream(c), "mic-stream").start();
+        synchronized (this) {
+          if (!running
+              || generation != session
+              || server != s
+              || connections.size() >= MAX_CONNECTIONS) {
+            close(c);
+            continue;
+          }
+          connections.add(c);
+        }
+        new Thread(() -> stream(c, session), "mic-stream").start();
       }
     } catch (IOException e) {
       // 服务停止时 socket 被关闭
@@ -368,7 +412,31 @@ final class MicServer {
     return pairs.match(got);
   }
 
-  private void stream(Socket s) {
+  /** 设置观察者尚未处理时，也不能接纳已关闭或正在取消配对的连接。 */
+  private boolean permitted(String token) {
+    if (token == null || Settings.Global.getInt(cr, Keys.ENABLED, 0) == 0) return false;
+    String un = Settings.Global.getString(cr, Keys.UNPAIR);
+    return !"*".equals(un) && !Integer.toHexString(token.hashCode()).equals(un);
+  }
+
+  private synchronized boolean active(Socket s, long session) {
+    return running
+        && generation == session
+        && client == s
+        && !s.isClosed()
+        && permitted(clientToken);
+  }
+
+  private static void stopRecording(AudioRecord rec) {
+    if (rec == null) return;
+    try {
+      rec.stop();
+    } catch (RuntimeException e) {
+      // 未启动成功或已经停止
+    }
+  }
+
+  private void stream(Socket s, long session) {
     AudioRecord rec = null;
     String tk = null;
     try {
@@ -383,50 +451,71 @@ final class MicServer {
       }
       // 通过口令校验后才顶掉旧连接，避免陌生设备连上来就把正常使用中的电脑踢掉
       synchronized (this) {
+        if (!running
+            || generation != session
+            || s.isClosed()
+            || !pairs.contains(tk)
+            || !permitted(tk)) return;
         close(client);
+        stopRecording(recording);
         client = s;
         clientToken = tk;
+        prefs.edit().putLong("deadline", 0).apply();
+        pairs.touch(tk);
       }
-      prefs.edit().putLong("deadline", 0).apply();
-      pairs.touch(tk);
       publish();
-      int min =
-          AudioRecord.getMinBufferSize(
-              RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-      rec =
-          new AudioRecord(
-              MediaRecorder.AudioSource.MIC,
-              RATE,
-              AudioFormat.CHANNEL_IN_MONO,
-              AudioFormat.ENCODING_PCM_16BIT,
-              Math.max(min, RATE / 5 * 2));
-      if (rec.getState() != AudioRecord.STATE_INITIALIZED) return;
-      out.writeBytes("TVMC");
-      out.writeInt(RATE);
-      out.writeByte(1);
-      out.writeByte(16);
-      out.flush();
-      rec.startRecording();
-      raiseGain();
-      byte[] buf = new byte[RATE / 50 * 2];
-      while (true) {
-        int n = rec.read(buf, 0, buf.length);
-        if (n <= 0) break;
-        out.write(buf, 0, n);
+      // 旧录音释放、增益还原后才启动新录音；关闭服务不必等待此锁。
+      synchronized (audioLock) {
+        try {
+          synchronized (this) {
+            if (!active(s, session) || !pairs.contains(tk)) return;
+            int min =
+                AudioRecord.getMinBufferSize(
+                    RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+            rec =
+                new AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    Math.max(min, RATE / 5 * 2));
+            if (rec.getState() != AudioRecord.STATE_INITIALIZED || !active(s, session)) return;
+            recording = rec;
+            rec.startRecording();
+          }
+          if (!active(s, session)) return;
+          out.writeBytes("TVMC");
+          out.writeInt(RATE);
+          out.writeByte(1);
+          out.writeByte(16);
+          out.flush();
+          raiseGain();
+          byte[] buf = new byte[RATE / 50 * 2];
+          while (active(s, session)) {
+            int n = rec.read(buf, 0, buf.length);
+            if (n <= 0 || !active(s, session)) break;
+            out.write(buf, 0, n);
+          }
+        } finally {
+          if (rec != null) {
+            synchronized (this) {
+              if (recording == rec) recording = null;
+              stopRecording(rec);
+            }
+            try {
+              rec.release();
+            } finally {
+              restoreGain();
+            }
+          }
+        }
       }
     } catch (IOException | RuntimeException e) {
       // 对端断开、口令超时或录音被系统拒绝，直接结束本次推流
     } finally {
-      if (rec != null) {
-        try {
-          rec.stop();
-        } catch (RuntimeException e) {
-          // 未启动成功时 stop 会抛异常
-        }
-        rec.release();
-      }
       boolean last;
       synchronized (this) {
+        connections.remove(s);
         last = client == s;
         if (last) {
           client = null;
@@ -434,7 +523,6 @@ final class MicServer {
         }
       }
       if (last) {
-        restoreGain();
         publish();
         h.post(this::scheduleIdle);
       }

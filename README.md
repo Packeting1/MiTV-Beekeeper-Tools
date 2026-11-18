@@ -125,6 +125,7 @@ python app\build.py
 ```
 
 - `XPOSED_API` 为 [libxposed API 101](https://github.com/libxposed/api)，可从 Maven Central 获取。
+- 模块的界面文案、资源名和打包关联只维护 `modules/catalog.json`。包名、版本和作用域仍来自各模块的 manifest、`module.prop` 和 `scope.txt`；构建及 Java 校验自动生成所需数据，不维护生成文件副本。
 - Xposed 模块输出到 `modules/xposed/dist/`。Magisk 模块从 `modules/magisk/src/` 打包为 `modules/magisk/dist/` 中的 zip，版本号见各模块的 `module.prop`。应用构建时从这两个 `dist` 目录取用，输出到 `dist/`。
 - 内置的 Aerial APK（[pengchujin/aerial-tv](https://github.com/pengchujin/aerial-tv)，MIT）若在 `app/bundled/aerial.apk` 不存在，构建时会自动下载最新 Release，并按 GitHub 提供的 SHA-256 校验。内置的 Vector v2.2（GPL-3.0，[JingMatrix/Vector](https://github.com/JingMatrix/Vector)）放在 `app/bundled/vector.zip`，不存在时构建会下载并按 GitHub 提供的 SHA-256 校验。
 - 使用自己的签名时替换 `KEYSTORE`。签名不同的应用无法覆盖安装。

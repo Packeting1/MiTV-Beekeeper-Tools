@@ -28,7 +28,8 @@ final class SettingsUi {
   private ContentObserver observer;
   private Object item;
   private Context context;
-  private Method setDesc;
+  private Method setDesc, setChecked;
+  private boolean updating;
 
   private SettingsUi(XposedModule mod) {
     this.mod = mod;
@@ -49,7 +50,7 @@ final class SettingsUi {
     Method create = itemClass.getMethod("createItem", Context.class, ViewGroup.class);
     Method setTitle = itemClass.getMethod("setTitle", String.class);
     setDesc = itemClass.getMethod("setDescription", String.class);
-    Method setChecked = itemClass.getMethod("setChecked", boolean.class);
+    setChecked = itemClass.getMethod("setChecked", boolean.class);
     Method setListener = itemClass.getMethod("setOnCheckedListener", listener);
 
     mod.hook(page.getDeclaredMethod("init"))
@@ -68,8 +69,9 @@ final class SettingsUi {
                     cl,
                     new Class<?>[] {listener},
                     (proxy, m, args) -> {
-                      Settings.Global.putInt(
-                          ctx.getContentResolver(), Keys.ENABLED, (Boolean) args[0] ? 1 : 0);
+                      boolean on = (Boolean) args[0];
+                      if (!updating && on != enabled(ctx))
+                        Settings.Global.putInt(ctx.getContentResolver(), Keys.ENABLED, on ? 1 : 0);
                       return Boolean.TRUE;
                     }));
             watch(ctx, it);
@@ -90,6 +92,16 @@ final class SettingsUi {
     return s == null || s.length() == 0 ? "未连接" : s;
   }
 
+  private void refresh() throws Exception {
+    updating = true;
+    try {
+      setChecked.invoke(item, enabled(context));
+      setDesc.invoke(item, describe(context));
+    } finally {
+      updating = false;
+    }
+  }
+
   /** 页面每次打开都会新建开关项，只刷新最近一个；观察者在进程内注册一次。 */
   private void watch(Context ctx, Object it) {
     item = it;
@@ -100,9 +112,9 @@ final class SettingsUi {
           @Override
           public void onChange(boolean selfChange) {
             try {
-              setDesc.invoke(item, describe(context));
+              refresh();
             } catch (Throwable t) {
-              mod.log(Log.ERROR, HookEntry.TAG, "cannot update description", t);
+              mod.log(Log.ERROR, HookEntry.TAG, "cannot update switch", t);
             }
           }
         };

@@ -211,36 +211,51 @@ namespace MiTvMic
                     else if (section.Length == 0 && t.StartsWith(key + "="))
                     {
                         lines[i] = key + "=" + value;
-                        return;
+                        return true;
                     }
                 }
                 int at = firstHeader < 0 ? lines.Count : firstHeader;
                 while (at > 0 && lines[at - 1].Trim().Length == 0) at--;
                 lines.Insert(at, key + "=" + value);
+                return true;
             });
         }
 
-        internal static void SetPairs(List<string> entries)
+        internal static void EditPairs(Func<List<KeyValuePair<string, string>>, bool> edit)
         {
             Mutate(delegate (List<string> lines)
             {
                 int s = lines.FindIndex(delegate (string l) { return l.Trim().ToLowerInvariant() == PairedHeader; });
+                int e = s + 1;
+                List<KeyValuePair<string, string>> entries = new List<KeyValuePair<string, string>>();
                 if (s >= 0)
                 {
-                    int e = s + 1;
-                    while (e < lines.Count && !IsHeader(lines[e].Trim())) e++;
+                    while (e < lines.Count && !IsHeader(lines[e].Trim()))
+                    {
+                        string t = lines[e++].Trim();
+                        int i = t.IndexOf('=');
+                        if (!t.StartsWith("#") && i > 0)
+                            entries.Add(new KeyValuePair<string, string>(t.Substring(0, i).Trim(), t.Substring(i + 1).Trim()));
+                    }
+                }
+                if (!edit(entries)) return false;
+                if (s >= 0)
+                {
                     lines.RemoveRange(s, e - s);
                 }
-                while (lines.Count > 0 && lines[lines.Count - 1].Trim().Length == 0) lines.RemoveAt(lines.Count - 1);
-                if (entries.Count == 0) return;
-                lines.Add("");
-                lines.Add(PairedHeader);
-                lines.AddRange(entries);
+                else s = lines.Count;
+                if (entries.Count > 0)
+                {
+                    lines.Insert(s++, PairedHeader);
+                    foreach (KeyValuePair<string, string> p in entries)
+                        lines.Insert(s++, p.Key + "=" + p.Value);
+                }
+                return true;
             });
         }
 
         // 先写临时文件再替换，另一个进程不会读到写一半的
-        static void Mutate(Action<List<string>> edit)
+        static void Mutate(Func<List<string>, bool> edit)
         {
             lock (gate)
             {
@@ -252,12 +267,13 @@ namespace MiTvMic
                     Directory.CreateDirectory(Env.DataDir);
                     List<string> lines = new List<string>();
                     if (File.Exists(FilePath)) lines.AddRange(File.ReadAllLines(FilePath));
-                    edit(lines);
+                    if (!edit(lines)) return;
                     string tmp = FilePath + ".tmp";
                     File.WriteAllLines(tmp, lines.ToArray(), new UTF8Encoding(false));
                     if (File.Exists(FilePath)) File.Replace(tmp, FilePath, null);
                     else File.Move(tmp, FilePath);
                     checkedAt = DateTime.MinValue;
+                    stamp = DateTime.MinValue;
                 }
                 finally
                 {
@@ -314,29 +330,35 @@ namespace MiTvMic
             return list;
         }
 
-        static void Save(List<Item> list)
-        {
-            List<string> lines = new List<string>();
-            foreach (Item p in list) lines.Add(p.Ip + "=" + p.Token + "|" + p.Name);
-            Config.SetPairs(lines);
-        }
-
         public static void Add(string ip, string name, string token)
         {
-            List<Item> list = All();
-            list.RemoveAll(delegate (Item p) { return p.Ip == ip; });
-            Item n = new Item();
-            n.Ip = ip;
-            n.Name = name.Replace('\r', ' ').Replace('\n', ' ').Trim();
-            n.Token = token;
-            list.Add(n);
-            Save(list);
+            string cleanName = name.Replace('\r', ' ').Replace('\n', ' ').Trim();
+            Config.EditPairs(delegate (List<KeyValuePair<string, string>> pairs)
+            {
+                pairs.RemoveAll(delegate (KeyValuePair<string, string> p) { return p.Key == ip; });
+                pairs.Add(new KeyValuePair<string, string>(ip, token + "|" + cleanName));
+                return true;
+            });
         }
 
         public static void Remove(string ip)
         {
-            List<Item> list = All();
-            if (list.RemoveAll(delegate (Item p) { return p.Ip == ip; }) > 0) Save(list);
+            Remove(ip, null);
+        }
+
+        // 旧连接被拒绝时，只移除该口令，不影响界面刚重新配好的记录。
+        public static bool Remove(string ip, string token)
+        {
+            bool removed = false;
+            Config.EditPairs(delegate (List<KeyValuePair<string, string>> pairs)
+            {
+                removed = pairs.RemoveAll(delegate (KeyValuePair<string, string> p)
+                {
+                    return p.Key == ip && (token == null || p.Value.StartsWith(token + "|", StringComparison.Ordinal));
+                }) > 0;
+                return removed;
+            });
+            return removed;
         }
 
         public static string TokenOf(string ip)
