@@ -53,9 +53,17 @@ namespace MiTvMic
             public MicState Mic;
             public bool Autostart;
 
-            public bool Connected
+            public bool ConnectedTo(string host)
             {
-                get { return Running && Link.StartsWith("已连接"); }
+                return Running && host.Length > 0 && Link != null
+                    && Link.StartsWith("已连接 " + host + "，", StringComparison.Ordinal);
+            }
+
+            public string PairedState(string ip, string host, bool enabled)
+            {
+                if (ip != host) return "";
+                if (!enabled) return "已关闭";
+                return ConnectedTo(host) ? "使用中" : "未连接";
             }
         }
 
@@ -407,7 +415,8 @@ namespace MiTvMic
                     s.Autostart = Installer.AutostartEnabled();
                     s.Card = Cards.Probe(s.Device);
                     s.Link = MiTvMic.Link.Get();
-                    s.Mic = s.Connected ? DefaultMic.State(DefaultMic.Device) : MicState.Unavailable;
+                    s.Mic = Config.Enabled && s.ConnectedTo(Config.Host)
+                        ? DefaultMic.State(DefaultMic.Device) : MicState.Unavailable;
                 }
                 catch (Exception ex)
                 {
@@ -422,7 +431,6 @@ namespace MiTvMic
 
         void SyncLists()
         {
-            string host = Config.Host;
             List<Pairings.Item> list = Pairings.All();
             bool same = pairedRows.Count == list.Count;
             for (int i = 0; same && i < list.Count; i++)
@@ -442,15 +450,19 @@ namespace MiTvMic
                 pairedList.ItemsSource = null;
                 pairedList.ItemsSource = pairedRows;
             }
-            foreach (Row r in pairedRows)
-            {
-                r.State = r.Ip != host ? "" : Config.Enabled ? "使用中" : "已关闭";
-            }
+            SyncPairedStates();
             foreach (Row r in foundRows)
             {
                 r.State = list.Exists(delegate (Pairings.Item p) { return p.Ip == r.Ip; }) ? "已配对" : "";
             }
             UpdateButtons();
+        }
+
+        void SyncPairedStates()
+        {
+            string host = Config.Host;
+            bool enabled = Config.Enabled;
+            foreach (Row r in pairedRows) r.State = snap.PairedState(r.Ip, host, enabled);
         }
 
         static string NameOf(string name)
@@ -461,6 +473,7 @@ namespace MiTvMic
         void Apply(Snapshot s)
         {
             snap = s;
+            SyncPairedStates();
             Card card = s.Card;
             svcText.Text = "后台进程：" + (s.Running ? "运行中" : "已停止") + "　虚拟声卡 " + s.Device + "："
                 + card.StateText + (card.Ready && card.WaveIsWide ? "（16 声道端）" : "");
@@ -581,7 +594,7 @@ namespace MiTvMic
             }
             else if (!Config.Enabled) done = link == "推流已关闭";
             else if (host.Length == 0) done = link.StartsWith("未选择");
-            else if (link.StartsWith("已连接") && link.Contains(" " + host + "，")) done = true;
+            else if (s.ConnectedTo(host)) done = true;
             else if (link.StartsWith("电视连接失败") || link.StartsWith("电视拒绝"))
             {
                 done = true;

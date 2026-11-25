@@ -111,22 +111,33 @@ namespace MiTvMic
                 {
                     if (p.Ip == ip.ToString()) name = p.Name;
                 }
-                Note("已连接 " + (name.Length > 0 ? name + " " : "") + ip + "，" + f.Rate + " Hz "
-                    + f.Channels + " 声道 " + f.Bits + " 位，输出到 " + card.ShortName);
+                string host = ip.ToString();
                 using (WaveOut w = new WaveOut(card.WaveIndex, f.Rate, f.Channels, f.Bits))
                 {
                     int chunk = f.Rate / 50 * f.Channels * f.Bits / 8;
-                    string host = ip.ToString();
+                    bool streaming = false;
                     while (!stopped.WaitOne(0) && Config.Enabled && Config.Host == host)
                     {
                         byte[] b = Protocol.ReadFully(s, chunk);
                         if (b == null) break;
+                        if (stopped.WaitOne(0) || !Config.Enabled || Config.Host != host) break;
                         float gain = Config.Gain;
                         if (gain != 1 && f.Bits == 16) ApplyGain(b, gain);
                         w.Write(b);
+                        if (!streaming)
+                        {
+                            streaming = true;
+                            Note("已连接 " + host + "，" + (name.Length > 0 ? name + "，" : "") + f.Rate + " Hz "
+                                + f.Channels + " 声道 " + f.Bits + " 位，输出到 " + card.ShortName);
+                        }
+                    }
+                    if (!stopped.WaitOne(0))
+                    {
+                        bool stillSelected = Config.Enabled && Config.Host == host;
+                        Note(!stillSelected ? "连接已断开" : streaming ? "连接已断开，正在重连"
+                            : "电视连接失败（未收到音频），正在重试");
                     }
                 }
-                if (!stopped.WaitOne(0)) Note("连接已断开，正在重连");
             }
             finally
             {
