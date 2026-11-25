@@ -44,6 +44,7 @@ final class MicServer {
   private static final long ALLOW_MS = 60000;
   private static final long ASK_TIMEOUT_MS = 45000;
   private static final long IDLE_MS = 10 * 60 * 1000;
+  private static final long STREAM_TIMEOUT_MS = 5000;
   private static final int RATE = 48000;
   private static final int MAX_CONNECTIONS = 8;
   private static final int GAIN_STEP = 180;
@@ -70,6 +71,8 @@ final class MicServer {
   private DatagramSocket disco;
   private Socket client;
   private String clientToken;
+  private boolean streaming;
+  private long lastAudioWrite;
   private AudioRecord recording;
   private long generation;
   private int origGain = -1;
@@ -96,6 +99,24 @@ final class MicServer {
           }
         }
       };
+
+  private final Runnable streamCheck = this::checkStream;
+
+  private void checkStream() {
+    synchronized (this) {
+      if (client == null || client.isClosed() || lastAudioWrite == 0) return;
+      long remaining = STREAM_TIMEOUT_MS - (SystemClock.elapsedRealtime() - lastAudioWrite);
+      if (remaining > 0) {
+        h.removeCallbacks(streamCheck);
+        h.postDelayed(streamCheck, remaining);
+        return;
+      }
+      // Socket 的读超时不限制写入。关闭连接，唤醒断网后阻塞的写线程。
+      close(client);
+      streaming = false;
+    }
+    publish();
+  }
 
   private MicServer(XposedModule mod, Handler h) {
     this.mod = mod;
@@ -228,6 +249,9 @@ final class MicServer {
       stopRecording(recording);
       client = null;
       clientToken = null;
+      streaming = false;
+      lastAudioWrite = 0;
+      h.removeCallbacks(streamCheck);
       asking = allowed = denied = null;
     }
     ui.post(() -> {
@@ -247,7 +271,7 @@ final class MicServer {
     synchronized (statusLock) {
       String active;
       synchronized (this) {
-        active = client != null ? clientToken : null;
+        active = streaming && client != null && !client.isClosed() ? clientToken : null;
       }
       StringBuilder sb = new StringBuilder();
       String status = "未连接";
@@ -441,6 +465,8 @@ final class MicServer {
     String tk = null;
     try {
       s.setTcpNoDelay(true);
+      // 限制本地积压的 PCM，断网后写线程能尽快感知背压。
+      s.setSendBufferSize(RATE / 50 * 2 * 4);
       DataOutputStream out = new DataOutputStream(s.getOutputStream());
       tk = authenticate(s);
       if (tk == null) {
@@ -460,6 +486,9 @@ final class MicServer {
         stopRecording(recording);
         client = s;
         clientToken = tk;
+        streaming = false;
+        lastAudioWrite = 0;
+        h.removeCallbacks(streamCheck);
         prefs.edit().putLong("deadline", 0).apply();
         pairs.touch(tk);
       }
@@ -482,6 +511,7 @@ final class MicServer {
             if (rec.getState() != AudioRecord.STATE_INITIALIZED || !active(s, session)) return;
             recording = rec;
             rec.startRecording();
+            if (rec.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) return;
           }
           if (!active(s, session)) return;
           out.writeBytes("TVMC");
@@ -490,13 +520,36 @@ final class MicServer {
           out.writeByte(16);
           out.flush();
           raiseGain();
+          synchronized (this) {
+            if (!active(s, session)) return;
+            lastAudioWrite = SystemClock.elapsedRealtime();
+            h.postDelayed(streamCheck, STREAM_TIMEOUT_MS);
+          }
           byte[] buf = new byte[RATE / 50 * 2];
           while (active(s, session)) {
             int n = rec.read(buf, 0, buf.length);
             if (n <= 0 || !active(s, session)) break;
             out.write(buf, 0, n);
+            boolean started;
+            synchronized (this) {
+              if (client != s || s.isClosed()) break;
+              lastAudioWrite = SystemClock.elapsedRealtime();
+              started = !streaming;
+              streaming = true;
+            }
+            if (started) publish();
           }
         } finally {
+          boolean wasStreaming = false;
+          synchronized (this) {
+            if (client == s) {
+              wasStreaming = streaming;
+              streaming = false;
+              lastAudioWrite = 0;
+              h.removeCallbacks(streamCheck);
+            }
+          }
+          if (wasStreaming) publish();
           if (rec != null) {
             synchronized (this) {
               if (recording == rec) recording = null;
