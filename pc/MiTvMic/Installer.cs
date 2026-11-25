@@ -9,7 +9,7 @@ using Microsoft.Win32;
 
 namespace MiTvMic
 {
-    // 当前用户级安装：复制到 %LOCALAPPDATA%\Programs\MiTvMic，创建桌面和开始菜单快捷方式，注册卸载项。
+    // 当前用户级安装，默认位置为 %LOCALAPPDATA%\Programs\MiTvMic。
     // 后台进程是同一个 exe 的 --worker 模式，是否开机自启由界面上的勾选框控制（注册表 Run 项）。
     static class Installer
     {
@@ -18,10 +18,21 @@ namespace MiTvMic
         const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
         const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\MiTvMic";
 
-        static readonly string Dir = Path.Combine(
+        static readonly string DefaultDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "MiTvMic");
 
-        static readonly string Exe = Path.Combine(Dir, "MiTvMic.exe");
+        static string Dir = InstalledDirectory();
+
+        static string Exe { get { return Path.Combine(Dir, "MiTvMic.exe"); } }
+
+        static string InstalledDirectory()
+        {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(UninstallKey))
+            {
+                string dir = key == null ? null : key.GetValue("InstallLocation") as string;
+                return string.IsNullOrEmpty(dir) ? DefaultDir : dir;
+            }
+        }
 
         static string DesktopLink
         {
@@ -85,17 +96,36 @@ namespace MiTvMic
             }
 
             bool fresh = installed == null;
-            string text = fresh
-                ? "MiTvMic 需要安装后才能使用。\n安装位置：" + Dir + "\n安装后会创建桌面和开始菜单快捷方式。"
-                : sameVersion
+            string directory = Dir;
+            if (fresh)
+            {
+                directory = Dialog.AskInstallDirectory(directory);
+                if (directory == null) return true;
+            }
+            else
+            {
+                string text = sameVersion
                     ? "检测到同版本的不同安装包，是否重新安装 MiTvMic " + Update.Format(mine) + "？\n配置和配对记录会保留。"
                     : "已安装 MiTvMic " + Update.Format(installed) + "，是否更新到 " + Update.Format(mine) + "？";
-            string action = fresh ? "安装" : sameVersion ? "修复" : "更新";
-            if (!Dialog.Ask(null, action + " MiTvMic", text, action, "取消"))
-                return true;
+                string action = sameVersion ? "修复" : "更新";
+                if (!Dialog.Ask(null, action + " MiTvMic", text, action, "取消")) return true;
+            }
             try
             {
-                Install();
+                if (fresh)
+                {
+                    directory = directory.Trim();
+                    string root = Path.GetPathRoot(directory);
+                    if (root == null || root.Length != 3 || root[1] != ':' || root[2] != '\\')
+                        throw new IOException("请输入完整的安装目录，例如 D:\\Apps\\MiTvMic。");
+                    directory = Path.GetFullPath(directory);
+                    string data = Path.GetFullPath(Env.DataDir).TrimEnd('\\') + "\\";
+                    if ((directory.TrimEnd('\\') + "\\").StartsWith(data, StringComparison.OrdinalIgnoreCase))
+                        throw new IOException("请选择配置数据目录以外的安装位置。");
+                    if (directory.Length > root.Length) directory = directory.TrimEnd('\\');
+                }
+                Install(directory, fresh);
+                Dir = directory;
             }
             catch (Exception e)
             {
@@ -146,39 +176,49 @@ namespace MiTvMic
             }
         }
 
-        static void Install()
+        static void Install(string directory, bool fresh)
         {
             Background.Stop(5000);
-            Setup.KillExe(Exe);
-            Directory.CreateDirectory(Dir);
-            string old = Exe + ".old";
-            try { if (File.Exists(old)) File.Delete(old); }
-            catch (Exception) { }
-            if (File.Exists(Exe))
+            string exe = Path.Combine(directory, "MiTvMic.exe");
+            Directory.CreateDirectory(directory);
+            if (fresh)
             {
-                try { File.Move(Exe, old); }
+                if (File.Exists(exe + ".old"))
+                    throw new IOException("所选目录中已有 MiTvMic.exe.old，请选择其他安装位置。");
+                File.Copy(Env.SelfExe, exe, false);
+            }
+            else
+            {
+                Setup.KillExe(exe);
+                string old = exe + ".old";
+                try { if (File.Exists(old)) File.Delete(old); }
+                catch (Exception) { }
+                if (File.Exists(exe))
+                {
+                    try { File.Move(exe, old); }
+                    catch (Exception) { }
+                }
+                File.Copy(Env.SelfExe, exe, true);
+                try { File.Delete(old); }
                 catch (Exception) { }
             }
-            File.Copy(Env.SelfExe, Exe, true);
-            try { File.Delete(old); }
-            catch (Exception) { }
 
-            CreateLink(DesktopLink);
-            CreateLink(StartMenuLink);
             using (RegistryKey k = Registry.CurrentUser.CreateSubKey(UninstallKey))
             {
                 k.SetValue("DisplayName", "MiTvMic 电视麦克风");
                 k.SetValue("DisplayVersion", Update.Format(Update.Current));
                 k.SetValue("Publisher", "Packeting1");
-                k.SetValue("InstallLocation", Dir);
-                k.SetValue("DisplayIcon", Exe);
-                k.SetValue("UninstallString", "\"" + Exe + "\" --uninstall-app");
+                k.SetValue("InstallLocation", directory);
+                k.SetValue("DisplayIcon", exe);
+                k.SetValue("UninstallString", "\"" + exe + "\" --uninstall-app");
                 k.SetValue("NoModify", 1, RegistryValueKind.DWord);
                 k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             }
+            CreateLink(DesktopLink, exe, directory);
+            CreateLink(StartMenuLink, exe, directory);
         }
 
-        // 卸载：后台进程、自启项、快捷方式、卸载项、防火墙规则和数据目录。程序目录在本进程退出后由 cmd 删除
+        // 卸载：后台进程、自启项、快捷方式、卸载项、防火墙规则和数据目录。
         public static int Uninstall()
         {
             bool firewall = Setup.FirewallRuleExists();
@@ -213,22 +253,24 @@ namespace MiTvMic
             catch (Exception) { }
 
             Dialog.Info(null, "卸载完成", "MiTvMic 已卸载。");
-            // 本进程退出后才能删掉自己所在的目录
+            // 本进程退出后删除程序。目录为空时才移除，保留目录中的其他文件。
             ProcessStartInfo psi = new ProcessStartInfo("cmd.exe",
-                "/c ping -n 3 127.0.0.1 >nul & rd /s /q \"" + Dir + "\"");
+                "/d /v:off /c ping -n 3 127.0.0.1 >nul & del /q \"%MITVMIC_UNINSTALL_EXE%\" & rd \"%MITVMIC_UNINSTALL_DIR%\" 2>nul");
             psi.CreateNoWindow = true;
             psi.UseShellExecute = false;
+            psi.EnvironmentVariables["MITVMIC_UNINSTALL_EXE"] = Exe;
+            psi.EnvironmentVariables["MITVMIC_UNINSTALL_DIR"] = Dir;
             Process.Start(psi);
             return 0;
         }
 
-        static void CreateLink(string path)
+        static void CreateLink(string path, string exe, string directory)
         {
             IShellLinkW link = (IShellLinkW)new ShellLink();
-            link.SetPath(Exe);
-            link.SetWorkingDirectory(Dir);
+            link.SetPath(exe);
+            link.SetWorkingDirectory(directory);
             link.SetDescription("MiTvMic 电视麦克风");
-            link.SetIconLocation(Exe, 0);
+            link.SetIconLocation(exe, 0);
             ((IPersistFile)link).Save(path, true);
         }
 
