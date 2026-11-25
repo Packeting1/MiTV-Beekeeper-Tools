@@ -500,6 +500,13 @@ namespace MiTvMic
         {
             if (!s.Card.Ready) return s.Card.Hint(s.Device);
             if (!s.Running) return "";
+            if (s.Link.StartsWith("已连接", StringComparison.Ordinal))
+            {
+                if (!Config.Enabled) return "推流已关闭";
+                string host = Config.Host;
+                if (host.Length == 0) return "未选择电视";
+                if (!s.ConnectedTo(host)) return "等待后台进程切换连接…";
+            }
             return s.Link.Length > 0 ? s.Link : "等待后台进程报告状态…";
         }
 

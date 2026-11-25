@@ -184,6 +184,8 @@ final class MicServer {
         prefs.edit().putLong("deadline", 0).apply();
         unlisten();
         Settings.Global.putString(cr, Keys.STATUS, null);
+        // 已打开的配对列表也要收到所有电脑已断开的状态。
+        publish();
       }
     } catch (Throwable t) {
       mod.log(Log.ERROR, HookEntry.TAG, "sync failed", t);
