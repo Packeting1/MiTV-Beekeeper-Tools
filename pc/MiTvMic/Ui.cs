@@ -99,7 +99,8 @@ namespace MiTvMic
         Snapshot snap = new Snapshot();
         bool shown, switching, masked;
         DateTime switchStart;
-        volatile bool probing, scanning, pairing, busy, closing;
+        bool probing;
+        volatile bool scanning, pairing, busy, closing;
         bool? dotRunning;
 
         public Ui()
@@ -423,9 +424,11 @@ namespace MiTvMic
                     s = null;
                     Log.Write("刷新状态失败：" + ex.Message);
                 }
-                probing = false;
-                if (s == null || closing) return;
-                Window.Dispatcher.BeginInvoke((Action)delegate { Apply(s); });
+                Window.Dispatcher.BeginInvoke((Action)delegate
+                {
+                    probing = false;
+                    if (s != null && !closing) Apply(s);
+                });
             });
         }
 
