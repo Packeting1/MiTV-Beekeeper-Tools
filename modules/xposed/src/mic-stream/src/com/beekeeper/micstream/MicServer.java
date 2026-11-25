@@ -32,6 +32,7 @@ import java.net.Socket;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 把电视麦克风通过局域网 TCP 推给电脑端 MiTvMic，运行在系统常驻的 mitv.service 进程里。
@@ -44,6 +45,7 @@ final class MicServer {
   private static final long ALLOW_MS = 60000;
   private static final long ASK_TIMEOUT_MS = 45000;
   private static final long IDLE_MS = 10 * 60 * 1000;
+  private static final long STREAM_CHECK_INTERVAL_MS = 2000;
   private static final long STREAM_TIMEOUT_MS = 5000;
   private static final int RATE = 48000;
   private static final int MAX_CONNECTIONS = 8;
@@ -72,7 +74,7 @@ final class MicServer {
   private Socket client;
   private String clientToken;
   private boolean streaming;
-  private long lastAudioWrite;
+  private AtomicLong lastAudioWrite;
   private AudioRecord recording;
   private long generation;
   private int origGain = -1;
@@ -104,11 +106,10 @@ final class MicServer {
 
   private void checkStream() {
     synchronized (this) {
-      if (client == null || client.isClosed() || lastAudioWrite == 0) return;
-      long remaining = STREAM_TIMEOUT_MS - (SystemClock.elapsedRealtime() - lastAudioWrite);
-      if (remaining > 0) {
+      if (client == null || client.isClosed() || lastAudioWrite == null) return;
+      if (SystemClock.elapsedRealtime() - lastAudioWrite.get() < STREAM_TIMEOUT_MS) {
         h.removeCallbacks(streamCheck);
-        h.postDelayed(streamCheck, remaining);
+        h.postDelayed(streamCheck, STREAM_CHECK_INTERVAL_MS);
         return;
       }
       // Socket 的读超时不限制写入。关闭连接，唤醒断网后阻塞的写线程。
@@ -250,7 +251,7 @@ final class MicServer {
       client = null;
       clientToken = null;
       streaming = false;
-      lastAudioWrite = 0;
+      lastAudioWrite = null;
       h.removeCallbacks(streamCheck);
       asking = allowed = denied = null;
     }
@@ -487,7 +488,7 @@ final class MicServer {
         client = s;
         clientToken = tk;
         streaming = false;
-        lastAudioWrite = 0;
+        lastAudioWrite = null;
         h.removeCallbacks(streamCheck);
         prefs.edit().putLong("deadline", 0).apply();
         pairs.touch(tk);
@@ -520,24 +521,27 @@ final class MicServer {
           out.writeByte(16);
           out.flush();
           raiseGain();
+          AtomicLong progress = new AtomicLong(SystemClock.elapsedRealtime());
           synchronized (this) {
             if (!active(s, session)) return;
-            lastAudioWrite = SystemClock.elapsedRealtime();
-            h.postDelayed(streamCheck, STREAM_TIMEOUT_MS);
+            lastAudioWrite = progress;
+            h.postDelayed(streamCheck, STREAM_CHECK_INTERVAL_MS);
           }
           byte[] buf = new byte[RATE / 50 * 2];
+          boolean sentAudio = false;
           while (active(s, session)) {
             int n = rec.read(buf, 0, buf.length);
             if (n <= 0 || !active(s, session)) break;
             out.write(buf, 0, n);
-            boolean started;
-            synchronized (this) {
-              if (client != s || s.isClosed()) break;
-              lastAudioWrite = SystemClock.elapsedRealtime();
-              started = !streaming;
-              streaming = true;
+            progress.set(SystemClock.elapsedRealtime());
+            if (!sentAudio) {
+              synchronized (this) {
+                if (client != s || s.isClosed()) break;
+                streaming = true;
+              }
+              sentAudio = true;
+              publish();
             }
-            if (started) publish();
           }
         } finally {
           boolean wasStreaming = false;
@@ -545,7 +549,7 @@ final class MicServer {
             if (client == s) {
               wasStreaming = streaming;
               streaming = false;
-              lastAudioWrite = 0;
+              lastAudioWrite = null;
               h.removeCallbacks(streamCheck);
             }
           }
