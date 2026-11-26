@@ -23,6 +23,17 @@ namespace MiTvMic
         // 点「是」返回 true；点「否」、按 Esc 或关闭窗口返回 false
         public static bool Ask(Window owner, string title, string message, string yes, string no)
         {
+            return Show(owner, title, message, yes, no, null) != null;
+        }
+
+        public static string AskInstallDirectory(string defaultDirectory)
+        {
+            return Show(null, "安装 MiTvMic", "安装后会创建桌面和开始菜单快捷方式。",
+                "安装", "取消", defaultDirectory);
+        }
+
+        static string Show(Window owner, string title, string message, string yes, string no, string directory)
+        {
             Window w;
             using (Stream s = typeof(Dialog).Assembly.GetManifestResourceStream("Dialog.xaml"))
             {
@@ -36,6 +47,12 @@ namespace MiTvMic
             yesBtn.Content = yes;
             if (no == null) noBtn.Visibility = Visibility.Collapsed;
             else noBtn.Content = no;
+            TextBox directoryBox = (TextBox)w.FindName("InstallDirectory");
+            if (directory != null)
+            {
+                directoryBox.Text = directory;
+                ((FrameworkElement)w.FindName("InstallDirectoryPanel")).Visibility = Visibility.Visible;
+            }
 
             bool result = false;
             yesBtn.Click += delegate { result = true; w.Close(); };
@@ -69,7 +86,7 @@ namespace MiTvMic
                 yesBtn.Focus();
             };
             w.ShowDialog();
-            return result;
+            return result ? directoryBox.Text : null;
         }
     }
 }

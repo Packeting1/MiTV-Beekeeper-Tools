@@ -55,9 +55,9 @@ namespace MiTvMic
             public MicState Mic;
             public bool Autostart;
 
-            public bool Connected
+            public bool ConnectedTo(string pairId)
             {
-                get { return Running && !string.IsNullOrEmpty(ConnectedId); }
+                return Running && !string.IsNullOrEmpty(pairId) && ConnectedId == pairId;
             }
         }
 
@@ -93,7 +93,8 @@ namespace MiTvMic
         Snapshot snap = new Snapshot();
         bool shown, switching, masked;
         DateTime switchStart;
-        volatile bool probing, scanning, pairing, busy, closing;
+        bool probing;
+        volatile bool scanning, pairing, busy, closing;
         bool? dotRunning;
 
         public Ui()
@@ -409,16 +410,20 @@ namespace MiTvMic
                     s.Autostart = Installer.AutostartEnabled();
                     s.Card = Cards.Probe(s.Device);
                     s.Link = MiTvMic.Link.Get(out s.ConnectedId);
-                    s.Mic = s.Connected ? DefaultMic.State(DefaultMic.Device) : MicState.Unavailable;
+                    Pairings.Item selected = Pairings.Selected();
+                    s.Mic = Config.Enabled && selected != null && s.ConnectedTo(selected.Id)
+                        ? DefaultMic.State(DefaultMic.Device) : MicState.Unavailable;
                 }
                 catch (Exception ex)
                 {
                     s = null;
                     Log.Write("刷新状态失败：" + ex.Message);
                 }
-                probing = false;
-                if (s == null || closing) return;
-                Window.Dispatcher.BeginInvoke((Action)delegate { Apply(s); });
+                Window.Dispatcher.BeginInvoke((Action)delegate
+                {
+                    probing = false;
+                    if (s != null && !closing) Apply(s);
+                });
             });
         }
 
@@ -460,7 +465,7 @@ namespace MiTvMic
             foreach (Row r in pairedRows)
             {
                 r.State = selected == null || r.PairId != selected.Id ? "" : !enabled ? "已关闭"
-                    : snap.Connected && snap.ConnectedId == r.PairId ? "使用中" : "未连接";
+                    : snap.ConnectedTo(r.PairId) ? "使用中" : "未连接";
             }
         }
 
@@ -496,6 +501,13 @@ namespace MiTvMic
         {
             if (!s.Card.Ready) return s.Card.Hint(s.Device);
             if (!s.Running) return "";
+            if (s.Link.StartsWith("已连接", StringComparison.Ordinal))
+            {
+                if (!Config.Enabled) return "推流已关闭";
+                Pairings.Item selected = Pairings.Selected();
+                if (selected == null) return "未选择电视";
+                if (!s.ConnectedTo(selected.Id)) return "等待后台进程切换连接…";
+            }
             return s.Link.Length > 0 ? s.Link : "等待后台进程报告状态…";
         }
 
@@ -594,7 +606,7 @@ namespace MiTvMic
             }
             else if (!Config.Enabled) done = link == "推流已关闭";
             else if (selected == null) done = link.StartsWith("未选择");
-            else if (s.Connected && s.ConnectedId == selected.Id) done = true;
+            else if (s.ConnectedTo(selected.Id)) done = true;
             else if (link.StartsWith("电视连接失败") || link.StartsWith("电视拒绝"))
             {
                 done = true;
@@ -773,7 +785,17 @@ namespace MiTvMic
                 ShowNotice("配对失败：" + error + "。可再次点击「配对」重试。", false);
                 return;
             }
-            if (!Write(delegate { row.PairId = Pairings.Add(row.Ip, row.Name, token); })) return;
+            if (!Write(delegate
+            {
+                Pairings.Item previous = Pairings.Selected();
+                row.PairId = Pairings.Add(row.Ip, row.Name, token);
+                Pairings.Item selected = Pairings.Selected();
+                if (previous != null && (selected == null || selected.Id == row.PairId))
+                {
+                    if (Pairings.AutoConnect(previous.Id)) Config.Set("auto-" + row.PairId, "1");
+                    Config.Set("host", row.PairId);
+                }
+            })) return;
             ShowNotice("已与 " + row.Ip + " 配对。请在「选择电视」页右键该电视，选择「启用」或「自动查找并重连」。", true);
             SyncLists();
         }

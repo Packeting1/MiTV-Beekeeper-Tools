@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -85,15 +86,14 @@ namespace MiTvMic
                 if (lastDiscoveryId == pair.Id && DateTime.UtcNow < nextDiscovery) return 1000;
                 lastDiscoveryId = pair.Id;
                 nextDiscovery = DateTime.UtcNow.AddSeconds(8);
-                var found = Protocol.Scan("", new[] { pair }, true);
-                if (found.Count == 0)
+                List<Protocol.Tv> found = Protocol.Scan("", new[] { pair }, true);
+                if (stopped.WaitOne(0) || !Config.Enabled || !Pairings.IsSelected(pair)) return 0;
+                if (found.Count > 0)
                 {
-                    Note("电视连接失败（等待已配对的电视上线），正在重试");
-                    return 1000;
+                    ip = found[0].Ip;
+                    Pairings.RememberAddress(pair, ip.ToString());
                 }
-                if (!Config.Enabled || !Pairings.IsSelected(pair)) return 0;
-                ip = found[0].Ip;
-                Pairings.RememberAddress(pair, ip.ToString());
+                // 老版电视或 UDP 无响应时，以保存的地址尝试原有 TCP 握手。
             }
             Pump(ip, pair, card);
             return 2000;
@@ -123,21 +123,32 @@ namespace MiTvMic
                     Note("电视拒绝了该口令，请扫描已配对电视或重新配对");
                     return;
                 }
-                Note("已连接 " + (pair.Name.Length > 0 ? pair.Name + " " : "") + ip + "，" + f.Rate + " Hz "
-                    + f.Channels + " 声道 " + f.Bits + " 位，输出到 " + card.ShortName, pair.Id);
                 using (WaveOut w = new WaveOut(card.WaveIndex, f.Rate, f.Channels, f.Bits))
                 {
                     int chunk = f.Rate / 50 * f.Channels * f.Bits / 8;
+                    bool streaming = false;
                     while (!stopped.WaitOne(0) && Config.Enabled && Pairings.IsSelected(pair))
                     {
                         byte[] b = Protocol.ReadFully(s, chunk);
                         if (b == null) break;
+                        if (stopped.WaitOne(0) || !Config.Enabled || !Pairings.IsSelected(pair)) break;
                         float gain = Config.Gain;
                         if (gain != 1 && f.Bits == 16) ApplyGain(b, gain);
                         w.Write(b);
+                        if (!streaming)
+                        {
+                            streaming = true;
+                            Note("已连接 " + ip + "，" + (pair.Name.Length > 0 ? pair.Name + "，" : "") + f.Rate + " Hz "
+                                + f.Channels + " 声道 " + f.Bits + " 位，输出到 " + card.ShortName, pair.Id);
+                        }
+                    }
+                    if (!stopped.WaitOne(0))
+                    {
+                        bool stillSelected = Config.Enabled && Pairings.IsSelected(pair);
+                        Note(!stillSelected ? "连接已断开" : streaming ? "连接已断开，正在重连"
+                            : "电视连接失败（未收到音频），正在重试");
                     }
                 }
-                if (!stopped.WaitOne(0)) Note("连接已断开，正在重连");
             }
             finally
             {

@@ -72,27 +72,33 @@ namespace MiTvMic
     // 后台进程退出后共享内存随之消失，界面读到空串。
     static class Link
     {
-        const string MapName = @"Local\MiTvMic.Link";
+        const string MapName = @"Local\MiTvMic.Link.v2";
         const int Size = 1024;
+        const int IdOffset = 8;
+        const int IdCapacity = 64;
+        const int TextOffset = IdOffset + IdCapacity;
         static MemoryMappedFile map;
-        static string last;
+        static string last, lastId;
 
         public static void Set(string text, string connectedId = "")
         {
-            if (connectedId.Length > 0) text = connectedId + "\n" + text;
-            if (text == last) return;
-            last = text;
+            if (text == last && connectedId == lastId) return;
             try
             {
                 if (map == null) map = MemoryMappedFile.CreateOrOpen(MapName, Size);
                 byte[] b = Encoding.UTF8.GetBytes(text);
-                int n = Math.Min(b.Length, Size - 4);
+                byte[] id = Encoding.ASCII.GetBytes(connectedId);
+                int n = Math.Min(b.Length, Size - TextOffset);
                 using (MemoryMappedViewAccessor v = map.CreateViewAccessor(0, Size))
                 {
                     v.Write(0, 0);
-                    v.WriteArray(4, b, 0, n);
+                    v.Write(4, id.Length);
+                    v.WriteArray(IdOffset, id, 0, id.Length);
+                    v.WriteArray(TextOffset, b, 0, n);
                     v.Write(0, n);
                 }
+                last = text;
+                lastId = connectedId;
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
@@ -107,14 +113,14 @@ namespace MiTvMic
                 using (MemoryMappedViewAccessor v = m.CreateViewAccessor(0, Size, MemoryMappedFileAccess.Read))
                 {
                     int n = v.ReadInt32(0);
-                    if (n <= 0 || n > Size - 4) return "";
+                    int idLength = v.ReadInt32(4);
+                    if (n <= 0 || n > Size - TextOffset || idLength < 0 || idLength > IdCapacity) return "";
                     byte[] b = new byte[n];
-                    v.ReadArray(4, b, 0, n);
-                    string text = Encoding.UTF8.GetString(b);
-                    int separator = text.IndexOf('\n');
-                    if (separator < 0 || !text.StartsWith("pair-", StringComparison.Ordinal)) return text;
-                    connectedId = text.Substring(0, separator);
-                    return text.Substring(separator + 1);
+                    byte[] id = new byte[idLength];
+                    v.ReadArray(TextOffset, b, 0, n);
+                    v.ReadArray(IdOffset, id, 0, idLength);
+                    connectedId = Encoding.ASCII.GetString(id);
+                    return Encoding.UTF8.GetString(b);
                 }
             }
             catch (IOException) { return ""; }
@@ -350,7 +356,12 @@ namespace MiTvMic
             string cleanName = name.Replace('\r', ' ').Replace('\n', ' ').Trim();
             Config.EditPairs(delegate (List<KeyValuePair<string, string>> pairs)
             {
-                pairs.RemoveAll(delegate (KeyValuePair<string, string> p) { return Matches(p, id); });
+                pairs.RemoveAll(delegate (KeyValuePair<string, string> p)
+                {
+                    int split = p.Value.IndexOf('|');
+                    return p.Key == ip || (split >= 0 && (p.Value.Substring(0, split) == token
+                        || cleanName.Length > 0 && p.Value.Substring(split + 1) == cleanName));
+                });
                 pairs.Add(new KeyValuePair<string, string>(ip, token + "|" + cleanName));
                 return true;
             });

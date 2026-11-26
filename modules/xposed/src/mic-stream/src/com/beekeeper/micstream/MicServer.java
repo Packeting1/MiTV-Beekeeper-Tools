@@ -33,6 +33,7 @@ import java.security.GeneralSecurityException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 把电视麦克风通过局域网 TCP 推给电脑端 MiTvMic，运行在系统常驻的 mitv.service 进程里。
@@ -45,7 +46,13 @@ final class MicServer {
   private static final long ALLOW_MS = 60000;
   private static final long ASK_TIMEOUT_MS = 45000;
   private static final long IDLE_MS = 10 * 60 * 1000;
+  private static final long STREAM_CHECK_INTERVAL_MS = 2000;
+  private static final long STREAM_TIMEOUT_MS = 5000;
   private static final int RATE = 48000;
+
+  /** 16 个 20 ms 的 PCM 块，Linux 会把设置值翻倍。 */
+  private static final int SEND_BUFFER_BYTES = RATE / 50 * 2 * 16;
+
   private static final int MAX_CONNECTIONS = 8;
   private static final int GAIN_STEP = 180;
   private static final String GAIN_CONTROL = "Mic Gain Step";
@@ -71,6 +78,8 @@ final class MicServer {
   private DatagramSocket disco;
   private Socket client;
   private String clientToken;
+  private boolean streaming;
+  private AtomicLong lastAudioWrite;
   private AudioRecord recording;
   private long generation;
   private int origGain = -1;
@@ -97,6 +106,23 @@ final class MicServer {
           }
         }
       };
+
+  private final Runnable streamCheck = this::checkStream;
+
+  private void checkStream() {
+    synchronized (this) {
+      if (client == null || client.isClosed() || lastAudioWrite == null) return;
+      if (SystemClock.elapsedRealtime() - lastAudioWrite.get() < STREAM_TIMEOUT_MS) {
+        h.removeCallbacks(streamCheck);
+        h.postDelayed(streamCheck, STREAM_CHECK_INTERVAL_MS);
+        return;
+      }
+      // Socket 的读超时不限制写入。关闭连接，唤醒断网后阻塞的写线程。
+      close(client);
+      streaming = false;
+    }
+    publish();
+  }
 
   private MicServer(XposedModule mod, Handler h) {
     this.mod = mod;
@@ -163,6 +189,8 @@ final class MicServer {
         prefs.edit().putLong("deadline", 0).apply();
         unlisten();
         Settings.Global.putString(cr, Keys.STATUS, null);
+        // 已打开的配对列表也要收到所有电脑已断开的状态。
+        publish();
       }
     } catch (Throwable t) {
       mod.log(Log.ERROR, HookEntry.TAG, "sync failed", t);
@@ -229,6 +257,9 @@ final class MicServer {
       stopRecording(recording);
       client = null;
       clientToken = null;
+      streaming = false;
+      lastAudioWrite = null;
+      h.removeCallbacks(streamCheck);
       asking = allowed = denied = null;
     }
     ui.post(() -> {
@@ -248,7 +279,7 @@ final class MicServer {
     synchronized (statusLock) {
       String active;
       synchronized (this) {
-        active = client != null ? clientToken : null;
+        active = streaming && client != null && !client.isClosed() ? clientToken : null;
       }
       StringBuilder sb = new StringBuilder();
       String status = "未连接";
@@ -293,6 +324,7 @@ final class MicServer {
             String r = pairState(ip, pc);
             if (r.equals("TOKEN")) {
               String token = pairs.add(ip, pc);
+              if (clientToken != null && !pairs.contains(clientToken)) kick(clientToken);
               reply = ("MITVMIC-TOKEN " + token).getBytes("US-ASCII");
             } else {
               reply = ("MITVMIC-" + r).getBytes("US-ASCII");
@@ -456,6 +488,8 @@ final class MicServer {
     String tk = null;
     try {
       s.setTcpNoDelay(true);
+      // 默认的自动调优缓冲可到几 MB，断网后要几十秒写线程才阻塞，所以设上限；上限太小则 ACK 稍慢写线程就被挡住。
+      s.setSendBufferSize(SEND_BUFFER_BYTES);
       DataOutputStream out = new DataOutputStream(s.getOutputStream());
       tk = authenticate(s);
       if (tk == null) {
@@ -475,6 +509,9 @@ final class MicServer {
         stopRecording(recording);
         client = s;
         clientToken = tk;
+        streaming = false;
+        lastAudioWrite = null;
+        h.removeCallbacks(streamCheck);
         prefs.edit().putLong("deadline", 0).apply();
         pairs.touch(tk, s.getInetAddress().getHostAddress());
       }
@@ -497,6 +534,7 @@ final class MicServer {
             if (rec.getState() != AudioRecord.STATE_INITIALIZED || !active(s, session)) return;
             recording = rec;
             rec.startRecording();
+            if (rec.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) return;
           }
           if (!active(s, session)) return;
           out.writeBytes("TVMC");
@@ -505,13 +543,39 @@ final class MicServer {
           out.writeByte(16);
           out.flush();
           raiseGain();
+          AtomicLong progress = new AtomicLong(SystemClock.elapsedRealtime());
+          synchronized (this) {
+            if (!active(s, session)) return;
+            lastAudioWrite = progress;
+            h.postDelayed(streamCheck, STREAM_CHECK_INTERVAL_MS);
+          }
           byte[] buf = new byte[RATE / 50 * 2];
+          boolean sentAudio = false;
           while (active(s, session)) {
             int n = rec.read(buf, 0, buf.length);
             if (n <= 0 || !active(s, session)) break;
             out.write(buf, 0, n);
+            progress.set(SystemClock.elapsedRealtime());
+            if (!sentAudio) {
+              synchronized (this) {
+                if (client != s || s.isClosed()) break;
+                streaming = true;
+              }
+              sentAudio = true;
+              publish();
+            }
           }
         } finally {
+          boolean wasStreaming = false;
+          synchronized (this) {
+            if (client == s) {
+              wasStreaming = streaming;
+              streaming = false;
+              lastAudioWrite = null;
+              h.removeCallbacks(streamCheck);
+            }
+          }
+          if (wasStreaming) publish();
           if (rec != null) {
             synchronized (this) {
               if (recording == rec) recording = null;

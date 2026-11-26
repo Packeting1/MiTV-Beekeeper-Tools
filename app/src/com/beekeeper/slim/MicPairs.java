@@ -1,8 +1,12 @@
 package com.beekeeper.slim;
 
+import android.content.ContentResolver;
 import android.content.DialogInterface;
+import android.database.ContentObserver;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
@@ -12,8 +16,10 @@ import android.widget.TextView;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /** 麦克风推流（MicStream 模块）已配对电脑的管理；与模块通过 Settings.Global 交换数据，取消配对没有写权限，经 root 写入。 */
 final class MicPairs extends Part {
@@ -34,6 +40,18 @@ final class MicPairs extends Part {
       time = Long.parseLong(f[3]);
       last = Long.parseLong(f[4]);
       active = f[5].equals("1");
+    }
+  }
+
+  private static final class PairStatus {
+    TextView chip, seen;
+
+    void update(Row p) {
+      boolean active = p != null && p.active;
+      long last = p != null ? p.last : 0;
+      chip.setVisibility(active ? View.VISIBLE : View.GONE);
+      SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
+      seen.setText((active ? "本次连接　" : "上次连接　") + (last > 0 ? fmt.format(new Date(last)) : "无"));
     }
   }
 
@@ -91,6 +109,7 @@ final class MicPairs extends Part {
     List<Row> list = rows();
     Dlg.Builder b = new Dlg.Builder(a).setTitle("已配对的电脑").setPositiveButton("关闭", null);
     final Dlg[] self = new Dlg[1];
+    final Map<String, PairStatus> statuses = new HashMap<>();
     if (list.isEmpty()) {
       b.setMessage("没有已配对的电脑。\n\n在电脑端 MiTvMic 里选中这台电视并点“配对”，电视会弹窗询问是否允许。");
     } else {
@@ -101,7 +120,9 @@ final class MicPairs extends Part {
       tip.setPadding(0, 0, 0, Ui.dp(a, 8));
       col.addView(tip);
       for (final Row p : list) {
-        View row = pairRow(p);
+        PairStatus status = new PairStatus();
+        statuses.put(p.id, status);
+        View row = pairRow(p, status);
         row.setOnClickListener(
             new View.OnClickListener() {
               public void onClick(View v) {
@@ -125,6 +146,28 @@ final class MicPairs extends Part {
           });
     }
     self[0] = b.show();
+    if (!statuses.isEmpty()) {
+      ContentResolver resolver = a.getContentResolver();
+      ContentObserver observer =
+          new ContentObserver(new Handler(Looper.getMainLooper())) {
+            @Override
+            public void onChange(boolean selfChange) {
+              Map<String, Row> current = new HashMap<>();
+              for (Row p : rows()) current.put(p.id, p);
+              for (Map.Entry<String, PairStatus> entry : statuses.entrySet()) {
+                entry.getValue().update(current.get(entry.getKey()));
+              }
+            }
+          };
+      resolver.registerContentObserver(Settings.Global.getUriFor(KEY_PAIRS), false, observer);
+      self[0].setOnDismissListener(
+          new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialog) {
+              resolver.unregisterContentObserver(observer);
+            }
+          });
+    }
   }
 
   private TextView text(int sp, int color, boolean bold) {
@@ -137,7 +180,7 @@ final class MicPairs extends Part {
   }
 
   /** 一台已配对电脑：名称（正在连接时带“正在使用”标签）、IP、配对时间、连接时间。 */
-  private View pairRow(Row p) {
+  private View pairRow(Row p, PairStatus status) {
     SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
     LinearLayout row = new LinearLayout(a);
     row.setOrientation(LinearLayout.VERTICAL);
@@ -152,20 +195,18 @@ final class MicPairs extends Part {
     TextView name = text(15, Ui.TEXT, true);
     name.setText(p.name);
     head.addView(name);
-    if (p.active) {
-      TextView chip = text(10, Ui.GOOD, true);
-      chip.setText("正在使用");
-      chip.setPadding(Ui.dp(a, 5), Ui.dp(a, 1), Ui.dp(a, 5), Ui.dp(a, 1));
-      GradientDrawable bg = new GradientDrawable();
-      bg.setStroke(Ui.dp(a, 1), Ui.GOOD);
-      bg.setCornerRadius(Ui.dp(a, 4));
-      chip.setBackground(bg);
-      LinearLayout.LayoutParams clp =
-          new LinearLayout.LayoutParams(
-              LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-      clp.leftMargin = Ui.dp(a, 8);
-      head.addView(chip, clp);
-    }
+    TextView chip = text(10, Ui.GOOD, true);
+    chip.setText("正在使用");
+    chip.setPadding(Ui.dp(a, 5), Ui.dp(a, 1), Ui.dp(a, 5), Ui.dp(a, 1));
+    GradientDrawable bg = new GradientDrawable();
+    bg.setStroke(Ui.dp(a, 1), Ui.GOOD);
+    bg.setCornerRadius(Ui.dp(a, 4));
+    chip.setBackground(bg);
+    LinearLayout.LayoutParams clp =
+        new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    clp.leftMargin = Ui.dp(a, 8);
+    head.addView(chip, clp);
     row.addView(head);
 
     TextView ip = text(12, Ui.SUB, false);
@@ -175,9 +216,10 @@ final class MicPairs extends Part {
     paired.setText("配对时间　" + fmt.format(new Date(p.time)));
     row.addView(paired);
     TextView seen = text(11, Ui.SUB, false);
-    seen.setText(
-        (p.active ? "本次连接　" : "上次连接　") + (p.last > 0 ? fmt.format(new Date(p.last)) : "无"));
     row.addView(seen);
+    status.chip = chip;
+    status.seen = seen;
+    status.update(p);
     return row;
   }
 

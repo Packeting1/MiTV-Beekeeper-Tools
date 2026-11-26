@@ -60,6 +60,13 @@
                  Foreground="{StaticResource TextPrimary}"/>
       <TextBlock x:Name="MessageText" Margin="0,12,0,0" TextWrapping="Wrap" LineHeight="22"
                  Foreground="{StaticResource TextSecondary}"/>
+      <StackPanel x:Name="InstallDirectoryPanel" Visibility="Collapsed" Margin="0,16,0,0">
+        <Label Content="安装位置" Target="{Binding ElementName=InstallDirectory}"
+               Padding="0,0,0,4" Foreground="{StaticResource TextPrimary}"/>
+        <TextBox x:Name="InstallDirectory" Padding="6,4"
+                 Foreground="{StaticResource TextPrimary}" Background="{StaticResource ControlFill}"
+                 BorderBrush="{StaticResource ControlLine}"/>
+      </StackPanel>
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
         <Button x:Name="NoBtn" IsCancel="True" Margin="0,0,10,0"/>
         <Button x:Name="YesBtn" IsDefault="True" Style="{StaticResource BtnAccent}"/>

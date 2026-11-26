@@ -67,9 +67,10 @@ final class Pairs {
     prefs.edit().putString("pairs", sb.toString()).apply();
   }
 
-  /** 为用户确认的配对生成独立口令。 */
+  /** 按地址或名称替换用户重新确认的配对，普通连接仍按口令验证。 */
   synchronized String add(String ip, String name) {
     List<Pair> list = list();
+    list.removeIf(p -> p.ip.equals(ip) || p.name.equals(name));
     byte[] b = new byte[TOKEN_LEN / 2];
     new SecureRandom().nextBytes(b);
     StringBuilder sb = new StringBuilder();

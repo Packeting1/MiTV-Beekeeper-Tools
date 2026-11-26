@@ -116,7 +116,8 @@ namespace MiTvMic
             // 缓冲全满说明声卡消费慢于网络，丢掉这块以免延迟越积越大
             if ((Marshal.ReadInt32(hdr, FlagsOffset) & WhdrDone) == 0) return;
             Marshal.Copy(b, 0, data[next], Math.Min(b.Length, bufSize));
-            waveOutWrite(handle, hdr, HdrSize);
+            int rc = waveOutWrite(handle, hdr, HdrSize);
+            if (rc != 0) throw new IOException("waveOutWrite 失败：" + rc);
             next = (next + 1) % Buffers;
         }
 
