@@ -75,7 +75,7 @@ namespace MiTvMic
         readonly ListBox foundList, pairedList;
         readonly TextBox manualBox;
         readonly Button scanBtn, pairBtn, procBtn, cableBtn, wideBtn, micBtn;
-        readonly CheckBox autoBox;
+        readonly CheckBox autoBox, trayBox;
         readonly ContextMenu pairedMenu = new ContextMenu();
         Row rightRow;
         readonly Ellipse dot;
@@ -123,6 +123,8 @@ namespace MiTvMic
             micBtn = Get<Button>("MicBtn");
             procBtn = Get<Button>("ProcBtn");
             autoBox = Get<CheckBox>("AutoBox");
+            trayBox = Get<CheckBox>("TrayBox");
+            trayBox.IsChecked = Config.ShowTray;
             notice = Get<Border>("Notice");
             noticeText = Get<TextBlock>("NoticeText");
             linkText = Get<TextBlock>("LinkText");
@@ -146,6 +148,7 @@ namespace MiTvMic
             pairBtn.Click += OnPair;
             procBtn.Click += OnProcClick;
             autoBox.Click += OnAutoClick;
+            trayBox.Click += OnTrayClick;
             cableBtn.Click += delegate { RunOp(Op.Driver); };
             wideBtn.Click += delegate { RunOp(Op.DisableWide); };
             micBtn.Click += OnSetMic;
@@ -237,6 +240,14 @@ namespace MiTvMic
                 ShowNotice("设置开机自启失败：" + ex.Message, false);
             }
             Refresh();
+        }
+
+        void OnTrayClick(object sender, RoutedEventArgs e)
+        {
+            if (Write(delegate { Config.Set("show_tray", trayBox.IsChecked == true ? "1" : "0"); }))
+                Background.RefreshTray();
+            else
+                trayBox.IsChecked = Config.ShowTray;
         }
 
         void OnProcClick(object sender, RoutedEventArgs e)

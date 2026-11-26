@@ -9,6 +9,7 @@ namespace MiTvMic
     {
         const string MutexName = @"Local\MiTvMic.Worker";
         const string StopName = @"Local\MiTvMic.Worker.Stop";
+        const string TrayChangedName = @"Local\MiTvMic.Worker.TrayChanged";
 
         public static bool Running
         {
@@ -26,20 +27,42 @@ namespace MiTvMic
             get { return Running ? "运行中" : "已停止"; }
         }
 
-        // 后台进程的入口，阻塞到收到停止信号
+        // 后台进程等待设置变更或停止信号，仅在显示托盘时运行消息循环。
         public static int Run()
         {
             bool first;
             using (EventWaitHandle stop = new EventWaitHandle(false, EventResetMode.ManualReset, StopName))
             using (Mutex owner = new Mutex(true, MutexName, out first))
+            using (EventWaitHandle trayChanged = new EventWaitHandle(false, EventResetMode.AutoReset, TrayChangedName))
             {
                 if (!first) return 0;
                 MicWorker worker = new MicWorker();
                 worker.Start();
-                stop.WaitOne();
-                worker.Stop();
+                try
+                {
+                    WaitHandle[] signals = { stop, trayChanged };
+                    while (!stop.WaitOne(0))
+                    {
+                        Config.Reload();
+                        if (Config.ShowTray) Tray.Run(stop, trayChanged);
+                        else WaitHandle.WaitAny(signals);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Write("托盘消息循环失败：" + ex.Message);
+                    stop.WaitOne();
+                }
+                finally { worker.Stop(); }
                 return 0;
             }
+        }
+
+        public static void RefreshTray()
+        {
+            EventWaitHandle changed;
+            if (!EventWaitHandle.TryOpenExisting(TrayChangedName, out changed)) return;
+            using (changed) changed.Set();
         }
 
         public static void Start()

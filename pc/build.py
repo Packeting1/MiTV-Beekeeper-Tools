@@ -25,6 +25,8 @@ REFS = (
     "System.Xaml",
     "System.IO.Compression.FileSystem",
     "System.Core",
+    "System.Drawing",
+    "System.Windows.Forms",
     "System",
 )
 
