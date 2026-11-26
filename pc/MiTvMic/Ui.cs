@@ -25,6 +25,7 @@ namespace MiTvMic
         sealed class Row : INotifyPropertyChanged
         {
             string state = "";
+            string reconnectState = "";
 
             public string Name { get; set; }
             public string Ip { get; set; }
@@ -34,6 +35,12 @@ namespace MiTvMic
             {
                 get { return state; }
                 set { if (state != value) { state = value; Raise("State"); } }
+            }
+
+            public string ReconnectState
+            {
+                get { return reconnectState; }
+                set { if (reconnectState != value) { reconnectState = value; Raise("ReconnectState"); } }
             }
 
             public event PropertyChangedEventHandler PropertyChanged;
@@ -462,10 +469,13 @@ namespace MiTvMic
         {
             Pairings.Item selected = Pairings.Selected();
             bool enabled = Config.Enabled;
+            bool autoReconnect = enabled && selected != null && Pairings.AutoConnect(selected.Id);
             foreach (Row r in pairedRows)
             {
-                r.State = selected == null || r.PairId != selected.Id ? "" : !enabled ? "已关闭"
+                bool isSelected = selected != null && r.PairId == selected.Id;
+                r.State = !isSelected ? "" : !enabled ? "已关闭"
                     : snap.ConnectedTo(r.PairId) ? "使用中" : "未连接";
+                r.ReconnectState = isSelected && autoReconnect ? "重连目标" : "";
             }
         }
 
@@ -659,6 +669,7 @@ namespace MiTvMic
                     Config.Set("auto-" + row.PairId, auto ? "0" : "1");
                 });
                 if (saved && !auto && !active) Use(row);
+                else if (saved) SyncPairedStates();
             });
             autoEntry.IsCheckable = true;
             autoEntry.IsChecked = auto;
