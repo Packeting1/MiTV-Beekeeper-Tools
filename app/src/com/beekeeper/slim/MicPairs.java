@@ -167,7 +167,6 @@ final class MicPairs extends Part {
               resolver.unregisterContentObserver(observer);
             }
           });
-      observer.onChange(false);
     }
   }
 

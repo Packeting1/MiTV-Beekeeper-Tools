@@ -48,6 +48,10 @@ final class MicServer {
   private static final long STREAM_CHECK_INTERVAL_MS = 2000;
   private static final long STREAM_TIMEOUT_MS = 5000;
   private static final int RATE = 48000;
+
+  /** 16 个 20 ms 的 PCM 块，Linux 会把设置值翻倍。 */
+  private static final int SEND_BUFFER_BYTES = RATE / 50 * 2 * 16;
+
   private static final int MAX_CONNECTIONS = 8;
   private static final int GAIN_STEP = 180;
   private static final String GAIN_CONTROL = "Mic Gain Step";
@@ -468,8 +472,8 @@ final class MicServer {
     String tk = null;
     try {
       s.setTcpNoDelay(true);
-      // 限制本地积压的 PCM，断网后写线程能尽快感知背压。
-      s.setSendBufferSize(RATE / 50 * 2 * 4);
+      // 默认的自动调优缓冲可到几 MB，断网后要几十秒写线程才阻塞，所以设上限；上限太小则 ACK 稍慢写线程就被挡住。
+      s.setSendBufferSize(SEND_BUFFER_BYTES);
       DataOutputStream out = new DataOutputStream(s.getOutputStream());
       tk = authenticate(s);
       if (tk == null) {
