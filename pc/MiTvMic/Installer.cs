@@ -99,7 +99,7 @@ namespace MiTvMic
             string directory = Dir;
             if (fresh)
             {
-                directory = Dialog.AskInstallDirectory(directory);
+                directory = ChooseDirectory(directory);
                 if (directory == null) return true;
             }
             else
@@ -112,18 +112,6 @@ namespace MiTvMic
             }
             try
             {
-                if (fresh)
-                {
-                    directory = directory.Trim();
-                    string root = Path.GetPathRoot(directory);
-                    if (root == null || root.Length != 3 || root[1] != ':' || root[2] != '\\')
-                        throw new IOException("请输入完整的安装目录，例如 D:\\Apps\\MiTvMic。");
-                    directory = Path.GetFullPath(directory);
-                    string data = Path.GetFullPath(Env.DataDir).TrimEnd('\\') + "\\";
-                    if ((directory.TrimEnd('\\') + "\\").StartsWith(data, StringComparison.OrdinalIgnoreCase))
-                        throw new IOException("请选择配置数据目录以外的安装位置。");
-                    if (directory.Length > root.Length) directory = directory.TrimEnd('\\');
-                }
                 Install(directory, fresh);
                 Dir = directory;
             }
@@ -135,6 +123,42 @@ namespace MiTvMic
             }
             Launch();
             return true;
+        }
+
+        // 位置不合法时说明原因并让用户重新输入；点「取消」返回 null
+        static string ChooseDirectory(string initial)
+        {
+            while (true)
+            {
+                string input = Dialog.AskInstallDirectory(initial);
+                if (input == null) return null;
+                try
+                {
+                    return CheckDirectory(input);
+                }
+                catch (Exception e)
+                {
+                    initial = input;
+                    Dialog.Info(null, "安装位置无效", e.Message);
+                }
+            }
+        }
+
+        static string CheckDirectory(string input)
+        {
+            string directory = input.Trim();
+            string root = Path.GetPathRoot(directory);
+            if (root == null || root.Length != 3 || root[1] != ':' || root[2] != '\\')
+                throw new IOException("请输入完整的安装目录，例如 D:\\Apps\\MiTvMic。");
+            directory = Path.GetFullPath(directory);
+            string data = Path.GetFullPath(Env.DataDir).TrimEnd('\\') + "\\";
+            if ((directory.TrimEnd('\\') + "\\").StartsWith(data, StringComparison.OrdinalIgnoreCase))
+                throw new IOException("请选择配置数据目录以外的安装位置。");
+            if (directory.Length > root.Length) directory = directory.TrimEnd('\\');
+            string exe = Path.Combine(directory, "MiTvMic.exe");
+            if (File.Exists(exe) || File.Exists(exe + ".old"))
+                throw new IOException("所选目录中已有 MiTvMic.exe 或 MiTvMic.exe.old，请选择其他安装位置。");
+            return directory;
         }
 
         // 勾选 = Run 项存在，且没有被任务管理器或系统设置禁用（StartupApproved 首字节为奇数表示已禁用）
@@ -183,8 +207,6 @@ namespace MiTvMic
             Directory.CreateDirectory(directory);
             if (fresh)
             {
-                if (File.Exists(exe + ".old"))
-                    throw new IOException("所选目录中已有 MiTvMic.exe.old，请选择其他安装位置。");
                 File.Copy(Env.SelfExe, exe, false);
             }
             else
@@ -250,6 +272,8 @@ namespace MiTvMic
             try { Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false); }
             catch (Exception) { }
             try { File.Delete(Update.TempFile); }
+            catch (Exception) { }
+            try { File.Delete(Exe + ".old"); }
             catch (Exception) { }
 
             Dialog.Info(null, "卸载完成", "MiTvMic 已卸载。");
