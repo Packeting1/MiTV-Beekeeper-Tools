@@ -2,12 +2,16 @@ package com.beekeeper.micstream;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.util.Base64;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 /** 已配对的电脑。每台电脑有自己的口令，口令只保存在服务进程的私有目录里。 */
 final class Pairs {
@@ -63,13 +67,9 @@ final class Pairs {
     prefs.edit().putString("pairs", sb.toString()).apply();
   }
 
-  /** 为这台电脑生成新口令；同一 IP 或同名的旧记录视为同一台电脑，被替换。 */
+  /** 为用户确认的配对生成独立口令。 */
   synchronized String add(String ip, String name) {
     List<Pair> list = list();
-    for (Iterator<Pair> it = list.iterator(); it.hasNext(); ) {
-      Pair x = it.next();
-      if (x.ip.equals(ip) || x.name.equals(name)) it.remove();
-    }
     byte[] b = new byte[TOKEN_LEN / 2];
     new SecureRandom().nextBytes(b);
     StringBuilder sb = new StringBuilder();
@@ -80,16 +80,42 @@ final class Pairs {
   }
 
   /** 记下这台电脑最近一次连接的时间；已被取消配对的口令忽略。 */
-  synchronized void touch(String token) {
+  synchronized void touch(String token, String address) {
     List<Pair> list = list();
     for (int i = 0; i < list.size(); i++) {
       Pair x = list.get(i);
       if (x.token.equals(token)) {
-        list.set(i, new Pair(x.token, x.ip, x.name, x.time, System.currentTimeMillis()));
+        list.set(
+            i,
+            new Pair(
+                x.token,
+                address == null ? x.ip : address,
+                x.name,
+                x.time,
+                System.currentTimeMillis()));
         save(list);
         return;
       }
     }
+  }
+
+  /** 只回复能证明已经配对的发现请求，并将响应绑定到实际发包地址。 */
+  synchronized String response(String nonce, String proof, String address)
+      throws GeneralSecurityException {
+    byte[] got = proof.getBytes(StandardCharsets.US_ASCII);
+    for (Pair p : list()) {
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec(p.token.getBytes(StandardCharsets.US_ASCII), "HmacSHA256"));
+      byte[] expected =
+          Base64.encode(
+              mac.doFinal(("find " + nonce).getBytes(StandardCharsets.US_ASCII)), Base64.NO_WRAP);
+      if (MessageDigest.isEqual(got, expected)) {
+        return Base64.encodeToString(
+            mac.doFinal(("found " + nonce + " " + address).getBytes(StandardCharsets.US_ASCII)),
+            Base64.NO_WRAP);
+      }
+    }
+    return null;
   }
 
   /** 按编号取消配对，"*" 表示全部；返回被取消的口令。 */

@@ -12,6 +12,9 @@ namespace MiTvMic
         Thread thread;
         volatile Socket current;
         string lastNote;
+        string lastConnectedId;
+        string lastDiscoveryId;
+        DateTime nextDiscovery;
 
         public void Start()
         {
@@ -55,15 +58,14 @@ namespace MiTvMic
         // 条件不满足则等待，满足则推流直到断开。返回下一轮前的等待毫秒数
         int Cycle()
         {
-            string host = Config.Host;
             IPAddress ip;
-            string token = Pairings.TokenOf(host);
             if (!Config.Enabled)
             {
                 Note("推流已关闭");
                 return 1000;
             }
-            if (token.Length == 0 || !IPAddress.TryParse(host, out ip))
+            Pairings.Item pair = Pairings.Selected();
+            if (pair == null || !IPAddress.TryParse(pair.Ip, out ip))
             {
                 Note("未选择电视");
                 return 1000;
@@ -78,20 +80,36 @@ namespace MiTvMic
                 return 5000;
             }
 
-            Pump(ip, token, card);
+            if (Pairings.AutoConnect(pair.Id))
+            {
+                if (lastDiscoveryId == pair.Id && DateTime.UtcNow < nextDiscovery) return 1000;
+                lastDiscoveryId = pair.Id;
+                nextDiscovery = DateTime.UtcNow.AddSeconds(8);
+                var found = Protocol.Scan("", new[] { pair }, true);
+                if (found.Count == 0)
+                {
+                    Note("电视连接失败（等待已配对的电视上线），正在重试");
+                    return 1000;
+                }
+                if (!Config.Enabled || !Pairings.IsSelected(pair)) return 0;
+                ip = found[0].Ip;
+                Pairings.RememberAddress(pair, ip.ToString());
+            }
+            Pump(ip, pair, card);
             return 2000;
         }
 
         // 状态变化时才写日志并更新连接状态
-        void Note(string msg)
+        void Note(string msg, string connectedId = "")
         {
-            if (msg == lastNote) return;
+            if (msg == lastNote && connectedId == lastConnectedId) return;
             lastNote = msg;
+            lastConnectedId = connectedId;
             Log.Write(msg);
-            Link.Set(msg);
+            Link.Set(msg, connectedId);
         }
 
-        void Pump(IPAddress ip, string token, Card card)
+        void Pump(IPAddress ip, Pairings.Item pair, Card card)
         {
             Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             current = s;
@@ -99,25 +117,18 @@ namespace MiTvMic
             {
                 s.NoDelay = true;
                 s.ReceiveTimeout = 5000;
-                Protocol.Format f = Protocol.Open(s, ip, token);
+                Protocol.Format f = Protocol.Open(s, ip, pair.Token);
                 if (f == null)
                 {
-                    bool removed = Pairings.Remove(ip.ToString(), token);
-                    Note(removed ? "电视拒绝了该口令，已移除配对，请重新配对" : "旧口令已失效，正在读取新的配对");
+                    Note("电视拒绝了该口令，请扫描已配对电视或重新配对");
                     return;
                 }
-                string name = "";
-                foreach (Pairings.Item p in Pairings.All())
-                {
-                    if (p.Ip == ip.ToString()) name = p.Name;
-                }
-                Note("已连接 " + (name.Length > 0 ? name + " " : "") + ip + "，" + f.Rate + " Hz "
-                    + f.Channels + " 声道 " + f.Bits + " 位，输出到 " + card.ShortName);
+                Note("已连接 " + (pair.Name.Length > 0 ? pair.Name + " " : "") + ip + "，" + f.Rate + " Hz "
+                    + f.Channels + " 声道 " + f.Bits + " 位，输出到 " + card.ShortName, pair.Id);
                 using (WaveOut w = new WaveOut(card.WaveIndex, f.Rate, f.Channels, f.Bits))
                 {
                     int chunk = f.Rate / 50 * f.Channels * f.Bits / 8;
-                    string host = ip.ToString();
-                    while (!stopped.WaitOne(0) && Config.Enabled && Config.Host == host)
+                    while (!stopped.WaitOne(0) && Config.Enabled && Pairings.IsSelected(pair))
                     {
                         byte[] b = Protocol.ReadFully(s, chunk);
                         if (b == null) break;

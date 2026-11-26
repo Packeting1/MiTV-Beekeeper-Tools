@@ -28,6 +28,7 @@ namespace MiTvMic
 
             public string Name { get; set; }
             public string Ip { get; set; }
+            public string PairId { get; set; }
 
             public string State
             {
@@ -50,12 +51,13 @@ namespace MiTvMic
             public Card Card;
             public string Device;
             public string Link;
+            public string ConnectedId;
             public MicState Mic;
             public bool Autostart;
 
             public bool Connected
             {
-                get { return Running && Link.StartsWith("已连接"); }
+                get { return Running && !string.IsNullOrEmpty(ConnectedId); }
             }
         }
 
@@ -406,7 +408,7 @@ namespace MiTvMic
                     s.Running = Background.Running;
                     s.Autostart = Installer.AutostartEnabled();
                     s.Card = Cards.Probe(s.Device);
-                    s.Link = MiTvMic.Link.Get();
+                    s.Link = MiTvMic.Link.Get(out s.ConnectedId);
                     s.Mic = s.Connected ? DefaultMic.State(DefaultMic.Device) : MicState.Unavailable;
                 }
                 catch (Exception ex)
@@ -422,12 +424,12 @@ namespace MiTvMic
 
         void SyncLists()
         {
-            string host = Config.Host;
             List<Pairings.Item> list = Pairings.All();
             bool same = pairedRows.Count == list.Count;
             for (int i = 0; same && i < list.Count; i++)
             {
-                same = pairedRows[i].Ip == list[i].Ip && pairedRows[i].Name == NameOf(list[i].Name);
+                same = pairedRows[i].PairId == list[i].Id && pairedRows[i].Ip == list[i].Ip
+                    && pairedRows[i].Name == NameOf(list[i].Name);
             }
             if (!same)
             {
@@ -437,20 +439,29 @@ namespace MiTvMic
                     Row r = new Row();
                     r.Name = NameOf(p.Name);
                     r.Ip = p.Ip;
+                    r.PairId = p.Id;
                     pairedRows.Add(r);
                 }
                 pairedList.ItemsSource = null;
                 pairedList.ItemsSource = pairedRows;
             }
-            foreach (Row r in pairedRows)
-            {
-                r.State = r.Ip != host ? "" : Config.Enabled ? "使用中" : "已关闭";
-            }
+            SyncPairedStates();
             foreach (Row r in foundRows)
             {
-                r.State = list.Exists(delegate (Pairings.Item p) { return p.Ip == r.Ip; }) ? "已配对" : "";
+                r.State = list.Exists(delegate (Pairings.Item p) { return p.Id == r.PairId; }) ? "已配对" : "";
             }
             UpdateButtons();
+        }
+
+        void SyncPairedStates()
+        {
+            Pairings.Item selected = Pairings.Selected();
+            bool enabled = Config.Enabled;
+            foreach (Row r in pairedRows)
+            {
+                r.State = selected == null || r.PairId != selected.Id ? "" : !enabled ? "已关闭"
+                    : snap.Connected && snap.ConnectedId == r.PairId ? "使用中" : "未连接";
+            }
         }
 
         static string NameOf(string name)
@@ -461,6 +472,7 @@ namespace MiTvMic
         void Apply(Snapshot s)
         {
             snap = s;
+            SyncPairedStates();
             Card card = s.Card;
             svcText.Text = "后台进程：" + (s.Running ? "运行中" : "已停止") + "　虚拟声卡 " + s.Device + "："
                 + card.StateText + (card.Ready && card.WaveIsWide ? "（16 声道端）" : "");
@@ -515,7 +527,8 @@ namespace MiTvMic
 
         void UpdateButtons()
         {
-            pairBtn.IsEnabled = !pairing && foundList.SelectedItem != null;
+            Row found = foundList.SelectedItem as Row;
+            pairBtn.IsEnabled = !pairing && found != null && found.State != "已配对";
             scanBtn.IsEnabled = !scanning;
             procBtn.IsEnabled = cableBtn.IsEnabled = wideBtn.IsEnabled = micBtn.IsEnabled = !busy;
         }
@@ -570,7 +583,7 @@ namespace MiTvMic
         {
             if (!switching) return;
             string link = s.Link;
-            string host = Config.Host;
+            Pairings.Item selected = Pairings.Selected();
             bool done = false, ok = true;
             string text = link;
             if (!s.Running || !s.Card.Ready)
@@ -580,8 +593,8 @@ namespace MiTvMic
                 text = s.Card.Ready ? "后台进程未运行，请先启动后台进程" : LinkLine(s);
             }
             else if (!Config.Enabled) done = link == "推流已关闭";
-            else if (host.Length == 0) done = link.StartsWith("未选择");
-            else if (link.StartsWith("已连接") && link.Contains(" " + host + "，")) done = true;
+            else if (selected == null) done = link.StartsWith("未选择");
+            else if (s.Connected && s.ConnectedId == selected.Id) done = true;
             else if (link.StartsWith("电视连接失败") || link.StartsWith("电视拒绝"))
             {
                 done = true;
@@ -618,12 +631,26 @@ namespace MiTvMic
                 e.Handled = true;
                 return;
             }
-            bool active = Config.Host == row.Ip && Config.Enabled;
+            Pairings.Item selected = Pairings.Selected();
+            bool active = selected != null && selected.Id == row.PairId && Config.Enabled;
             pairedMenu.Items.Clear();
             pairedMenu.Items.Add(MenuEntry(active ? "停用" : "启用", delegate
             {
                 if (active) Stop(); else Use(row);
             }));
+            bool auto = Pairings.AutoConnect(row.PairId);
+            MenuItem autoEntry = MenuEntry("自动查找并重连", delegate
+            {
+                bool saved = Write(delegate
+                {
+                    if (!auto && active && Config.Host != row.PairId) Config.Set("host", row.PairId);
+                    Config.Set("auto-" + row.PairId, auto ? "0" : "1");
+                });
+                if (saved && !auto && !active) Use(row);
+            });
+            autoEntry.IsCheckable = true;
+            autoEntry.IsChecked = auto;
+            pairedMenu.Items.Add(autoEntry);
             pairedMenu.Items.Add(MenuEntry("删除配对", delegate { Delete(row); }));
         }
 
@@ -639,7 +666,7 @@ namespace MiTvMic
         {
             bool wrote = Write(delegate
             {
-                Config.Set("host", row.Ip);
+                Config.Set("host", row.PairId);
                 Config.Set("enabled", "1");
             });
             SyncLists();
@@ -655,10 +682,11 @@ namespace MiTvMic
 
         void Delete(Row row)
         {
-            bool wasHost = Config.Host == row.Ip;
+            Pairings.Item selected = Pairings.Selected();
+            bool wasHost = selected != null && selected.Id == row.PairId;
             bool wrote = Write(delegate
             {
-                Pairings.Remove(row.Ip);
+                Pairings.Remove(row.PairId);
                 if (wasHost) Config.Set("host", "");
             });
             SyncLists();
@@ -675,7 +703,7 @@ namespace MiTvMic
             new Thread(delegate ()
             {
                 List<Protocol.Tv> tvs = new List<Protocol.Tv>();
-                try { tvs = Protocol.Scan(extra); }
+                try { tvs = Protocol.Scan(extra, Pairings.All()); }
                 catch (Exception ex) { Log.Write("扫描失败：" + ex.Message); }
                 scanning = false;
                 if (closing) return;
@@ -688,6 +716,17 @@ namespace MiTvMic
                         Row r = new Row();
                         r.Name = NameOf(tv.Name);
                         r.Ip = tv.Ip.ToString();
+                        if (tv.Pair != null)
+                        {
+                            r.PairId = tv.Pair.Id;
+                            Write(delegate
+                            {
+                                Pairings.Item selected = Pairings.Selected();
+                                if (selected != null && selected.Id == tv.Pair.Id && Config.Host != selected.Id)
+                                    Config.Set("host", selected.Id);
+                                Pairings.RememberAddress(tv.Pair, r.Ip);
+                            });
+                        }
                         foundRows.Add(r);
                     }
                     foundList.ItemsSource = null;
@@ -697,7 +736,7 @@ namespace MiTvMic
                         ShowNotice("未找到电视。请确认电视已开启「麦克风推流」，且与电脑处于同一局域网。", false);
                         OfferFirewall(true);
                     }
-                    if (tvs.Count > 0) ShowNotice("发现 " + tvs.Count + " 台电视，请选中一台后点击「配对」。", true);
+                    if (tvs.Count > 0) ShowNotice("发现 " + tvs.Count + " 台电视。已配对的电视可在「选择电视」页启用。", true);
                     SyncLists();
                 });
             }).Start();
@@ -707,7 +746,7 @@ namespace MiTvMic
         {
             Row row = foundList.SelectedItem as Row;
             IPAddress ip;
-            if (row == null || !IPAddress.TryParse(row.Ip, out ip)) return;
+            if (row == null || row.State == "已配对" || !IPAddress.TryParse(row.Ip, out ip)) return;
             pairing = true;
             UpdateButtons();
             ShowMask("已向 " + row.Ip + " 发送配对请求\n请在电视上用遥控器选择「允许」（最长等待 60 秒）");
@@ -734,8 +773,8 @@ namespace MiTvMic
                 ShowNotice("配对失败：" + error + "。可再次点击「配对」重试。", false);
                 return;
             }
-            if (!Write(delegate { Pairings.Add(row.Ip, row.Name, token); })) return;
-            ShowNotice("已与 " + row.Ip + " 配对。请在「选择电视」页右键该电视，选择「启用」。", true);
+            if (!Write(delegate { row.PairId = Pairings.Add(row.Ip, row.Name, token); })) return;
+            ShowNotice("已与 " + row.Ip + " 配对。请在「选择电视」页右键该电视，选择「启用」或「自动查找并重连」。", true);
             SyncLists();
         }
 
