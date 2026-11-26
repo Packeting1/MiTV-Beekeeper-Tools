@@ -160,7 +160,13 @@ final class MicPairs extends Part {
             }
           };
       resolver.registerContentObserver(Settings.Global.getUriFor(KEY_PAIRS), false, observer);
-      self[0].setOnDismissListener(d -> resolver.unregisterContentObserver(observer));
+      self[0].setOnDismissListener(
+          new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialog) {
+              resolver.unregisterContentObserver(observer);
+            }
+          });
       observer.onChange(false);
     }
   }
