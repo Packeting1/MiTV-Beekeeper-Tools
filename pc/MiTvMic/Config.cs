@@ -350,22 +350,17 @@ namespace MiTvMic
             return list;
         }
 
+        // 只按地址替换旧记录：不同电视可能同名，换了地址的电视由自动重连更新地址
         public static string Add(string ip, string name, string token)
         {
-            string id = IdOf(token);
             string cleanName = name.Replace('\r', ' ').Replace('\n', ' ').Trim();
             Config.EditPairs(delegate (List<KeyValuePair<string, string>> pairs)
             {
-                pairs.RemoveAll(delegate (KeyValuePair<string, string> p)
-                {
-                    int split = p.Value.IndexOf('|');
-                    return p.Key == ip || (split >= 0 && (p.Value.Substring(0, split) == token
-                        || cleanName.Length > 0 && p.Value.Substring(split + 1) == cleanName));
-                });
+                pairs.RemoveAll(delegate (KeyValuePair<string, string> p) { return p.Key == ip; });
                 pairs.Add(new KeyValuePair<string, string>(ip, token + "|" + cleanName));
                 return true;
             });
-            return id;
+            return IdOf(token);
         }
 
         static bool Matches(KeyValuePair<string, string> pair, string id)

@@ -87,7 +87,7 @@ namespace MiTvMic
                 lastDiscoveryId = pair.Id;
                 nextDiscovery = DateTime.UtcNow.AddSeconds(8);
                 List<Protocol.Tv> found = Protocol.Scan("", new[] { pair }, true);
-                if (stopped.WaitOne(0) || !Config.Enabled || !Pairings.IsSelected(pair)) return 0;
+                if (!Wanted(pair)) return 0;
                 if (found.Count > 0)
                 {
                     ip = found[0].Ip;
@@ -97,6 +97,11 @@ namespace MiTvMic
             }
             Pump(ip, pair, card);
             return 2000;
+        }
+
+        bool Wanted(Pairings.Item pair)
+        {
+            return !stopped.WaitOne(0) && Config.Enabled && Pairings.IsSelected(pair);
         }
 
         // 状态变化时才写日志并更新连接状态
@@ -127,11 +132,11 @@ namespace MiTvMic
                 {
                     int chunk = f.Rate / 50 * f.Channels * f.Bits / 8;
                     bool streaming = false;
-                    while (!stopped.WaitOne(0) && Config.Enabled && Pairings.IsSelected(pair))
+                    while (Wanted(pair))
                     {
                         byte[] b = Protocol.ReadFully(s, chunk);
                         if (b == null) break;
-                        if (stopped.WaitOne(0) || !Config.Enabled || !Pairings.IsSelected(pair)) break;
+                        if (!Wanted(pair)) break;
                         float gain = Config.Gain;
                         if (gain != 1 && f.Bits == 16) ApplyGain(b, gain);
                         w.Write(b);
