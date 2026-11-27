@@ -198,6 +198,15 @@ namespace MiTvMic
             }
         }
 
+        public static void Reload()
+        {
+            lock (gate)
+            {
+                checkedAt = DateTime.MinValue;
+                Load();
+            }
+        }
+
         internal static List<KeyValuePair<string, string>> Pairs()
         {
             lock (gate)
@@ -298,6 +307,11 @@ namespace MiTvMic
         public static bool Enabled
         {
             get { return Get("enabled", "1") == "1"; }
+        }
+
+        public static bool ShowTray
+        {
+            get { return Get("show_tray", "0") == "1"; }
         }
 
         public static string Host
