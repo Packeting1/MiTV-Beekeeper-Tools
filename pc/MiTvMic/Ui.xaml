@@ -533,6 +533,8 @@
           <Run Text="项目地址："/><Hyperlink x:Name="RepoLink" NavigateUri="https://github.com/Packeting1/MiTV-Beekeeper-Tools"
                     Foreground="{StaticResource Accent}">github.com/Packeting1/MiTV-Beekeeper-Tools</Hyperlink>
         </TextBlock>
+        <TextBlock Text="贡献者：@CLF184" Foreground="{StaticResource TextSecondary}"
+                   LineHeight="24" TextWrapping="Wrap"/>
       </StackPanel>
 
     </Grid>
