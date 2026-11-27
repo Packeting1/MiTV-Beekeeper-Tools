@@ -434,7 +434,7 @@
 
       <StackPanel x:Name="PagePick">
         <TextBlock Text="选择电视" Style="{StaticResource PageTitle}"/>
-        <TextBlock Text="右键点击电视可启用、停用或删除配对。启用后，电脑将使用该电视作为麦克风。"
+        <TextBlock Text="右键点击电视可启用、停用、设置自动重连或删除配对。"
                    Style="{StaticResource PageHint}"/>
 
         <Grid Margin="9,0,9,0">
@@ -442,10 +442,12 @@
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="150"/>
             <ColumnDefinition Width="100"/>
+            <ColumnDefinition Width="90"/>
           </Grid.ColumnDefinitions>
           <TextBlock Grid.Column="0" Text="名称" Style="{StaticResource ColHead}"/>
           <TextBlock Grid.Column="1" Text="地址" Style="{StaticResource ColHead}"/>
           <TextBlock Grid.Column="2" Text="状态" Style="{StaticResource ColHead}"/>
+          <TextBlock Grid.Column="3" Text="自动重连" Style="{StaticResource ColHead}"/>
         </Grid>
 
         <ListBox x:Name="PairedList" Style="{StaticResource RowList}" Height="110">
@@ -456,12 +458,15 @@
                   <ColumnDefinition Width="*"/>
                   <ColumnDefinition Width="150"/>
                   <ColumnDefinition Width="100"/>
+                  <ColumnDefinition Width="90"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding Name}" Style="{StaticResource Cell}"
                            Foreground="{StaticResource TextPrimary}"/>
                 <TextBlock Grid.Column="1" Text="{Binding Ip}" Style="{StaticResource Cell}"
                            Foreground="{StaticResource TextSecondary}"/>
                 <TextBlock Grid.Column="2" Text="{Binding State}" Style="{StaticResource Cell}"
+                           Foreground="{StaticResource Accent}"/>
+                <TextBlock Grid.Column="3" Text="{Binding ReconnectState}" Style="{StaticResource Cell}"
                            Foreground="{StaticResource Accent}"/>
               </Grid>
             </DataTemplate>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 
@@ -71,42 +72,54 @@ namespace MiTvMic
     // 后台进程退出后共享内存随之消失，界面读到空串。
     static class Link
     {
-        const string MapName = @"Local\MiTvMic.Link";
+        const string MapName = @"Local\MiTvMic.Link.v2";
         const int Size = 1024;
+        const int IdOffset = 8;
+        const int IdCapacity = 64;
+        const int TextOffset = IdOffset + IdCapacity;
         static MemoryMappedFile map;
-        static string last;
+        static string last, lastId;
 
-        public static void Set(string text)
+        public static void Set(string text, string connectedId = "")
         {
-            if (text == last) return;
-            last = text;
+            if (text == last && connectedId == lastId) return;
             try
             {
                 if (map == null) map = MemoryMappedFile.CreateOrOpen(MapName, Size);
                 byte[] b = Encoding.UTF8.GetBytes(text);
-                int n = Math.Min(b.Length, Size - 4);
+                byte[] id = Encoding.ASCII.GetBytes(connectedId);
+                int n = Math.Min(b.Length, Size - TextOffset);
                 using (MemoryMappedViewAccessor v = map.CreateViewAccessor(0, Size))
                 {
                     v.Write(0, 0);
-                    v.WriteArray(4, b, 0, n);
+                    v.Write(4, id.Length);
+                    v.WriteArray(IdOffset, id, 0, id.Length);
+                    v.WriteArray(TextOffset, b, 0, n);
                     v.Write(0, n);
                 }
+                last = text;
+                lastId = connectedId;
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
 
-        public static string Get()
+        public static string Get(out string connectedId)
         {
+            connectedId = "";
             try
             {
                 using (MemoryMappedFile m = MemoryMappedFile.OpenExisting(MapName, MemoryMappedFileRights.Read))
                 using (MemoryMappedViewAccessor v = m.CreateViewAccessor(0, Size, MemoryMappedFileAccess.Read))
                 {
                     int n = v.ReadInt32(0);
-                    if (n <= 0 || n > Size - 4) return "";
+                    int idLength = v.ReadInt32(4);
+                    if (n <= 0 || n > Size - TextOffset || idLength < 0 || idLength > IdCapacity) return "";
                     byte[] b = new byte[n];
-                    v.ReadArray(4, b, 0, n);
+                    byte[] id = new byte[idLength];
+                    v.ReadArray(TextOffset, b, 0, n);
+                    v.ReadArray(IdOffset, id, 0, idLength);
+                    connectedId = Encoding.ASCII.GetString(id);
                     return Encoding.UTF8.GetString(b);
                 }
             }
@@ -311,7 +324,13 @@ namespace MiTvMic
     {
         public sealed class Item
         {
-            public string Ip, Name, Token;
+            public string Id, Ip, Name, Token;
+        }
+
+        static string IdOf(string token)
+        {
+            using (SHA256 sha = SHA256.Create())
+                return "pair-" + Convert.ToBase64String(sha.ComputeHash(Encoding.ASCII.GetBytes(token))).TrimEnd('=');
         }
 
         public static List<Item> All()
@@ -324,13 +343,15 @@ namespace MiTvMic
                 Item p = new Item();
                 p.Ip = kv.Key;
                 p.Token = kv.Value.Substring(0, i);
+                p.Id = IdOf(p.Token);
                 p.Name = kv.Value.Substring(i + 1);
                 list.Add(p);
             }
             return list;
         }
 
-        public static void Add(string ip, string name, string token)
+        // 只按地址替换旧记录：不同电视可能同名，换了地址的电视由自动重连更新地址
+        public static string Add(string ip, string name, string token)
         {
             string cleanName = name.Replace('\r', ' ').Replace('\n', ' ').Trim();
             Config.EditPairs(delegate (List<KeyValuePair<string, string>> pairs)
@@ -339,35 +360,54 @@ namespace MiTvMic
                 pairs.Add(new KeyValuePair<string, string>(ip, token + "|" + cleanName));
                 return true;
             });
+            return IdOf(token);
         }
 
-        public static void Remove(string ip)
+        static bool Matches(KeyValuePair<string, string> pair, string id)
         {
-            Remove(ip, null);
+            int split = pair.Value.IndexOf('|');
+            return split > 0 && IdOf(pair.Value.Substring(0, split)) == id;
         }
 
-        // 旧连接被拒绝时，只移除该口令，不影响界面刚重新配好的记录。
-        public static bool Remove(string ip, string token)
+        public static void Remove(string id)
         {
-            bool removed = false;
             Config.EditPairs(delegate (List<KeyValuePair<string, string>> pairs)
             {
-                removed = pairs.RemoveAll(delegate (KeyValuePair<string, string> p)
-                {
-                    return p.Key == ip && (token == null || p.Value.StartsWith(token + "|", StringComparison.Ordinal));
-                }) > 0;
-                return removed;
+                return pairs.RemoveAll(delegate (KeyValuePair<string, string> p) { return Matches(p, id); }) > 0;
             });
-            return removed;
         }
 
-        public static string TokenOf(string ip)
+        public static void RememberAddress(Item item, string ip)
         {
+            if (item.Ip == ip) return;
+            Config.EditPairs(delegate (List<KeyValuePair<string, string>> pairs)
+            {
+                int i = pairs.FindIndex(delegate (KeyValuePair<string, string> p) { return Matches(p, item.Id); });
+                if (i < 0 || pairs[i].Key == ip) return false;
+                pairs[i] = new KeyValuePair<string, string>(ip, pairs[i].Value);
+                return true;
+            });
+        }
+
+        public static Item Selected()
+        {
+            string host = Config.Host;
             foreach (Item p in All())
             {
-                if (p.Ip == ip) return p.Token;
+                if (p.Id == host || p.Ip == host) return p;
             }
-            return "";
+            return null;
+        }
+
+        public static bool AutoConnect(string id)
+        {
+            return Config.Get("auto-" + id, "0") == "1";
+        }
+
+        public static bool IsSelected(Item item)
+        {
+            string host = Config.Host;
+            return host == item.Id || host == item.Ip;
         }
     }
 }

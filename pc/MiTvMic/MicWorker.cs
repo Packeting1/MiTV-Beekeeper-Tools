@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -12,6 +13,9 @@ namespace MiTvMic
         Thread thread;
         volatile Socket current;
         string lastNote;
+        string lastConnectedId;
+        string lastDiscoveryId;
+        DateTime nextDiscovery;
 
         public void Start()
         {
@@ -55,15 +59,14 @@ namespace MiTvMic
         // 条件不满足则等待，满足则推流直到断开。返回下一轮前的等待毫秒数
         int Cycle()
         {
-            string host = Config.Host;
             IPAddress ip;
-            string token = Pairings.TokenOf(host);
             if (!Config.Enabled)
             {
                 Note("推流已关闭");
                 return 1000;
             }
-            if (token.Length == 0 || !IPAddress.TryParse(host, out ip))
+            Pairings.Item pair = Pairings.Selected();
+            if (pair == null || !IPAddress.TryParse(pair.Ip, out ip))
             {
                 Note("未选择电视");
                 return 1000;
@@ -78,20 +81,40 @@ namespace MiTvMic
                 return 5000;
             }
 
-            Pump(ip, token, card);
+            if (Pairings.AutoConnect(pair.Id))
+            {
+                if (lastDiscoveryId == pair.Id && DateTime.UtcNow < nextDiscovery) return 1000;
+                lastDiscoveryId = pair.Id;
+                nextDiscovery = DateTime.UtcNow.AddSeconds(8);
+                List<Protocol.Tv> found = Protocol.Scan("", new[] { pair }, true);
+                if (!Wanted(pair)) return 0;
+                if (found.Count > 0)
+                {
+                    ip = found[0].Ip;
+                    Pairings.RememberAddress(pair, ip.ToString());
+                }
+                // 老版电视或 UDP 无响应时，以保存的地址尝试原有 TCP 握手。
+            }
+            Pump(ip, pair, card);
             return 2000;
         }
 
-        // 状态变化时才写日志并更新连接状态
-        void Note(string msg)
+        bool Wanted(Pairings.Item pair)
         {
-            if (msg == lastNote) return;
-            lastNote = msg;
-            Log.Write(msg);
-            Link.Set(msg);
+            return !stopped.WaitOne(0) && Config.Enabled && Pairings.IsSelected(pair);
         }
 
-        void Pump(IPAddress ip, string token, Card card)
+        // 状态变化时才写日志并更新连接状态
+        void Note(string msg, string connectedId = "")
+        {
+            if (msg == lastNote && connectedId == lastConnectedId) return;
+            lastNote = msg;
+            lastConnectedId = connectedId;
+            Log.Write(msg);
+            Link.Set(msg, connectedId);
+        }
+
+        void Pump(IPAddress ip, Pairings.Item pair, Card card)
         {
             Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             current = s;
@@ -99,41 +122,34 @@ namespace MiTvMic
             {
                 s.NoDelay = true;
                 s.ReceiveTimeout = 5000;
-                Protocol.Format f = Protocol.Open(s, ip, token);
+                Protocol.Format f = Protocol.Open(s, ip, pair.Token);
                 if (f == null)
                 {
-                    bool removed = Pairings.Remove(ip.ToString(), token);
-                    Note(removed ? "电视拒绝了该口令，已移除配对，请重新配对" : "旧口令已失效，正在读取新的配对");
+                    Note("电视拒绝了该口令，请扫描已配对电视或重新配对");
                     return;
                 }
-                string name = "";
-                foreach (Pairings.Item p in Pairings.All())
-                {
-                    if (p.Ip == ip.ToString()) name = p.Name;
-                }
-                string host = ip.ToString();
                 using (WaveOut w = new WaveOut(card.WaveIndex, f.Rate, f.Channels, f.Bits))
                 {
                     int chunk = f.Rate / 50 * f.Channels * f.Bits / 8;
                     bool streaming = false;
-                    while (!stopped.WaitOne(0) && Config.Enabled && Config.Host == host)
+                    while (Wanted(pair))
                     {
                         byte[] b = Protocol.ReadFully(s, chunk);
                         if (b == null) break;
-                        if (stopped.WaitOne(0) || !Config.Enabled || Config.Host != host) break;
+                        if (!Wanted(pair)) break;
                         float gain = Config.Gain;
                         if (gain != 1 && f.Bits == 16) ApplyGain(b, gain);
                         w.Write(b);
                         if (!streaming)
                         {
                             streaming = true;
-                            Note("已连接 " + host + "，" + (name.Length > 0 ? name + "，" : "") + f.Rate + " Hz "
-                                + f.Channels + " 声道 " + f.Bits + " 位，输出到 " + card.ShortName);
+                            Note("已连接 " + ip + "，" + (pair.Name.Length > 0 ? pair.Name + "，" : "") + f.Rate + " Hz "
+                                + f.Channels + " 声道 " + f.Bits + " 位，输出到 " + card.ShortName, pair.Id);
                         }
                     }
                     if (!stopped.WaitOne(0))
                     {
-                        bool stillSelected = Config.Enabled && Config.Host == host;
+                        bool stillSelected = Config.Enabled && Pairings.IsSelected(pair);
                         Note(!stillSelected ? "连接已断开" : streaming ? "连接已断开，正在重连"
                             : "电视连接失败（未收到音频），正在重试");
                     }

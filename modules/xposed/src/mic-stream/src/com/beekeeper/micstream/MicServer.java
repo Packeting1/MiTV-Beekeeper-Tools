@@ -29,6 +29,7 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.GeneralSecurityException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -330,6 +331,8 @@ final class MicServer {
             }
           }
           publish();
+        } else if (req.startsWith("MITVMIC-FIND? ")) {
+          reply = pairedDiscovery(req, p);
         } else if (req.startsWith("MITVMIC?")) {
           reply = hello;
         }
@@ -337,6 +340,19 @@ final class MicServer {
       }
     } catch (IOException e) {
       // 服务停止时 socket 被关闭
+    }
+  }
+
+  private byte[] pairedDiscovery(String request, DatagramPacket packet) {
+    String[] fields = request.split(" ", -1);
+    if (fields.length != 3 || !fields[1].matches("[a-f0-9]{32}") || fields[2].length() != 44)
+      return null;
+    try (DatagramSocket route = new DatagramSocket()) {
+      route.connect(packet.getSocketAddress());
+      String proof = pairs.response(fields[1], fields[2], route.getLocalAddress().getHostAddress());
+      return proof == null ? null : ("MITVMIC-FOUND " + proof).getBytes("US-ASCII");
+    } catch (IOException | GeneralSecurityException e) {
+      return null;
     }
   }
 
@@ -497,7 +513,7 @@ final class MicServer {
         lastAudioWrite = null;
         h.removeCallbacks(streamCheck);
         prefs.edit().putLong("deadline", 0).apply();
-        pairs.touch(tk);
+        pairs.touch(tk, s.getInetAddress().getHostAddress());
       }
       publish();
       // 旧录音释放、增益还原后才启动新录音；关闭服务不必等待此锁。
@@ -589,7 +605,7 @@ final class MicServer {
         publish();
         h.post(this::scheduleIdle);
       }
-      if (tk != null) pairs.touch(tk);
+      if (tk != null) pairs.touch(tk, null);
       close(s);
     }
   }

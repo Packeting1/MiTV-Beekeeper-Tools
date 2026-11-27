@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 
@@ -11,6 +12,7 @@ namespace MiTvMic
 {
     // 和电视的协议（电视端见 MicServer.java）：
     //   UDP 9777  "MITVMIC?" 扫描，回 "MITVMIC 名称"；"MITVMIC-PAIR? 电脑名" 配对，回 MITVMIC-WAIT / MITVMIC-TOKEN 口令 / MITVMIC-DENY
+    //             "MITVMIC-FIND? 随机数 HMAC" 已配对电脑找电视，回 "MITVMIC-FOUND HMAC"（用口令签名，绑定电视地址）
     //   TCP 9777  发 16 字节口令，回 "TVMC"+采样率(int)+声道(byte)+位数(byte) 后是 PCM；口令不对回 "TVNO"
     static class Protocol
     {
@@ -18,6 +20,7 @@ namespace MiTvMic
         {
             public IPAddress Ip;
             public string Name;
+            public Pairings.Item Pair;
         }
 
         public sealed class Format
@@ -25,10 +28,22 @@ namespace MiTvMic
             public int Rate, Channels, Bits;
         }
 
-        // 电脑常有多块虚拟网卡，默认路由的广播不一定到电视所在网段，所以每个网卡单独发一次定向广播
-        public static List<Tv> Scan(string extra)
+        static string Proof(string token, string message)
         {
-            byte[] req = Encoding.ASCII.GetBytes("MITVMIC?");
+            using (HMACSHA256 mac = new HMACSHA256(Encoding.ASCII.GetBytes(token)))
+                return Convert.ToBase64String(mac.ComputeHash(Encoding.ASCII.GetBytes(message)));
+        }
+
+        // 电脑常有多块虚拟网卡，默认路由的广播不一定到电视所在网段，所以每个网卡单独发一次定向广播
+        public static List<Tv> Scan(string extra, IList<Pairings.Item> paired, bool pairedOnly = false)
+        {
+            List<byte[]> requests = new List<byte[]>();
+            if (!pairedOnly) requests.Add(Encoding.ASCII.GetBytes("MITVMIC?"));
+            string nonce = Guid.NewGuid().ToString("N");
+            foreach (Pairings.Item p in paired)
+            {
+                requests.Add(Encoding.ASCII.GetBytes("MITVMIC-FIND? " + nonce + " " + Proof(p.Token, "find " + nonce)));
+            }
             List<Socket> socks = new List<Socket>();
             List<EndPoint> targets = new List<EndPoint>();
             Dictionary<string, Tv> found = new Dictionary<string, Tv>();
@@ -62,11 +77,12 @@ namespace MiTvMic
                     }
                 }
                 IPAddress manual;
-                if (IPAddress.TryParse(extra, out manual))
+                if (IPAddress.TryParse(extra, out manual) && manual.AddressFamily == AddressFamily.InterNetwork)
                 {
                     socks.Add(new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp));
                     targets.Add(new IPEndPoint(manual, Env.Port));
                 }
+                if (socks.Count == 0) return new List<Tv>();
 
                 DateTime start = DateTime.UtcNow;
                 int sent = 0;
@@ -79,8 +95,11 @@ namespace MiTvMic
                         sent++;
                         for (int i = 0; i < socks.Count; i++)
                         {
-                            try { socks[i].SendTo(req, targets[i]); }
-                            catch (SocketException) { }
+                            foreach (byte[] req in requests)
+                            {
+                                try { socks[i].SendTo(req, targets[i]); }
+                                catch (SocketException) { }
+                            }
                         }
                     }
                     foreach (Socket s in socks)
@@ -91,12 +110,29 @@ namespace MiTvMic
                         try { n = s.ReceiveFrom(buf, ref from); }
                         catch (SocketException) { continue; }
                         string reply = Encoding.UTF8.GetString(buf, 0, n);
-                        // "MITVMIC-" 开头的是配对回复，不是扫描回复
-                        if (!reply.StartsWith("MITVMIC") || reply.StartsWith("MITVMIC-")) continue;
+                        IPEndPoint source = (IPEndPoint)from;
+                        if (source.Port != Env.Port) continue;
                         Tv tv = new Tv();
-                        tv.Ip = ((IPEndPoint)from).Address;
-                        tv.Name = reply.Substring(7).Trim();
-                        found[tv.Ip.ToString()] = tv;
+                        tv.Ip = source.Address;
+                        string address = tv.Ip.ToString();
+                        if (reply.StartsWith("MITVMIC-FOUND ", StringComparison.Ordinal))
+                        {
+                            string proof = reply.Substring("MITVMIC-FOUND ".Length);
+                            foreach (Pairings.Item p in paired)
+                            {
+                                if (proof != Proof(p.Token, "found " + nonce + " " + address)) continue;
+                                tv.Pair = p;
+                                tv.Name = p.Name;
+                                if (pairedOnly) return new List<Tv> { tv };
+                                found[address] = tv;
+                                break;
+                            }
+                        }
+                        else if (!pairedOnly && reply.StartsWith("MITVMIC ", StringComparison.Ordinal) && !found.ContainsKey(address))
+                        {
+                            tv.Name = reply.Substring(8).Trim();
+                            found[address] = tv;
+                        }
                     }
                 }
             }
@@ -145,7 +181,7 @@ namespace MiTvMic
             return null;
         }
 
-        // 连接并握手。返回 null 表示电视不认口令（调用方负责移除配对）
+        // 连接并握手。返回 null 表示电视不认口令
         public static Format Open(Socket s, IPAddress ip, string token)
         {
             IAsyncResult ar = s.BeginConnect(ip, Env.Port, null, null);
